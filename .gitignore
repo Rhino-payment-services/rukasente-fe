@@ -2,6 +2,8 @@
 
 # dependencies
 /node_modules
+# This project uses Yarn; keep npm from adding a second lockfile to the tree
+package-lock.json
 /.pnp
 .pnp.*
 .yarn/*

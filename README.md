@@ -1,36 +1,36 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Ruka Sente (admin frontend)
 
-## Getting Started
+Staff admin UI for [rukasente-be](https://github.com/) (`/api/v1/admin/*`): Next.js App Router, NextAuth (credentials → JWT), TanStack Query, and RBAC from `user.permissions`.
 
-First, run the development server:
+## Setup
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+1. Copy environment variables:
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+   ```bash
+   cp .env.local.example .env.local
+   ```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+2. Set **`NEXTAUTH_SECRET`** (required for stable sessions in any environment; e.g. `openssl rand -base64 32`), **`NEXTAUTH_URL`** (e.g. `http://localhost:3000`; a default is applied in `next.config.ts` if omitted), and **`NEXT_PUBLIC_API_URL`** pointing at **rukasente-be** (e.g. `http://localhost:8080/api/v1` — must match the API’s `/api/v1` base path).
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+3. Ensure **rukasente-be** is running and allows this origin in CORS (e.g. `http://localhost:3000` for `yarn dev`). Login calls `POST {NEXT_PUBLIC_API_URL}/admin/auth/login`; sign-out calls `POST .../admin/auth/logout`; authenticated requests send `Authorization: Bearer <access_token>` from the NextAuth session.
 
-## Learn More
+4. Install and run (this repo uses **Yarn**; `yarn.lock` is the source of truth):
 
-To learn more about Next.js, take a look at the following resources:
+   ```bash
+   yarn install
+   yarn dev
+   ```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Open [http://localhost:3000](http://localhost:3000), sign in at `/auth/login`, then use the dashboard.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Troubleshooting
 
-## Deploy on Vercel
+- **`JWT_SESSION_ERROR` / “decryption operation failed”** — Usually an old session cookie encrypted with a different `NEXTAUTH_SECRET`. Set `NEXTAUTH_SECRET` in `.env.local`, restart the dev server, and **clear cookies** for `localhost:3000` (or use a private window), then sign in again.
+- **`NEXTAUTH_URL` / `NO_SECRET` warnings** — Add `NEXTAUTH_URL` and `NEXTAUTH_SECRET` to `.env.local`. For verbose NextAuth logs, set `NEXTAUTH_DEBUG=true`.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Scripts
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `yarn dev` — development server
+- `yarn build` — production build
+- `yarn start` — production server
+- `yarn lint` — ESLint
