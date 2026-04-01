@@ -1,56 +1,65 @@
-"use client";
-
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { CompactLoading } from "@/components/ui/loading";
-import {
-  useEligibilityDecisions,
-  useManualReviewCases,
-  useScoringResults,
-  useScoringRules,
-} from "@/hooks/use-scoring";
-
-function JsonPreview({ value }: { value: unknown }) {
-  return (
-    <pre className="text-xs bg-muted/50 p-3 rounded-md overflow-auto max-h-64">
-      {JSON.stringify(value, null, 2)}
-    </pre>
-  );
-}
+import { Card, CardContent } from "@/components/ui/card";
+import Link from "next/link";
 
 export default function ScoringPage() {
-  const results = useScoringResults();
-  const rules = useScoringRules();
-  const manual = useManualReviewCases();
-  const elig = useEligibilityDecisions();
-
-  const sections = [
-    { title: "Score results", q: results },
-    { title: "Rules", q: rules },
-    { title: "Manual review", q: manual },
-    { title: "Eligibility decisions", q: elig },
-  ];
-
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">Scoring</h1>
-      <div className="grid gap-4 lg:grid-cols-2">
-        {sections.map(({ title, q }) => (
-          <Card key={title}>
-            <CardHeader>
-              <CardTitle className="text-base">{title}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {q.isLoading && <CompactLoading />}
-              {q.error && (
-                <p className="text-destructive text-sm">
-                  {(q.error as Error).message}
-                </p>
-              )}
-              {q.data !== undefined && <JsonPreview value={q.data} />}
-            </CardContent>
-          </Card>
-        ))}
+      <div>
+        <h1 className="text-2xl font-semibold">Scoring</h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          Configure credit scoring rules and review results. Rules define how
+          each factor (KYC, transaction history, etc.) contributes to a
+          borrower&apos;s credit score. Results, eligibility decisions and
+          manual review cases are generated automatically when a borrower is
+          scored.
+        </p>
       </div>
+
+      <Card>
+        <CardContent className="space-y-4 pt-4">
+          <p className="text-sm text-muted-foreground">
+            Open one of the modules below to manage a specific part of scoring.
+          </p>
+          <div className="grid gap-4 md:grid-cols-2">
+            <Link
+              href="/scoring/rules"
+              className="rounded-md border border-border p-4 hover:bg-muted/40"
+            >
+              <h3 className="font-medium">Scoring rules</h3>
+              <p className="text-sm text-muted-foreground">
+                Create and adjust rules used to compute borrower scores.
+              </p>
+            </Link>
+            <Link
+              href="/scoring/results"
+              className="rounded-md border border-border p-4 hover:bg-muted/40"
+            >
+              <h3 className="font-medium">Score results</h3>
+              <p className="text-sm text-muted-foreground">
+                View generated score outcomes and recommended limits.
+              </p>
+            </Link>
+            <Link
+              href="/scoring/eligibility"
+              className="rounded-md border border-border p-4 hover:bg-muted/40"
+            >
+              <h3 className="font-medium">Eligibility decisions</h3>
+              <p className="text-sm text-muted-foreground">
+                See who qualified and why.
+              </p>
+            </Link>
+            <Link
+              href="/scoring/manual-review"
+              className="rounded-md border border-border p-4 hover:bg-muted/40"
+            >
+              <h3 className="font-medium">Manual review cases</h3>
+              <p className="text-sm text-muted-foreground">
+                Resolve cases that need human review.
+              </p>
+            </Link>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

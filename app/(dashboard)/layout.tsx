@@ -23,7 +23,9 @@ export default function DashboardLayout({
               isMenuOpen={mobileOpen}
             />
           </div>
-          <main className="flex-1 px-4 py-4 md:px-5 md:py-6 overflow-auto">{children}</main>
+          <main className="flex-1 overflow-auto py-6 px-6 md:px-10">
+            <div className="mx-auto w-[95%] max-w-[2200px]">{children}</div>
+          </main>
         </div>
       </div>
     </AuthGuard>

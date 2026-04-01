@@ -26,7 +26,8 @@ export function Topbar({
     } catch {
       /* still sign out locally */
     }
-    await signOut({ callbackUrl: "/auth/login" });
+    await signOut({ redirect: false });
+    window.location.assign("/auth/login");
     toast.success("Signed out");
   }
 

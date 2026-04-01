@@ -1,7 +1,6 @@
 "use client";
 
 import { RefreshCw } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatCard, StatCardsGrid } from "@/components/dashboard/stat-cards";
 import { RecentBorrowersPanel } from "@/components/dashboard/recent-borrowers";
 import { useSession } from "next-auth/react";
@@ -12,7 +11,7 @@ import { Perm, hasPermission } from "@/lib/permissions";
 
 export default function OverviewPage() {
   const { data: session } = useSession();
-  const { data: me, isLoading: meLoading } = useMe();
+  const { data: me } = useMe();
   const {
     staffTotal,
     borrowersTotal,
@@ -22,7 +21,6 @@ export default function OverviewPage() {
     isFetching: statsFetching,
   } = useDashboardStats();
 
-  const permCount = session?.user?.permissions?.length ?? 0;
   const canBorrowers = hasPermission(session?.user?.permissions, Perm.BorrowerView);
 
   return (
@@ -86,58 +84,6 @@ export default function OverviewPage() {
             loading={statsLoading}
           />
         </StatCardsGrid>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="border-gray-200 shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-[#08163d]">Session</CardTitle>
-            <CardDescription>From NextAuth · live profile below</CardDescription>
-          </CardHeader>
-          <CardContent className="text-sm space-y-2">
-            <p>
-              <span className="text-gray-500">User:</span>{" "}
-              <span className="font-medium text-gray-900">
-                {session?.user?.name ?? "—"}
-              </span>
-            </p>
-            <p>
-              <span className="text-gray-500">Email:</span>{" "}
-              {session?.user?.email ?? "—"}
-            </p>
-            <p>
-              <span className="text-gray-500">Permissions:</span>{" "}
-              <span className="tabular-nums">{permCount}</span>
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-gray-200 shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-[#08163d]">Profile API</CardTitle>
-            <CardDescription>GET /admin/me</CardDescription>
-          </CardHeader>
-          <CardContent className="text-sm space-y-2">
-            {meLoading && <p className="text-gray-500">Loading profile…</p>}
-            {!meLoading && me && (
-              <>
-                <p>
-                  <span className="text-gray-500">Status:</span>{" "}
-                  <span className="font-medium">{me.status}</span>
-                </p>
-                <p>
-                  <span className="text-gray-500">Roles:</span>{" "}
-                  {me.roles?.map((r) => r.name).join(", ") || "—"}
-                </p>
-                {me.phone && (
-                  <p>
-                    <span className="text-gray-500">Phone:</span> {me.phone}
-                  </p>
-                )}
-              </>
-            )}
-          </CardContent>
-        </Card>
       </div>
 
       {canBorrowers && (

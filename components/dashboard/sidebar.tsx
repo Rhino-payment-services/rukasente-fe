@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
+import { useState } from "react";
 import {
   LayoutDashboard,
   Users,
@@ -10,7 +11,9 @@ import {
   CreditCard,
   LineChart,
   Plug,
-  BookOpen,
+  WalletCards,
+  ChevronDown,
+  ChevronRight,
   Building2,
   X,
 } from "lucide-react";
@@ -25,6 +28,10 @@ type NavItem = {
   icon: React.ElementType;
   perm?: string;
   anyOf?: string[];
+  children?: Array<{
+    href: string;
+    label: string;
+  }>;
 };
 
 const sections: { title: string; items: NavItem[] }[] = [
@@ -40,7 +47,18 @@ const sections: { title: string; items: NavItem[] }[] = [
         icon: CreditCard,
         perm: Perm.SubscriptionView,
       },
-      { href: "/scoring", label: "Scoring", icon: LineChart, perm: Perm.ScoringView },
+      {
+        href: "/scoring",
+        label: "Scoring",
+        icon: LineChart,
+        perm: Perm.ScoringView,
+        children: [
+          { href: "/scoring/rules", label: "Scoring rules" },
+          { href: "/scoring/results", label: "Score results" },
+          { href: "/scoring/eligibility", label: "Eligibility decisions" },
+          { href: "/scoring/manual-review", label: "Manual review cases" },
+        ],
+      },
       {
         href: "/integrations",
         label: "Integrations",
@@ -48,10 +66,16 @@ const sections: { title: string; items: NavItem[] }[] = [
         perm: Perm.IntegrationView,
       },
       {
-        href: "/catalog",
-        label: "Roles & permissions",
-        icon: BookOpen,
-        anyOf: [Perm.RoleView, Perm.PermissionView],
+        href: "/loan-products",
+        label: "Loan products",
+        icon: WalletCards,
+        anyOf: [Perm.LoanProductView, Perm.StaffView],
+      },
+      {
+        href: "/loan-applications",
+        label: "Loan applications",
+        icon: WalletCards,
+        anyOf: [Perm.LoanApplicationView, Perm.StaffView],
       },
     ],
   },
@@ -90,6 +114,7 @@ export function Sidebar({
   const pathname = usePathname();
   const { data: session } = useSession();
   const perms = session?.user?.permissions ?? [];
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
 
   return (
     <>
@@ -159,29 +184,92 @@ export function Sidebar({
                         ? pathname === "/"
                         : pathname === item.href ||
                           pathname.startsWith(item.href + "/");
+                    const defaultOpen =
+                      pathname === item.href || pathname.startsWith(item.href + "/");
+                    const groupOpen =
+                      item.children?.length &&
+                      (openGroups[item.href] ?? defaultOpen);
                     return (
                       <li key={item.href}>
-                        <Link
-                          href={item.href}
-                          onClick={onClose}
-                          className={cn(
-                            "w-full flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200",
-                            active
-                              ? "bg-main-50 text-main-600 border border-main-200 shadow-sm"
-                              : "text-gray-700 hover:bg-gray-50 hover:text-gray-900"
-                          )}
-                        >
-                          <Icon
-                            className={cn(
-                              "w-5 h-5 mr-3 shrink-0",
-                              active ? "text-main-600" : "text-gray-500"
+                        {item.children?.length ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setOpenGroups((prev) => ({
+                                  ...prev,
+                                  [item.href]: !groupOpen,
+                                }))
+                              }
+                              className={cn(
+                                "w-full flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200",
+                                active
+                                  ? "bg-main-50 text-main-600 border border-main-200 shadow-sm"
+                                  : "text-gray-700 hover:bg-gray-50 hover:text-gray-900"
+                              )}
+                            >
+                              <Icon
+                                className={cn(
+                                  "w-5 h-5 mr-3 shrink-0",
+                                  active ? "text-main-600" : "text-gray-500"
+                                )}
+                              />
+                              <span className="truncate">{item.label}</span>
+                              {groupOpen ? (
+                                <ChevronDown className="ml-auto h-4 w-4 shrink-0" />
+                              ) : (
+                                <ChevronRight className="ml-auto h-4 w-4 shrink-0" />
+                              )}
+                            </button>
+                            {groupOpen && (
+                              <ul className="ml-8 mt-1 space-y-1">
+                                {item.children.map((child) => {
+                                  const childActive =
+                                    pathname === child.href ||
+                                    pathname.startsWith(child.href + "/");
+                                  return (
+                                    <li key={child.href}>
+                                      <Link
+                                        href={child.href}
+                                        onClick={onClose}
+                                        className={cn(
+                                          "block rounded-md px-3 py-1.5 text-xs",
+                                          childActive
+                                            ? "bg-main-50 text-main-700"
+                                            : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                                        )}
+                                      >
+                                        {child.label}
+                                      </Link>
+                                    </li>
+                                  );
+                                })}
+                              </ul>
                             )}
-                          />
-                          <span className="truncate">{item.label}</span>
-                          {active && (
-                            <span className="ml-auto w-2 h-2 bg-main-600 rounded-full shrink-0" />
-                          )}
-                        </Link>
+                          </>
+                        ) : (
+                          <Link
+                            href={item.href}
+                            onClick={onClose}
+                            className={cn(
+                              "w-full flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200",
+                              active
+                                ? "bg-main-50 text-main-600 border border-main-200 shadow-sm"
+                                : "text-gray-700 hover:bg-gray-50 hover:text-gray-900"
+                            )}
+                          >
+                            <Icon
+                              className={cn(
+                                "w-5 h-5 mr-3 shrink-0",
+                                active ? "text-main-600" : "text-gray-500"
+                              )}
+                            />
+                            <span className="truncate">{item.label}</span>
+                            {active && (
+                              <span className="ml-auto w-2 h-2 bg-main-600 rounded-full shrink-0" />
+                            )}
+                          </Link>
+                        )}
                       </li>
                     );
                   })}
