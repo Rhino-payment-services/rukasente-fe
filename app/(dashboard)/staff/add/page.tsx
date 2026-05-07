@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useMemo, useState } from "react";
+import { Mail, Lock, User } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -73,43 +74,62 @@ export default function AddStaffPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-2">
-        <h1 className="text-2xl font-semibold">Add user</h1>
-        <Button asChild variant="outline">
+      <div className="rounded-2xl border border-slate-200 bg-white p-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-semibold text-slate-900">Add user</h1>
+            <p className="mt-1 text-sm text-slate-500">
+              Create a staff account and assign one role.
+            </p>
+          </div>
+          <Button asChild variant="outline" className="rounded-lg">
           <Link href="/staff">Back to staff</Link>
         </Button>
+        </div>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Create staff user</CardTitle>
+      <Card className="gap-0 border-slate-200 py-0 shadow-none">
+        <CardHeader className="px-5 py-4">
+          <CardTitle className="text-lg text-slate-900">Create staff user</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-5 px-5 pb-5">
           <form className="space-y-4" onSubmit={handleSubmit}>
             <div className="grid gap-3 md:grid-cols-3">
-              <Input
-                placeholder="Full name"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-              />
-              <Input
-                placeholder="Email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-              <Input
-                placeholder="Password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
+              <div className="relative">
+                <User className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+                <Input
+                  placeholder="Full name"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  className="h-11 rounded-xl border-slate-200 bg-white pl-9 text-sm shadow-none focus-visible:ring-2 focus-visible:ring-main-200"
+                />
+              </div>
+              <div className="relative">
+                <Mail className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+                <Input
+                  placeholder="Email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="h-11 rounded-xl border-slate-200 bg-white pl-9 text-sm shadow-none focus-visible:ring-2 focus-visible:ring-main-200"
+                />
+              </div>
+              <div className="relative">
+                <Lock className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+                <Input
+                  placeholder="Password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="h-11 rounded-xl border-slate-200 bg-white pl-9 text-sm shadow-none focus-visible:ring-2 focus-visible:ring-main-200"
+                />
+              </div>
             </div>
 
             <div className="flex flex-wrap items-center gap-2 text-sm">
-              <span className="text-muted-foreground">Status:</span>
+              <span className="text-slate-500">Status:</span>
               <select
-                className="h-9 rounded-md border border-input bg-background px-3"
+                className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-main-200"
                 value={status}
                 onChange={(e) =>
                   setStatus(e.target.value as "active" | "inactive" | "suspended")
@@ -121,9 +141,9 @@ export default function AddStaffPage() {
               </select>
             </div>
 
-            <div className="space-y-2">
-              <p className="text-sm font-medium">Assign roles</p>
-              <p className="text-xs text-muted-foreground">
+            <div className="space-y-2 rounded-xl border border-slate-200 p-3">
+              <p className="text-sm font-semibold text-slate-900">Assign roles</p>
+              <p className="text-xs text-slate-500">
                 Pick one role for this user.
               </p>
               {roles.data && (
@@ -131,7 +151,7 @@ export default function AddStaffPage() {
                   {roles.data.map((role) => (
                     <label
                       key={role.id}
-                      className="flex items-start gap-2 rounded border border-border/60 p-2 text-sm"
+                      className="flex items-start gap-2 rounded-lg border border-slate-200 p-2 text-sm"
                     >
                       <input
                         type="radio"
@@ -140,9 +160,9 @@ export default function AddStaffPage() {
                         onChange={() => setSelectedRoleId(role.id)}
                       />
                       <span>
-                        <span className="font-medium">{role.name}</span>
+                        <span className="font-medium text-slate-900">{role.name}</span>
                         {role.description && (
-                          <span className="block text-xs text-muted-foreground">
+                          <span className="block text-xs text-slate-500">
                             {role.description}
                           </span>
                         )}
@@ -154,9 +174,9 @@ export default function AddStaffPage() {
             </div>
 
             {selectedRoles.length > 0 && (
-              <div className="rounded border border-border/60 p-3">
-                <p className="mb-2 text-sm font-medium">Selected role</p>
-                <ul className="list-disc space-y-1 pl-5 text-sm">
+              <div className="rounded-xl border border-slate-200 p-3">
+                <p className="mb-2 text-sm font-semibold text-slate-900">Selected role</p>
+                <ul className="list-disc space-y-1 pl-5 text-sm text-slate-700">
                   {selectedRoles.map((role) => (
                     <li key={role.id}>
                       <span className="font-medium">{role.name}</span>
@@ -168,7 +188,11 @@ export default function AddStaffPage() {
             )}
 
             {formError && <p className="text-sm text-destructive">{formError}</p>}
-            <Button type="submit" disabled={createStaff.isPending || assignRoles.isPending}>
+            <Button
+              type="submit"
+              disabled={createStaff.isPending || assignRoles.isPending}
+              className="h-10 rounded-xl bg-main-600 text-white hover:bg-main-700"
+            >
               {createStaff.isPending ? "Creating..." : "Create user"}
             </Button>
           </form>
@@ -176,19 +200,19 @@ export default function AddStaffPage() {
       </Card>
 
       {createdStaffId && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Effective permissions</CardTitle>
+        <Card className="gap-0 border-slate-200 py-0 shadow-none">
+          <CardHeader className="px-5 py-4">
+            <CardTitle className="text-lg text-slate-900">Effective permissions</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="px-5 pb-5">
             {createdDetail.data?.permissions?.length ? (
-              <ul className="max-h-64 list-disc space-y-1 overflow-y-auto pl-5 text-xs font-mono">
+              <ul className="max-h-64 list-disc space-y-1 overflow-y-auto pl-5 text-xs font-mono text-slate-700">
                 {createdDetail.data.permissions.map((perm) => (
                   <li key={perm}>{perm}</li>
                 ))}
               </ul>
             ) : (
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-slate-500">
                 No effective permissions found for this user yet.
               </p>
             )}

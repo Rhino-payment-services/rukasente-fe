@@ -12,10 +12,12 @@ import {
   LineChart,
   Plug,
   WalletCards,
+  Link2,
   ChevronDown,
   ChevronRight,
   Building2,
   X,
+  Search,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -77,6 +79,12 @@ const sections: { title: string; items: NavItem[] }[] = [
         icon: WalletCards,
         anyOf: [Perm.LoanApplicationView, Perm.StaffView],
       },
+      {
+        href: "/manual-borrower",
+        label: "Manual borrower",
+        icon: Link2,
+        anyOf: [Perm.BorrowerView, Perm.StaffView],
+      },
     ],
   },
 ];
@@ -105,7 +113,7 @@ function initialsFromSession(name: string | null | undefined, email: string | nu
 }
 
 export function Sidebar({
-  isOpen,
+  isOpen: _isOpen,
   onClose,
 }: {
   isOpen: boolean;
@@ -118,21 +126,12 @@ export function Sidebar({
 
   return (
     <>
-      {isOpen && (
-        <button
-          type="button"
-          className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px] md:hidden"
-          aria-label="Close menu"
-          onClick={onClose}
-        />
-      )}
       <aside
         className={cn(
-          "fixed md:static inset-y-0 left-0 z-50 w-64 shrink-0 bg-white flex flex-col border-r border-gray-200 transition-transform duration-300 md:translate-x-0",
-          isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+          "fixed inset-y-0 left-0 z-40 w-64 shrink-0 border-r border-gray-100 bg-white flex flex-col"
         )}
       >
-        <div className="p-6 pb-4 flex flex-col flex-1 min-h-0">
+        <div className="flex min-h-0 flex-1 flex-col p-4">
           <div className="md:hidden flex justify-end mb-4">
             <Button
               variant="ghost"
@@ -148,31 +147,27 @@ export function Sidebar({
           <Link
             href="/"
             onClick={onClose}
-            className="mb-4 flex items-center gap-3 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-main-600/30"
+            className="mb-3 flex items-center gap-2.5 rounded-lg px-1 py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-main-600/30"
           >
-            <RukaPayLogoMark size={48} className="shadow-sm rounded-lg" />
-            <span className="text-2xl font-bold text-[#08163d] tracking-tight">
+            <RukaPayLogoMark size={34} className="rounded-lg" />
+            <span className="text-base font-semibold text-[#08163d] tracking-tight">
               Ruka Sente
             </span>
           </Link>
 
-          <div className="mb-6 px-3 py-2.5 rounded-lg bg-main-50 border border-main-100">
-            <div className="flex items-center gap-2 mb-1">
-              <Building2 className="w-4 h-4 text-main-600 shrink-0" />
-              <p className="text-xs font-medium text-main-600 uppercase tracking-wide">
-                Console
-              </p>
-            </div>
-            <p className="text-sm font-semibold text-[#08163d] truncate">
-              Lending operations
-            </p>
-            <p className="text-xs text-main-600 mt-1">Staff admin</p>
+          <div className="relative mb-4">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search..."
+              className="h-9 w-full rounded-lg border border-gray-200 bg-gray-50 pl-9 pr-3 text-xs text-gray-700 outline-none placeholder:text-gray-400 focus:border-main-200 focus:bg-white"
+            />
           </div>
 
-          <nav className="flex-1 space-y-6 overflow-y-auto">
+          <nav className="flex-1 space-y-5 overflow-y-auto">
             {sections.map((section) => (
               <div key={section.title}>
-                <div className="text-xs text-gray-400 font-semibold mb-2 uppercase tracking-wider">
+                <div className="mb-2 px-2 text-[10px] font-semibold uppercase tracking-wider text-gray-400">
                   {section.title}
                 </div>
                 <ul className="space-y-1">
@@ -202,16 +197,16 @@ export function Sidebar({
                                 }))
                               }
                               className={cn(
-                                "w-full flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200",
+                                "w-full flex items-center px-2.5 py-2 rounded-lg text-[13px] font-medium transition-all duration-200",
                                 active
-                                  ? "bg-main-50 text-main-600 border border-main-200 shadow-sm"
-                                  : "text-gray-700 hover:bg-gray-50 hover:text-gray-900"
+                                  ? "bg-main-50 text-main-700"
+                                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
                               )}
                             >
                               <Icon
                                 className={cn(
-                                  "w-5 h-5 mr-3 shrink-0",
-                                  active ? "text-main-600" : "text-gray-500"
+                                  "mr-2.5 h-4 w-4 shrink-0",
+                                  active ? "text-main-600" : "text-gray-400"
                                 )}
                               />
                               <span className="truncate">{item.label}</span>
@@ -222,7 +217,7 @@ export function Sidebar({
                               )}
                             </button>
                             {groupOpen && (
-                              <ul className="ml-8 mt-1 space-y-1">
+                              <ul className="ml-7 mt-1 space-y-1">
                                 {item.children.map((child) => {
                                   const childActive =
                                     pathname === child.href ||
@@ -233,10 +228,10 @@ export function Sidebar({
                                         href={child.href}
                                         onClick={onClose}
                                         className={cn(
-                                          "block rounded-md px-3 py-1.5 text-xs",
+                                          "block rounded-md px-2.5 py-1.5 text-[11px]",
                                           childActive
                                             ? "bg-main-50 text-main-700"
-                                            : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                                            : "text-gray-500 hover:bg-gray-50 hover:text-gray-900"
                                         )}
                                       >
                                         {child.label}
@@ -252,16 +247,16 @@ export function Sidebar({
                             href={item.href}
                             onClick={onClose}
                             className={cn(
-                              "w-full flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200",
+                              "w-full flex items-center px-2.5 py-2 rounded-lg text-[13px] font-medium transition-all duration-200",
                               active
-                                ? "bg-main-50 text-main-600 border border-main-200 shadow-sm"
-                                : "text-gray-700 hover:bg-gray-50 hover:text-gray-900"
+                                ? "bg-main-50 text-main-700"
+                                : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
                             )}
                           >
                             <Icon
                               className={cn(
-                                "w-5 h-5 mr-3 shrink-0",
-                                active ? "text-main-600" : "text-gray-500"
+                                "mr-2.5 h-4 w-4 shrink-0",
+                                active ? "text-main-600" : "text-gray-400"
                               )}
                             />
                             <span className="truncate">{item.label}</span>
@@ -278,16 +273,16 @@ export function Sidebar({
             ))}
           </nav>
 
-          <div className="mt-auto pt-6 border-t border-gray-200">
-            <div className="flex items-center gap-3 p-3 rounded-lg bg-gray-50">
-              <div className="w-9 h-9 rounded-full bg-main-600 flex items-center justify-center shrink-0 text-white text-sm font-semibold">
+          <div className="mt-auto border-t border-gray-100 pt-4">
+            <div className="flex items-center gap-2.5 rounded-lg bg-gray-50 p-2.5">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-main-600 text-xs font-semibold text-white">
                 {initialsFromSession(session?.user?.name, session?.user?.email)}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium text-gray-900 truncate">
+                <div className="truncate text-xs font-semibold text-gray-900">
                   {session?.user?.name ?? "Staff"}
                 </div>
-                <div className="text-xs text-gray-500 truncate">
+                <div className="truncate text-[11px] text-gray-500">
                   {session?.user?.email ?? "Signed in"}
                 </div>
               </div>

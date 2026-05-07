@@ -164,7 +164,7 @@ export function useBorrowerLoanProducts(rukapayUserId: string) {
     queryKey: ["borrower-loan-products", rukapayUserId],
     enabled: !!rukapayUserId,
     queryFn: async () => {
-      const res = await apiClient.get(`/internal/borrowers/${rukapayUserId}/loan-products`);
+      const res = await apiClient.get(`/api/internal/borrowers/${rukapayUserId}/loan-products`);
       return unwrapEnvelope<LoanProduct[]>(res);
     },
   });
@@ -181,7 +181,7 @@ export function useCreateBorrowerLoanApplication() {
       purpose: string;
       submission_channel: "web" | "internal_admin" | "api";
     }) => {
-      const res = await apiClient.post("/internal/loan-applications", payload);
+      const res = await apiClient.post("/api/internal/loan-applications", payload);
       return unwrapEnvelope<LoanApplication>(res);
     },
     onSuccess: (_, vars) => {
@@ -195,7 +195,9 @@ export function useBorrowerLoanApplications(rukapayUserId: string) {
     queryKey: ["borrower-loan-applications", rukapayUserId],
     enabled: !!rukapayUserId,
     queryFn: async () => {
-      const res = await apiClient.get(`/internal/borrowers/${rukapayUserId}/loan-applications`);
+      const res = await apiClient.get(
+        `/api/internal/borrowers/${rukapayUserId}/loan-applications`
+      );
       return unwrapEnvelope<Paginated<LoanApplication>>(res);
     },
   });
@@ -206,7 +208,7 @@ export function useBorrowerLoanApplication(id?: string) {
     queryKey: ["borrower-loan-application", id],
     enabled: !!id,
     queryFn: async () => {
-      const res = await apiClient.get(`/internal/loan-applications/${id}`);
+      const res = await apiClient.get(`/api/internal/loan-applications/${id}`);
       return unwrapEnvelope<LoanApplication>(res);
     },
   });

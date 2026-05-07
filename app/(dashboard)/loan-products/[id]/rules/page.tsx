@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, use, useMemo, useState } from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -9,9 +9,14 @@ import { DataTable } from "@/components/ui/data-table";
 import { useCreateLoanRule, useLoanProductRules } from "@/hooks/use-loan";
 import { LoanProductEligibilityRule } from "@/types/loan";
 
-export default function LoanProductRulesPage({ params }: { params: { id: string } }) {
-  const rulesQ = useLoanProductRules(params.id);
-  const create = useCreateLoanRule(params.id);
+export default function LoanProductRulesPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = use(params);
+  const rulesQ = useLoanProductRules(id);
+  const create = useCreateLoanRule(id);
   const [ruleKey, setRuleKey] = useState("min_score");
   const [operator, setOperator] = useState("gte");
   const [ruleValue, setRuleValue] = useState("");

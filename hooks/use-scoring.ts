@@ -1,5 +1,6 @@
 "use client";
 
+import axios from "axios";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { unwrapEnvelope } from "@/lib/api-envelope";
@@ -31,6 +32,7 @@ export type ScoreRuleCreatePayload = {
 
 export type CreditScoreResultSummary = {
   id: string;
+  borrower_profile_id: string;
   total_score: number;
   risk_band: string;
   recommended_limit: number;
@@ -39,6 +41,11 @@ export type CreditScoreResultSummary = {
   reason_codes: string[];
   scoring_input_snapshot_id: string;
   scored_at: string;
+  rukapay_user_id?: string;
+  full_name?: string;
+  phone?: string;
+  email?: string;
+  kyc_status?: string;
 };
 
 export type CreditScoreListResponse = {
@@ -140,6 +147,47 @@ export function useManualReviewCases(page = 1, pageSize = 20) {
         params: { page, page_size: pageSize },
       });
       return unwrapEnvelope<ManualReviewListResponse>(res);
+    },
+  });
+}
+
+// Trigger a fresh scoring run for one borrower via the server-side proxy
+// (which holds the X-Internal-API-Key). Invalidates the score-results list on success.
+export type RunScoringPayload = {
+  rukapay_user_id: string;
+  wallet_id?: string;
+};
+
+export type RunScoringResponse = {
+  credit_score_result: CreditScoreResultSummary;
+  eligibility_decision: {
+    id: string;
+    wallet_id: string;
+    status: string;
+    reason_code: string;
+    decision_source: string;
+    approved_limit?: number;
+    approved_max_tenor_days?: number;
+    credit_score_result_id?: string;
+  };
+  manual_review_case_id?: string;
+};
+
+export function useRunScoring() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: RunScoringPayload) => {
+      const id = encodeURIComponent(payload.rukapay_user_id);
+      const qs = payload.wallet_id
+        ? `?wallet_id=${encodeURIComponent(payload.wallet_id)}`
+        : "";
+      const res = await axios.post(`/api/internal/scoring/${id}/run${qs}`);
+      return unwrapEnvelope<RunScoringResponse>(res);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["scoring-results"] });
+      void queryClient.invalidateQueries({ queryKey: ["eligibility-decisions"] });
+      void queryClient.invalidateQueries({ queryKey: ["subscriptions"] });
     },
   });
 }

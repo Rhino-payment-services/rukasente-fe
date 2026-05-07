@@ -5,10 +5,24 @@ import { apiClient } from "@/lib/api-client";
 import { unwrapEnvelope } from "@/lib/api-envelope";
 
 export type BorrowerListResponse = {
-  items: Array<Record<string, unknown>>;
+  items: BorrowerRow[];
   total: number;
   page: number;
   page_size: number;
+  total_pages: number;
+};
+
+export type BorrowerRow = {
+  // Internal identifier — kept off the UI but needed for per-borrower actions
+  // (e.g. running a credit score via /internal/scoring/borrowers/{id}/run).
+  id?: string;
+  rukapay_user_id?: string;
+  full_name: string;
+  phone: string;
+  email?: string | null;
+  kyc_status: string;
+  status: string;
+  scoring_wallet_id?: string | null;
 };
 
 export function useBorrowersList(page = 1, pageSize = 20) {

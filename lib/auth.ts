@@ -31,6 +31,7 @@ type LoginData = {
   access_token: string;
   token_type: string;
   expires_in_seconds: number;
+  refresh_token: string;
   user: {
     id: string;
     full_name: string;
@@ -44,6 +45,47 @@ type LoginData = {
     }>;
   };
 };
+
+type RefreshData = {
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+  expires_in_seconds: number;
+};
+
+async function refreshAccessToken(token: {
+  refreshToken?: string;
+  accessToken?: string;
+  expiresAt?: number;
+}) {
+  if (!token.refreshToken) {
+    return { ...token, authError: "missing_refresh_token" as const };
+  }
+
+  try {
+    const base = getApiBaseUrl();
+    const { data: envelope } = await axios.post<Envelope<RefreshData>>(
+      `${base}/admin/auth/refresh`,
+      { refresh_token: token.refreshToken },
+      { headers: { "Content-Type": "application/json" }, timeout: 30000 }
+    );
+
+    if (!envelope.success || !envelope.data?.access_token) {
+      return { ...token, authError: "refresh_failed" as const };
+    }
+
+    return {
+      ...token,
+      accessToken: envelope.data.access_token,
+      refreshToken: envelope.data.refresh_token,
+      expiresInSeconds: envelope.data.expires_in_seconds,
+      expiresAt: Math.floor(Date.now() / 1000) + envelope.data.expires_in_seconds,
+      authError: undefined,
+    };
+  } catch {
+    return { ...token, authError: "refresh_failed" as const };
+  }
+}
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -81,6 +123,7 @@ export const authOptions: NextAuthOptions = {
             email: d.user.email,
             name: d.user.full_name,
             accessToken: d.access_token,
+            refreshToken: d.refresh_token,
             expiresInSeconds: d.expires_in_seconds,
             permissions: d.user.permissions ?? [],
             roles: d.user.roles ?? [],
@@ -111,19 +154,34 @@ export const authOptions: NextAuthOptions = {
         const u = user as {
           id: string;
           accessToken?: string;
+          refreshToken?: string;
           expiresInSeconds?: number;
           permissions?: string[];
           roles?: unknown[];
         };
         token.accessToken = u.accessToken;
+        token.refreshToken = u.refreshToken;
         token.expiresInSeconds = u.expiresInSeconds;
         token.permissions = u.permissions ?? [];
         token.roles = u.roles as typeof token.roles;
         token.sub = u.id;
         if (typeof u.expiresInSeconds === "number" && u.expiresInSeconds > 0) {
-          token.exp = Math.floor(Date.now() / 1000) + u.expiresInSeconds;
+          const expSeconds = Math.floor(Date.now() / 1000) + u.expiresInSeconds;
+          token.exp = expSeconds;
+          token.expiresAt = expSeconds;
         }
+        return token;
       }
+
+      const expiresAt =
+        typeof token.expiresAt === "number" ? token.expiresAt : token.exp;
+      const needsRefresh =
+        typeof expiresAt === "number" && Date.now() / 1000 > expiresAt - 60;
+
+      if (needsRefresh) {
+        return refreshAccessToken(token);
+      }
+
       return token;
     },
     async session({ session, token }) {
@@ -132,6 +190,8 @@ export const authOptions: NextAuthOptions = {
         session.user.permissions = (token.permissions as string[]) ?? [];
         session.user.roles = token.roles ?? [];
         session.accessToken = token.accessToken as string;
+        session.refreshToken = token.refreshToken as string | undefined;
+        session.authError = token.authError as string | undefined;
       }
       return session;
     },
