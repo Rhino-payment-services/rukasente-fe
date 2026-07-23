@@ -47,6 +47,12 @@ export type CreateStaffPayload = {
   phone?: string;
 };
 
+export type UpdateStaffProfilePayload = {
+  full_name?: string;
+  email?: string;
+  phone?: string;
+};
+
 export function useStaffList(page = 1, pageSize = 20) {
   return useQuery({
     queryKey: ["staff", page, pageSize],
@@ -123,6 +129,28 @@ export function useUpdateStaffStatus() {
       status: "active" | "inactive" | "suspended";
     }) => {
       const res = await apiClient.patch(`/admin/staff/${staffId}/status`, { status });
+      return unwrapEnvelope<StaffSummary>(res);
+    },
+    onSuccess: (_data, variables) => {
+      void queryClient.invalidateQueries({ queryKey: ["staff"] });
+      void queryClient.invalidateQueries({
+        queryKey: ["staff-detail", variables.staffId],
+      });
+    },
+  });
+}
+
+export function useUpdateStaffProfile() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      staffId,
+      payload,
+    }: {
+      staffId: string;
+      payload: UpdateStaffProfilePayload;
+    }) => {
+      const res = await apiClient.patch(`/admin/staff/${staffId}`, payload);
       return unwrapEnvelope<StaffSummary>(res);
     },
     onSuccess: (_data, variables) => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, use, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -8,7 +8,12 @@ import { Button } from "@/components/ui/button";
 import { useBorrowerContext } from "@/components/providers/borrower-provider";
 import { useBorrowerLoanProducts, useCreateBorrowerLoanApplication } from "@/hooks/use-loan";
 
-export default function BorrowerApplyPage({ params }: { params: { productId: string } }) {
+export default function BorrowerApplyPage({
+  params,
+}: {
+  params: Promise<{ productId: string }>;
+}) {
+  const { productId } = use(params);
   const router = useRouter();
   const { rukapayUserId } = useBorrowerContext();
   const productsQ = useBorrowerLoanProducts(rukapayUserId);
@@ -18,7 +23,7 @@ export default function BorrowerApplyPage({ params }: { params: { productId: str
   const [purpose, setPurpose] = useState("");
   const [error, setError] = useState("");
 
-  const product = (productsQ.data ?? []).find((p) => p.id === params.productId);
+  const product = (productsQ.data ?? []).find((p) => p.id === productId);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();

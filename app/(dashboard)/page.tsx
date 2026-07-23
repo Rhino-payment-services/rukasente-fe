@@ -1,96 +1,107 @@
 "use client";
 
-import { RefreshCw } from "lucide-react";
-import { StatCard, StatCardsGrid } from "@/components/dashboard/stat-cards";
-import { RecentBorrowersPanel } from "@/components/dashboard/recent-borrowers";
-import { useSession } from "next-auth/react";
+import {
+  BadgeCheck,
+  ClipboardList,
+  Gauge,
+  HandCoins,
+  Percent,
+  Timer,
+  Users,
+  Wallet,
+} from "lucide-react";
 import { useMe } from "@/hooks/use-me";
-import { useDashboardStats } from "@/hooks/use-dashboard-stats";
-import { Users, UserCircle, CreditCard, Plug } from "lucide-react";
-import { Perm, hasPermission } from "@/lib/permissions";
+import {
+  formatUgx,
+  useDashboardStats,
+} from "@/hooks/use-dashboard-stats";
+import { GreetingSection } from "@/components/dashboard/greeting-section";
+import { KpiStrip, type KPIItem } from "@/components/dashboard/kpi-strip";
+import { AnalyticsCharts } from "@/components/dashboard/analytics-charts";
+import { RecentLoanApplicationsTable } from "@/components/dashboard/performance-history-table";
+import { QuickActions } from "@/components/dashboard/quick-actions";
+
+function formatCount(n: number | null | undefined): string {
+  if (n === null || n === undefined) return "—";
+  return n.toLocaleString();
+}
 
 export default function OverviewPage() {
-  const { data: session } = useSession();
   const { data: me } = useMe();
-  const {
-    staffTotal,
-    borrowersTotal,
-    subscriptionsTotal,
-    activeIntegrations,
-    isLoading: statsLoading,
-    isFetching: statsFetching,
-  } = useDashboardStats();
+  const stats = useDashboardStats();
 
-  const canBorrowers = hasPermission(session?.user?.permissions, Perm.BorrowerView);
+  const topStats: KPIItem[] = [
+    {
+      title: "Total Borrowers",
+      value: formatCount(stats.borrowersTotal),
+      subtitle: "Enrolled profiles",
+      icon: Users,
+    },
+    {
+      title: "Active Loans",
+      value: formatCount(stats.activeLoans),
+      subtitle: "Approved / outstanding",
+      icon: HandCoins,
+    },
+    {
+      title: "Total Loan Portfolio",
+      value: formatUgx(stats.portfolioAmount),
+      subtitle: "Active + repaid book",
+      icon: Wallet,
+    },
+    {
+      title: "Loans Approved Today",
+      value: formatCount(stats.approvedToday),
+      subtitle: "Decisions today",
+      icon: BadgeCheck,
+    },
+    {
+      title: "Pending Applications",
+      value: formatCount(stats.pendingApps),
+      subtitle: "Awaiting review",
+      icon: ClipboardList,
+    },
+    {
+      title: "Overdue Loans",
+      value: formatCount(stats.overdueLoans),
+      subtitle: "Past due date",
+      icon: Timer,
+    },
+    {
+      title: "Repayment Rate",
+      value:
+        stats.repaymentRate == null ? "—" : `${stats.repaymentRate}%`,
+      subtitle: "Repaid vs closed / overdue",
+      icon: Percent,
+    },
+    {
+      title: "Average Credit Score",
+      value: formatCount(stats.avgScore),
+      subtitle:
+        stats.scoresTotal != null
+          ? `From ${stats.scoresTotal.toLocaleString()} scores`
+          : "Portfolio mean",
+      icon: Gauge,
+    },
+  ];
 
   return (
-    <div className="flex-1 flex flex-col space-y-6 w-full max-w-[1600px]">
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-[#08163d] mb-1">Dashboard</h1>
-          <p className="text-base text-gray-600">
-            Managing{" "}
-            <span className="font-semibold text-[#08163d]">
-              Ruka Sente lending operations
-            </span>
-            {me?.full_name && (
-              <span className="text-gray-500 font-normal">
-                {" "}
-                · {me.full_name}
-              </span>
-            )}
-          </p>
-        </div>
-        {statsFetching && !statsLoading && (
-          <div className="flex items-center gap-2 text-xs text-blue-700 bg-blue-50 px-3 py-1.5 rounded-full border border-blue-100">
-            <RefreshCw className="h-3 w-3 animate-spin shrink-0" />
-            Updating…
-          </div>
-        )}
-      </div>
-
-      <div className="relative">
-        <StatCardsGrid>
-          <StatCard
-            title="Staff"
-            value={staffTotal}
-            subtitle="Team accounts"
-            icon={Users}
-            loading={statsLoading}
-          />
-          <StatCard
-            title="Borrowers"
-            value={borrowersTotal}
-            subtitle="Borrower profiles"
-            icon={UserCircle}
-            loading={statsLoading}
-          />
-          <StatCard
-            title="Subscriptions"
-            value={subscriptionsTotal}
-            subtitle="Ruka Sente subscriptions"
-            icon={CreditCard}
-            loading={statsLoading}
-          />
-          <StatCard
-            title="Integrations"
-            value={
-              activeIntegrations === null
-                ? null
-                : `${activeIntegrations} active`
-            }
-            subtitle="API endpoints configured"
-            icon={Plug}
-            loading={statsLoading}
-          />
-        </StatCardsGrid>
-      </div>
-
-      {canBorrowers && (
-        <div className="lg:col-span-2">
-          <RecentBorrowersPanel />
-        </div>
-      )}
+    <div className="flex w-full max-w-[1600px] flex-1 flex-col gap-4">
+      <GreetingSection fullName={me?.full_name} />
+      <QuickActions />
+      <KpiStrip items={topStats} loading={stats.isLoading} />
+      <AnalyticsCharts
+        disbursementTrend={stats.disbursementTrend}
+        applicationTrend={stats.applicationTrend}
+        statusBreakdown={stats.statusBreakdown}
+        riskBands={stats.riskBands}
+        loading={stats.isLoading}
+      />
+      <RecentLoanApplicationsTable
+        apps={stats.recentApps}
+        scoreByBorrower={stats.scoreByBorrower}
+        loading={stats.isLoading}
+      />
     </div>
   );
 }

@@ -2,6 +2,10 @@
 
 Staff admin UI for [rukasente-be](https://github.com/) (`/api/v1/admin/*`): Next.js App Router, NextAuth (credentials → JWT), TanStack Query, and RBAC from `user.permissions`.
 
+## Frontend Guide
+
+- See `FRONTEND_DEVELOPER_GUIDE.md` for API integration guidance (auth flows, route families, errors, pagination, and user journeys).
+
 ## Setup
 
 1. Copy environment variables:

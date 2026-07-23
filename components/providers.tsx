@@ -24,7 +24,13 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <QueryClientProvider client={queryClient}>
         {children}
         <Toaster position="top-center" richColors />
-        <ReactQueryDevtools initialIsOpen={false} buttonPosition="bottom-left" />
+        {/* Devtools can amplify render loops during mutations; keep opt-in only. */}
+        {process.env.NEXT_PUBLIC_SHOW_RQ_DEVTOOLS === "1" ? (
+          <ReactQueryDevtools
+            initialIsOpen={false}
+            buttonPosition="bottom-left"
+          />
+        ) : null}
       </QueryClientProvider>
     </SessionProvider>
   );

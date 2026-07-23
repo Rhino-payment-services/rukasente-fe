@@ -1,11 +1,17 @@
 "use client";
 
+import { use } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { LoanStatusBadge } from "@/components/dashboard/loan-status-badge";
 import { useBorrowerLoanApplication } from "@/hooks/use-loan";
 
-export default function BorrowerApplicationDetailPage({ params }: { params: { id: string } }) {
-  const appQ = useBorrowerLoanApplication(params.id);
+export default function BorrowerApplicationDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = use(params);
+  const appQ = useBorrowerLoanApplication(id);
   const app = appQ.data;
 
   return (
