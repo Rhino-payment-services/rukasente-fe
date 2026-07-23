@@ -1,20 +1,30 @@
 "use client";
 
 import { ManualBorrowerOnboarding } from "@/components/dashboard/manual-borrower-onboarding";
+import { Link2 } from "lucide-react";
 
 export default function ManualBorrowerPage() {
   return (
-    <div className="flex w-full max-w-[1600px] flex-1 flex-col gap-4">
-      <div className="rounded-2xl border border-slate-200 bg-white p-4">
-        <h1 className="text-2xl font-semibold text-slate-900">
-          Manual borrower onboarding
-        </h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Manually link RukaPay users and run scoring workflow.
-        </p>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-200/80 bg-white px-3.5 py-3 shadow-sm">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className="inline-flex size-8 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
+              <Link2 className="size-4" />
+            </span>
+            <div>
+              <h1 className="text-xl font-semibold tracking-tight text-slate-900">
+                Manual borrower
+              </h1>
+              <p className="mt-0.5 line-clamp-1 text-xs text-slate-500">
+                Link a RukaPay user, record consents, and run scoring in one workflow.
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
+
       <ManualBorrowerOnboarding />
     </div>
   );
 }
-

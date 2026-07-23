@@ -1,16 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { toast } from "sonner";
-import { AlertCircle, Loader2, Play } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { AlertCircle, Loader2, Play, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -18,13 +11,15 @@ import {
   RunScoringResponse,
   useRunScoring,
 } from "@/hooks/use-scoring";
+import { scoringErrorMessage } from "@/lib/scoring-errors";
+
+export { scoringErrorMessage } from "@/lib/scoring-errors";
 
 type RunScoreDialogProps = {
   open: boolean;
   onOpenChange: (next: boolean) => void;
   initialRukapayUserId?: string;
   initialWalletId?: string;
-  // When true the rukapay user id field is read-only (re-run from a row).
   lockRukapayUserId?: boolean;
   borrowerLabel?: string | null;
 };
@@ -37,24 +32,70 @@ export function RunScoreDialog({
   lockRukapayUserId = false,
   borrowerLabel,
 }: RunScoreDialogProps) {
+  const [mounted, setMounted] = useState(false);
   const [rukapayUserId, setRukapayUserId] = useState(initialRukapayUserId);
   const [walletId, setWalletId] = useState(initialWalletId);
   const [result, setResult] = useState<RunScoringResponse | null>(null);
-  const [errorMsg, setErrorMsg] = useState<string>("");
+  const [errorMsg, setErrorMsg] = useState("");
+  // Local pending flag — always cleared in finally so the button never sticks.
+  const [isRunning, setIsRunning] = useState(false);
   const mutation = useRunScoring();
+  const abortRef = useRef<AbortController | null>(null);
+  const onOpenChangeRef = useRef(onOpenChange);
+  const titleId = useId();
+  const panelRef = useRef<HTMLDivElement>(null);
 
-  // Reset local state every time the dialog is (re)opened, so a fresh target
-  // populates the inputs and stale results/errors from a previous open are gone.
   useEffect(() => {
-    if (open) {
-      setRukapayUserId(initialRukapayUserId);
-      setWalletId(initialWalletId);
-      setResult(null);
-      setErrorMsg("");
-      mutation.reset();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    onOpenChangeRef.current = onOpenChange;
+  }, [onOpenChange]);
+
+  useEffect(() => setMounted(true), []);
+
+  useEffect(() => {
+    if (!open) return;
+    setRukapayUserId(initialRukapayUserId);
+    setWalletId(initialWalletId);
+    setResult(null);
+    setErrorMsg("");
+    setIsRunning(false);
+  }, [open, initialRukapayUserId, initialWalletId]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        abortRef.current?.abort();
+        abortRef.current = null;
+        setIsRunning(false);
+        onOpenChangeRef.current(false);
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.pointerEvents = "";
+    document.body.removeAttribute("data-scroll-locked");
+    document.body.style.overflow = "hidden";
+    requestAnimationFrame(() => panelRef.current?.focus());
+
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = prevOverflow;
+    };
   }, [open]);
+
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+    };
+  }, []);
+
+  function close() {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setIsRunning(false);
+    onOpenChange(false);
+  }
 
   async function handleRun() {
     const id = rukapayUserId.trim();
@@ -62,57 +103,90 @@ export function RunScoreDialog({
       setErrorMsg("RukaPay user ID is required.");
       return;
     }
+
     setErrorMsg("");
+    setResult(null);
+    setIsRunning(true);
+
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     try {
       const data = await mutation.mutateAsync({
         rukapay_user_id: id,
         wallet_id: walletId.trim() || undefined,
+        signal: controller.signal,
       });
+      if (controller.signal.aborted) return;
       setResult(data);
       toast.success(
         `Score ${data.credit_score_result.total_score} · band ${data.credit_score_result.risk_band}`,
         {
-          description: `Decision: ${data.credit_score_result.suggested_decision.replace(
-            /_/g,
-            " "
-          )}`,
+          description: `Decision: ${String(
+            data.credit_score_result.suggested_decision || ""
+          ).replace(/_/g, " ")}`,
         }
       );
     } catch (err) {
-      const e = err as {
-        response?: { data?: { error?: { message?: string } }; status?: number };
-        message?: string;
-      };
-      const status = e?.response?.status;
-      const apiMsg = e?.response?.data?.error?.message;
-      const message =
-        apiMsg ??
-        (status === 401
-          ? "Your session has expired. Please sign in again."
-          : e?.message) ??
-        "Failed to run scoring";
+      const message = scoringErrorMessage(err);
+      if (!message) return; // canceled
       setErrorMsg(message);
       toast.error("Scoring failed", { description: message });
+    } finally {
+      setIsRunning(false);
+      if (abortRef.current === controller) {
+        abortRef.current = null;
+      }
     }
   }
 
   const score = result?.credit_score_result;
-  const isPending = mutation.isPending;
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Run credit scoring</DialogTitle>
-          <DialogDescription>
-            {borrowerLabel
-              ? `Re-run scoring for ${borrowerLabel}.`
-              : "Trigger a fresh credit score for an enrolled borrower."}{" "}
-            The borrower must be subscribed and have completed all consents.
-          </DialogDescription>
-        </DialogHeader>
+  if (!mounted || !open) return null;
 
-        <div className="space-y-4 px-5 py-4">
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[200] flex items-center justify-center p-4"
+      role="presentation"
+    >
+      <button
+        type="button"
+        aria-label="Close dialog"
+        className="absolute inset-0 bg-black/40"
+        onClick={close}
+      />
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+        className="relative z-[1] flex max-h-[90vh] w-full max-w-lg flex-col rounded-xl border border-slate-200 bg-white shadow-xl outline-none"
+      >
+        <div className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-200 px-5 py-4">
+          <div>
+            <h2 id={titleId} className="text-lg font-semibold text-slate-900">
+              Run credit scoring
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              {borrowerLabel
+                ? `Re-run scoring for ${borrowerLabel}.`
+                : "Trigger a fresh credit score for an enrolled borrower."}{" "}
+              The borrower must be subscribed and have completed all consents.
+            </p>
+          </div>
+          <button
+            type="button"
+            className="rounded-md p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+            onClick={close}
+            aria-label="Close"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-slate-600">
               RukaPay user ID
@@ -122,9 +196,10 @@ export function RunScoreDialog({
               onChange={(e) => setRukapayUserId(e.target.value)}
               placeholder="e.g. 8e6c2a1b-..."
               readOnly={lockRukapayUserId}
+              disabled={isRunning}
               className={lockRukapayUserId ? "bg-slate-50" : ""}
               onKeyDown={(e) => {
-                if (e.key === "Enter" && !isPending) {
+                if (e.key === "Enter" && !isRunning) {
                   e.preventDefault();
                   void handleRun();
                 }
@@ -140,23 +215,26 @@ export function RunScoreDialog({
               value={walletId}
               onChange={(e) => setWalletId(e.target.value)}
               placeholder="Leave empty for default scoring wallet"
+              disabled={isRunning}
               onKeyDown={(e) => {
-                if (e.key === "Enter" && !isPending) {
+                if (e.key === "Enter" && !isRunning) {
                   e.preventDefault();
                   void handleRun();
                 }
               }}
             />
-            <p className="text-xs text-slate-500">
-              Required only when the borrower has multiple linked wallets and no
-              default scoring wallet is set.
-            </p>
           </div>
 
           {errorMsg ? (
-            <div className="flex items-start gap-2 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
+            <div
+              role="alert"
+              className="flex items-start gap-2 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800"
+            >
               <AlertCircle className="mt-0.5 size-4 shrink-0" />
-              <span>{errorMsg}</span>
+              <div className="min-w-0 flex-1">
+                <p className="font-medium">Scoring failed</p>
+                <p className="mt-0.5 break-words text-rose-700">{errorMsg}</p>
+              </div>
             </div>
           ) : null}
 
@@ -175,7 +253,7 @@ export function RunScoreDialog({
                         : "danger"
                   }
                 >
-                  {score.suggested_decision.replace(/_/g, " ")}
+                  {String(score.suggested_decision || "").replace(/_/g, " ")}
                 </Badge>
               </div>
               <div className="mt-2 grid grid-cols-3 gap-3 text-sm">
@@ -207,21 +285,16 @@ export function RunScoreDialog({
           ) : null}
         </div>
 
-        <DialogFooter>
-          <Button
-            variant="outline"
-            type="button"
-            onClick={() => onOpenChange(false)}
-            disabled={isPending}
-          >
-            Close
+        <div className="flex shrink-0 items-center justify-end gap-2 border-t border-slate-200 px-5 py-3">
+          <Button variant="outline" type="button" onClick={close}>
+            {isRunning ? "Cancel" : "Close"}
           </Button>
           <Button
             type="button"
-            onClick={handleRun}
-            disabled={isPending || !rukapayUserId.trim()}
+            onClick={() => void handleRun()}
+            disabled={isRunning || !rukapayUserId.trim()}
           >
-            {isPending ? (
+            {isRunning ? (
               <>
                 <Loader2 className="size-4 animate-spin" />
                 Running…
@@ -229,12 +302,13 @@ export function RunScoreDialog({
             ) : (
               <>
                 <Play className="size-4" />
-                Run score
+                {errorMsg || score ? "Run again" : "Run score"}
               </>
             )}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </div>
+      </div>
+    </div>,
+    document.body
   );
 }

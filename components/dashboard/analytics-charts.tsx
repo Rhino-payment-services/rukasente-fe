@@ -1,181 +1,295 @@
 "use client";
 
-import {
-  Area,
-  AreaChart,
-  CartesianGrid,
-  Cell,
-  Line,
-  LineChart,
-  Pie,
-  PieChart,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { useRouter } from "next/navigation";
+import { Expand } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ChartContainer } from "@/components/ui/chart";
-import { useRealtimeTraffic } from "@/hooks/use-realtime-traffic";
+import {
+  trendsPageHref,
+  type ChartTrendKind,
+} from "@/components/dashboard/chart-trend-detail";
+import {
+  formatUgx,
+  type DashboardApplicationMonthPoint,
+  type DashboardMonthPoint,
+  type DashboardRiskPoint,
+  type DashboardStatusPoint,
+} from "@/hooks/use-dashboard-stats";
 
-const pulseData = [
-  { month: "Jul", desktop: 320, mobile: 260 },
-  { month: "Aug", desktop: 280, mobile: 290 },
-  { month: "Sep", desktop: 360, mobile: 300 },
-  { month: "Oct", desktop: 330, mobile: 325 },
-  { month: "Nov", desktop: 410, mobile: 340 },
-  { month: "Dec", desktop: 390, mobile: 360 },
-  { month: "Jan", desktop: 460, mobile: 390 },
-];
+type AnalyticsChartsProps = {
+  disbursementTrend: DashboardMonthPoint[];
+  applicationTrend: DashboardApplicationMonthPoint[];
+  statusBreakdown: DashboardStatusPoint[];
+  riskBands: DashboardRiskPoint[];
+  loading?: boolean;
+};
 
-const growthData = [
-  { day: "Jan 01", growth: 21 },
-  { day: "Jan 06", growth: 26 },
-  { day: "Jan 11", growth: 18 },
-  { day: "Jan 16", growth: 38 },
-  { day: "Jan 21", growth: 44 },
-  { day: "Jan 26", growth: 31 },
-  { day: "Jan 31", growth: 36 },
-];
+function maxOf(nums: number[]) {
+  return Math.max(...nums, 1);
+}
 
-const trafficData = [
-  { name: "GitHub", value: 36.7, color: "#2563eb" },
-  { name: "Google", value: 29, color: "#22c55e" },
-  { name: "Bing", value: 8.3, color: "#f59e0b" },
-  { name: "Other", value: 26, color: "#94a3b8" },
-];
+function EmptyChart({ label }: { label: string }) {
+  return (
+    <div className="flex h-[220px] items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50/50 text-xs text-slate-400">
+      {label}
+    </div>
+  );
+}
 
-export function AnalyticsCharts() {
-  const { points, latestValue } = useRealtimeTraffic();
+export function AnalyticsCharts({
+  disbursementTrend,
+  applicationTrend,
+  statusBreakdown,
+  riskBands,
+  loading,
+}: AnalyticsChartsProps) {
+  const router = useRouter();
+
+  const disburseMax = maxOf(disbursementTrend.map((d) => d.amount));
+  const appMax = maxOf(
+    applicationTrend.flatMap((d) => [d.submitted, d.approved])
+  );
+  const statusTotal = statusBreakdown.reduce((s, d) => s + d.value, 0) || 1;
+  const hasDisbursement = disbursementTrend.some((d) => d.amount > 0);
+  const hasApps = applicationTrend.some(
+    (d) => d.submitted > 0 || d.approved > 0
+  );
+  const hasStatus = statusBreakdown.length > 0;
+  const hasRisk = riskBands.some((b) => b.pct > 0);
+
+  const openMonth = (kind: ChartTrendKind, monthKey: string) => {
+    router.push(trendsPageHref(kind, monthKey));
+  };
+
+  const openLatestWithData = (kind: ChartTrendKind) => {
+    if (kind === "disbursement") {
+      const hit = [...disbursementTrend].reverse().find((d) => d.amount > 0);
+      openMonth(
+        kind,
+        hit?.monthKey ||
+          disbursementTrend[disbursementTrend.length - 1]?.monthKey ||
+          currentMonthKey()
+      );
+      return;
+    }
+    const hit = [...applicationTrend]
+      .reverse()
+      .find((d) => d.submitted > 0 || d.approved > 0);
+    openMonth(
+      kind,
+      hit?.monthKey ||
+        applicationTrend[applicationTrend.length - 1]?.monthKey ||
+        currentMonthKey()
+    );
+  };
+
+  if (loading) {
+    return (
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Card
+            key={i}
+            className={`gap-0 border-slate-200/80 py-0 shadow-sm ${i < 2 ? "xl:col-span-6" : i === 2 ? "xl:col-span-4" : "xl:col-span-8"}`}
+          >
+            <CardContent className="p-4">
+              <div className="h-[240px] animate-pulse rounded-lg bg-slate-100" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    );
+  }
 
   return (
     <>
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
-        <Card className="gap-0 border-slate-200 py-0 shadow-none xl:col-span-6">
-          <CardHeader className="px-4 py-4">
-            <CardTitle className="text-sm">Web pulse</CardTitle>
-            <p className="text-xs text-slate-500">Monthly traffic overview</p>
-          </CardHeader>
-          <CardContent className="px-4 pb-4">
-            <ChartContainer
-              config={{
-                desktop: { color: "#64748b" },
-                mobile: { color: "#2563eb" },
-              }}
-              className="h-[220px]"
+        <Card className="gap-0 border-slate-200/80 bg-white py-0 shadow-sm xl:col-span-6">
+          <CardHeader className="flex flex-row items-start justify-between gap-2 px-4 py-4">
+            <div>
+              <CardTitle className="text-sm font-semibold text-slate-900">
+                Loan Disbursement Trend
+              </CardTitle>
+              <p className="text-xs text-slate-500">
+                Click a month bar to open daily detail
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => openLatestWithData("disbursement")}
+              className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900"
             >
-              <LineChart data={pulseData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="month" tickLine={false} axisLine={false} />
-                <YAxis tickLine={false} axisLine={false} width={34} />
-                <Tooltip />
-                <Line
-                  type="monotone"
-                  dataKey="desktop"
-                  stroke="var(--color-desktop)"
-                  dot={false}
-                  strokeWidth={2}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="mobile"
-                  stroke="var(--color-mobile)"
-                  dot={false}
-                  strokeWidth={2.2}
-                />
-              </LineChart>
-            </ChartContainer>
+              <Expand className="size-3" />
+              Open
+            </button>
+          </CardHeader>
+          <CardContent className="px-4 pb-4">
+            {!hasDisbursement ? (
+              <EmptyChart label="No disbursements in the last 7 months yet" />
+            ) : (
+              <div className="flex h-[220px] items-end gap-2">
+                {disbursementTrend.map((d) => (
+                  <button
+                    key={d.monthKey}
+                    type="button"
+                    onClick={() => openMonth("disbursement", d.monthKey)}
+                    className="group flex min-w-0 flex-1 flex-col items-center gap-1 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-[#08163d]/40"
+                    title={`${d.month}: ${formatUgx(d.amount)} — open daily view`}
+                  >
+                    <div
+                      className="w-full rounded-t-md bg-[#08163d] transition group-hover:bg-[#122a66]"
+                      style={{
+                        height:
+                          d.amount > 0
+                            ? `${Math.max(8, (d.amount / disburseMax) * 180)}px`
+                            : "2px",
+                        opacity: d.amount > 0 ? 1 : 0.25,
+                      }}
+                    />
+                    <span className="text-[10px] text-slate-500 group-hover:text-slate-800">
+                      {d.month}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
 
-        <Card className="gap-0 border-slate-200 py-0 shadow-none xl:col-span-3">
-          <CardHeader className="px-4 py-4">
-            <CardTitle className="text-sm">User growth</CardTitle>
+        <Card className="gap-0 border-slate-200/80 bg-white py-0 shadow-sm xl:col-span-6">
+          <CardHeader className="flex flex-row items-start justify-between gap-2 px-4 py-4">
+            <div>
+              <CardTitle className="text-sm font-semibold text-slate-900">
+                Applications vs Approvals
+              </CardTitle>
+              <p className="text-xs text-slate-500">
+                Click a month to open daily submitted / approved
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => openLatestWithData("applications")}
+              className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+            >
+              <Expand className="size-3" />
+              Open
+            </button>
           </CardHeader>
           <CardContent className="px-4 pb-4">
-            <ChartContainer config={{ growth: { color: "#3b82f6" } }} className="h-[220px]">
-              <AreaChart data={growthData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="day" tickLine={false} axisLine={false} />
-                <YAxis tickLine={false} axisLine={false} width={28} />
-                <Tooltip />
-                <Area
-                  type="monotone"
-                  dataKey="growth"
-                  stroke="var(--color-growth)"
-                  fill="var(--color-growth)"
-                  fillOpacity={0.2}
-                  strokeWidth={2}
-                />
-              </AreaChart>
-            </ChartContainer>
-          </CardContent>
-        </Card>
-
-        <Card className="gap-0 border-slate-200 py-0 shadow-none xl:col-span-3">
-          <CardHeader className="px-4 py-4">
-            <CardTitle className="text-sm">Traffic statistic</CardTitle>
-          </CardHeader>
-          <CardContent className="px-4 pb-4">
-            <ChartContainer config={{ traffic: { color: "#2563eb" } }} className="h-[220px]">
-              <PieChart>
-                <Pie
-                  data={trafficData}
-                  dataKey="value"
-                  nameKey="name"
-                  innerRadius={48}
-                  outerRadius={74}
-                  paddingAngle={2}
-                >
-                  {trafficData.map((entry) => (
-                    <Cell key={entry.name} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ChartContainer>
-            <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-slate-600">
-              {trafficData.map((item) => (
-                <div key={item.name} className="flex items-center gap-1.5 rounded-lg bg-slate-50 px-2 py-1.5">
-                  <span className="h-2 w-2 rounded-full" style={{ backgroundColor: item.color }} />
-                  <span>
-                    {item.name} {item.value}%
-                  </span>
-                </div>
-              ))}
+            {!hasApps ? (
+              <EmptyChart label="No applications in the last 7 months yet" />
+            ) : (
+              <div className="flex h-[220px] items-end gap-3">
+                {applicationTrend.map((d) => (
+                  <button
+                    key={d.monthKey}
+                    type="button"
+                    onClick={() => openMonth("applications", d.monthKey)}
+                    className="group flex min-w-0 flex-1 flex-col items-center gap-1 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-[#08163d]/40"
+                    title={`${d.month}: ${d.submitted} submitted, ${d.approved} approved — open daily view`}
+                  >
+                    <div className="flex w-full items-end justify-center gap-1">
+                      <div
+                        className="w-1/2 rounded-t bg-slate-300 transition group-hover:bg-slate-400"
+                        style={{
+                          height: `${Math.max(8, (d.submitted / appMax) * 180)}px`,
+                        }}
+                      />
+                      <div
+                        className="w-1/2 rounded-t bg-[#08163d] transition group-hover:bg-[#122a66]"
+                        style={{
+                          height: `${Math.max(8, (d.approved / appMax) * 180)}px`,
+                        }}
+                      />
+                    </div>
+                    <span className="text-[10px] text-slate-500 group-hover:text-slate-800">
+                      {d.month}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="mt-2 flex items-center justify-center gap-4 text-[10px] text-slate-500">
+              <span className="inline-flex items-center gap-1">
+                <span className="size-2 rounded-sm bg-slate-300" /> Submitted
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <span className="size-2 rounded-sm bg-[#08163d]" /> Approved
+              </span>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      <Card className="gap-0 border-slate-200 py-0 shadow-none">
-        <CardHeader className="px-4 py-4">
-          <CardTitle className="text-sm">Real-time traffic</CardTitle>
-          <p className="text-xs text-slate-500">Live stream updates every 4 seconds</p>
-        </CardHeader>
-        <CardContent className="px-4 pb-4">
-          <div className="mb-3 text-sm text-slate-600">
-            Current requests/minute:{" "}
-            <span className="font-semibold text-slate-900">{latestValue}</span>
-          </div>
-          <ChartContainer config={{ live: { color: "#16a34a" } }} className="h-[220px]">
-            <LineChart data={points}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="time" tickLine={false} axisLine={false} />
-              <YAxis tickLine={false} axisLine={false} width={30} />
-              <Tooltip />
-              <Line
-                type="monotone"
-                dataKey="value"
-                stroke="var(--color-live)"
-                strokeWidth={2.5}
-                dot={false}
-                isAnimationActive={false}
-              />
-            </LineChart>
-          </ChartContainer>
-        </CardContent>
-      </Card>
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
+        <Card className="gap-0 border-slate-200/80 bg-white py-0 shadow-sm xl:col-span-4">
+          <CardHeader className="px-4 py-4">
+            <CardTitle className="text-sm font-semibold text-slate-900">
+              Application Status
+            </CardTitle>
+            <p className="text-xs text-slate-500">Live pipeline breakdown</p>
+          </CardHeader>
+          <CardContent className="space-y-2 px-4 pb-4">
+            {!hasStatus ? (
+              <p className="py-8 text-center text-xs text-slate-400">
+                No applications yet
+              </p>
+            ) : (
+              statusBreakdown.map((d) => (
+                <div key={d.name} className="flex items-center gap-2 text-xs">
+                  <span
+                    className="size-2.5 shrink-0 rounded-full"
+                    style={{ backgroundColor: d.color }}
+                  />
+                  <span className="flex-1 capitalize text-slate-600">
+                    {d.name}
+                  </span>
+                  <span className="font-medium text-slate-900">{d.value}</span>
+                  <span className="w-10 text-right text-slate-400">
+                    {Math.round((d.value / statusTotal) * 100)}%
+                  </span>
+                </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="gap-0 border-slate-200/80 bg-white py-0 shadow-sm xl:col-span-8">
+          <CardHeader className="px-4 py-4">
+            <CardTitle className="text-sm font-semibold text-slate-900">
+              Credit Risk Bands
+            </CardTitle>
+            <p className="text-xs text-slate-500">
+              From latest scored borrowers in the portfolio
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-3 px-4 pb-4">
+            {!hasRisk ? (
+              <p className="py-8 text-center text-xs text-slate-400">
+                No credit scores yet — run scoring from Borrowers
+              </p>
+            ) : (
+              riskBands.map((b) => (
+                <div key={b.label}>
+                  <div className="mb-1 flex items-center justify-between text-xs">
+                    <span className={b.text}>{b.label}</span>
+                    <span className="font-medium text-slate-700">{b.pct}%</span>
+                  </div>
+                  <div className={`h-2 overflow-hidden rounded-full ${b.track}`}>
+                    <div
+                      className={`h-full rounded-full ${b.color}`}
+                      style={{ width: `${b.pct}%` }}
+                    />
+                  </div>
+                </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </>
   );
 }
 
+function currentMonthKey() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+}

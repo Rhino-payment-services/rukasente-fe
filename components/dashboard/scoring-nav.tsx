@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const items = [
-  { href: "/scoring/rules", label: "Scoring rules" },
+  { href: "/credit-score/rules", label: "Credit score rules" },
   { href: "/scoring/results", label: "Score results" },
   { href: "/scoring/eligibility", label: "Eligibility decisions" },
   { href: "/scoring/manual-review", label: "Manual review cases" },

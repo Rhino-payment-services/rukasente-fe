@@ -1,8 +1,9 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { unwrapEnvelope } from "@/lib/api-envelope";
+import type { BorrowerLoans, LoanReminderResult } from "@/types/loan";
 
 export type BorrowerListResponse = {
   items: BorrowerRow[];
@@ -16,6 +17,7 @@ export type BorrowerRow = {
   // Internal identifier — kept off the UI but needed for per-borrower actions
   // (e.g. running a credit score via /internal/scoring/borrowers/{id}/run).
   id?: string;
+  partner_id?: string | null;
   rukapay_user_id?: string;
   full_name: string;
   phone: string;
@@ -25,6 +27,64 @@ export type BorrowerRow = {
   scoring_wallet_id?: string | null;
 };
 
+export type KycStatus = "pending" | "verified" | "rejected";
+
+export type BorrowerDetail = {
+  id: string;
+  partner_id?: string | null;
+  rukapay_user_id: string;
+  full_name: string;
+  phone: string;
+  email: string;
+  national_id?: string | null;
+  kyc_status: string;
+  status: string;
+  wallet_ids?: string[];
+  scoring_wallet_id?: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export function useBorrower(id: string) {
+  return useQuery({
+    queryKey: ["borrower", id],
+    enabled: !!id,
+    queryFn: async () => {
+      const res = await apiClient.get(`/admin/borrowers/${id}`);
+      return unwrapEnvelope<BorrowerDetail>(res);
+    },
+  });
+}
+
+export function useBorrowerLoans(profileId: string) {
+  return useQuery({
+    queryKey: ["borrower-loans", profileId],
+    enabled: !!profileId,
+    queryFn: async () => {
+      const res = await apiClient.get(`/admin/borrowers/${profileId}/loans`);
+      return unwrapEnvelope<BorrowerLoans>(res);
+    },
+  });
+}
+
+export function useSendLoanReminder(profileId?: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (applicationId: string) => {
+      const res = await apiClient.post(
+        `/admin/loan-applications/${applicationId}/remind`,
+        {}
+      );
+      return unwrapEnvelope<LoanReminderResult>(res);
+    },
+    onSuccess: () => {
+      if (profileId) {
+        void qc.invalidateQueries({ queryKey: ["borrower-loans", profileId] });
+      }
+    },
+  });
+}
+
 export function useBorrowersList(page = 1, pageSize = 20) {
   return useQuery({
     queryKey: ["borrowers", page, pageSize],
@@ -33,6 +93,27 @@ export function useBorrowersList(page = 1, pageSize = 20) {
         params: { page, page_size: pageSize },
       });
       return unwrapEnvelope<BorrowerListResponse>(res);
+    },
+  });
+}
+
+export function useUpdateBorrowerKYC() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      kyc_status,
+    }: {
+      id: string;
+      kyc_status: KycStatus;
+    }) => {
+      const res = await apiClient.patch(`/admin/borrowers/${id}/kyc`, {
+        kyc_status,
+      });
+      return unwrapEnvelope<BorrowerRow>(res);
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["borrowers"] });
     },
   });
 }

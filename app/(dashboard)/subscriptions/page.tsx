@@ -1,13 +1,19 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ColumnDef,
   SortingState,
   flexRender,
   getCoreRowModel,
-  getFilteredRowModel,
-  getPaginationRowModel,
   getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
@@ -18,6 +24,7 @@ import {
   ChevronRight,
   Calendar,
   Play,
+  Loader2,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -30,8 +37,26 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import {
+  ScoreResultFeedback,
+  ScoreResultModal,
+} from "@/components/dashboard/score-result-modal";
 import { SubscriptionRow, useSubscriptionsList } from "@/hooks/use-subscriptions";
-import { RunScoreDialog } from "@/components/dashboard/run-score-dialog";
+import { useRunScoring } from "@/hooks/use-scoring";
+import { scoringErrorMessage } from "@/lib/scoring-errors";
+
+type ScoreRunCtx = {
+  runningUserId: string | null;
+  runScore: (s: SubscriptionRow) => Promise<void>;
+};
+
+const ScoreRunContext = createContext<ScoreRunCtx | null>(null);
+
+function useScoreRun() {
+  const ctx = useContext(ScoreRunContext);
+  if (!ctx) throw new Error("ScoreRunContext missing");
+  return ctx;
+}
 
 type BadgeVariant = "default" | "success" | "warning" | "danger" | "info";
 type StatusFilterValue =
@@ -102,20 +127,50 @@ export default function SubscriptionsPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilterValue>("all");
   const [kycFilter, setKycFilter] = useState<KycFilterValue>("all");
 
-  const [runDialogOpen, setRunDialogOpen] = useState(false);
-  const [runTarget, setRunTarget] = useState<{
-    rukapayUserId: string;
-    label: string | null;
-  } | null>(null);
+  const { mutateAsync } = useRunScoring();
+  const mutateAsyncRef = useRef(mutateAsync);
+  useEffect(() => {
+    mutateAsyncRef.current = mutateAsync;
+  }, [mutateAsync]);
 
-  const openRunDialog = (s: SubscriptionRow) => {
-    if (!s.rukapay_user_id) return;
-    setRunTarget({
-      rukapayUserId: s.rukapay_user_id,
-      label: s.full_name?.trim() || s.rukapay_user_id,
+  const [runningUserId, setRunningUserId] = useState<string | null>(null);
+  const runningUserIdRef = useRef<string | null>(null);
+  const [feedback, setFeedback] = useState<ScoreResultFeedback | null>(null);
+
+  const runScore = useCallback(async (s: SubscriptionRow) => {
+    const id = s.rukapay_user_id?.trim();
+    if (!id || runningUserIdRef.current) return;
+    const name = s.full_name?.trim() || id;
+    setFeedback(null);
+    runningUserIdRef.current = id;
+    setRunningUserId(id);
+    await new Promise<void>((resolve) => {
+      window.setTimeout(resolve, 0);
     });
-    setRunDialogOpen(true);
-  };
+    try {
+      const result = await mutateAsyncRef.current({ rukapay_user_id: id });
+      const score = result.credit_score_result;
+      setFeedback({
+        kind: "success",
+        name,
+        score: score.total_score,
+        band: score.risk_band,
+        decision: String(score.suggested_decision || "").replace(/_/g, " "),
+        limit: score.recommended_limit,
+      });
+    } catch (err) {
+      const message = scoringErrorMessage(err);
+      if (message) setFeedback({ kind: "error", name, message });
+    } finally {
+      runningUserIdRef.current = null;
+      setRunningUserId(null);
+    }
+  }, []);
+
+  const scoreCtx = useMemo(
+    () => ({ runningUserId, runScore }),
+    [runningUserId, runScore]
+  );
 
   const columns = useMemo<ColumnDef<SubscriptionRow>[]>(
     () => [
@@ -216,23 +271,7 @@ export default function SubscriptionsPage() {
       {
         id: "actions",
         header: () => <span className="sr-only">Actions</span>,
-        cell: ({ row }) => {
-          const id = row.original.rukapay_user_id;
-          if (!id) return null;
-          return (
-            <div className="flex justify-end">
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-8 rounded-lg"
-                onClick={() => openRunDialog(row.original)}
-              >
-                <Play className="size-3.5" />
-                Run score
-              </Button>
-            </div>
-          );
-        },
+        cell: ({ row }) => <RunScoreAction row={row.original} />,
       },
     ],
     []
@@ -259,8 +298,7 @@ export default function SubscriptionsPage() {
     onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
+    autoResetPageIndex: false,
   });
 
   const stats = useMemo(() => {
@@ -287,6 +325,7 @@ export default function SubscriptionsPage() {
   }, [raw]);
 
   return (
+    <ScoreRunContext.Provider value={scoreCtx}>
     <div className="space-y-4">
       <div className="rounded-2xl border border-slate-200 bg-white p-4">
         <h1 className="text-2xl font-semibold text-slate-900">Subscriptions</h1>
@@ -456,16 +495,38 @@ export default function SubscriptionsPage() {
         </CardContent>
       </Card>
 
-      <RunScoreDialog
-        open={runDialogOpen}
-        onOpenChange={(next) => {
-          setRunDialogOpen(next);
-          if (!next) setRunTarget(null);
-        }}
-        initialRukapayUserId={runTarget?.rukapayUserId}
-        lockRukapayUserId
-        borrowerLabel={runTarget?.label ?? null}
+      <ScoreResultModal
+        feedback={feedback}
+        onClose={() => setFeedback(null)}
       />
+    </div>
+    </ScoreRunContext.Provider>
+  );
+}
+
+function RunScoreAction({ row }: { row: SubscriptionRow }) {
+  const { runningUserId, runScore } = useScoreRun();
+  const id = row.rukapay_user_id;
+  if (!id) return null;
+  const busy = runningUserId === id;
+  const anyBusy = !!runningUserId;
+
+  return (
+    <div className="flex justify-end">
+      <Button
+        size="sm"
+        variant="outline"
+        className="h-8 rounded-lg"
+        disabled={anyBusy}
+        onClick={() => void runScore(row)}
+      >
+        {busy ? (
+          <Loader2 className="size-3.5 animate-spin" />
+        ) : (
+          <Play className="size-3.5" />
+        )}
+        {busy ? "Running…" : "Run score"}
+      </Button>
     </div>
   );
 }

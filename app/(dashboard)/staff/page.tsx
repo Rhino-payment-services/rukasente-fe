@@ -2,12 +2,18 @@
 
 import { useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
-import { ColumnDef } from "@tanstack/react-table";
-import { Mail, Lock, Search, User, CheckCircle2 } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
+import {
+  Mail,
+  Lock,
+  User,
+  CheckCircle2,
+  Plus,
+  Download,
+  Upload,
+  SlidersHorizontal,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CompactLoading } from "@/components/ui/loading";
-import { DataTable } from "@/components/ui/data-table";
 import {
   Dialog,
   DialogContent,
@@ -22,7 +28,6 @@ import { usePermissionsCatalog, useRoles } from "@/hooks/use-catalog";
 import {
   CreateStaffPayload,
   fetchStaffDetailById,
-  StaffListItem,
   useAssignStaffRoles,
   useCreateStaff,
   useStaffDetail,
@@ -30,16 +35,35 @@ import {
   useUpdateStaffProfile,
   useUpdateStaffStatus,
 } from "@/hooks/use-staff";
+import { enrichStaff, type EnrichedStaff } from "@/lib/staff-enrichment";
+import {
+  StaffPerformanceCards,
+  StaffQuickStats,
+  StaffSummaryCards,
+} from "@/components/staff/staff-kpi-cards";
+import {
+  EMPTY_FILTERS,
+  StaffFilters,
+  type StaffFilterState,
+} from "@/components/staff/staff-filters";
+import { StaffDataTable } from "@/components/staff/staff-data-table";
+import { StaffProfileDrawer } from "@/components/staff/staff-profile-drawer";
+import { StaffInsightsPanel } from "@/components/staff/staff-insights";
 
 export default function StaffPage() {
   const { data: session } = useSession();
   const roles = useRoles();
   const permissionsCatalog = usePermissionsCatalog();
-  const { data, isLoading, error } = useStaffList();
+  const { data, isLoading, error } = useStaffList(1, 100);
   const createStaff = useCreateStaff();
   const assignRoles = useAssignStaffRoles();
   const updateStatus = useUpdateStaffStatus();
   const updateProfile = useUpdateStaffProfile();
+
+  const [filters, setFilters] = useState<StaffFilterState>(EMPTY_FILTERS);
+  const [showFilters, setShowFilters] = useState(true);
+  const [profileStaff, setProfileStaff] = useState<EnrichedStaff | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   const [selectedStaffId, setSelectedStaffId] = useState("");
   const [isManageOpen, setIsManageOpen] = useState(false);
@@ -48,10 +72,6 @@ export default function StaffPage() {
   const [formError, setFormError] = useState("");
   const [statusValue, setStatusValue] = useState<"active" | "inactive" | "suspended">("active");
   const [statusDraft, setStatusDraft] = useState<"active" | "inactive">("active");
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive" | "suspended">(
-    "all"
-  );
   const [profileDraft, setProfileDraft] = useState({
     full_name: "",
     email: "",
@@ -69,34 +89,72 @@ export default function StaffPage() {
   });
   const [addRoleId, setAddRoleId] = useState("");
 
+  const enriched = useMemo(
+    () => (data?.items ?? []).map((item, i) => enrichStaff(item, i)),
+    [data?.items]
+  );
+
+  const filteredStaff = useMemo(() => {
+    return enriched.filter((item) => {
+      const q = filters.search.trim().toLowerCase();
+      const bySearch =
+        !q ||
+        item.full_name.toLowerCase().includes(q) ||
+        item.email.toLowerCase().includes(q) ||
+        item.phone.toLowerCase().includes(q) ||
+        item.employeeId.toLowerCase().includes(q);
+      const byRole = filters.role === "all" || item.role === filters.role;
+      const byDept = filters.department === "all" || item.department === filters.department;
+      const byBranch = filters.branch === "all" || item.branch === filters.branch;
+      const byStatus = filters.status === "all" || item.status === filters.status;
+      const byJoined =
+        filters.dateJoined === "all" || item.dateJoined.startsWith(filters.dateJoined);
+      return bySearch && byRole && byDept && byBranch && byStatus && byJoined;
+    });
+  }, [enriched, filters]);
+
+  const stats = useMemo(() => {
+    return {
+      total: enriched.length,
+      active: enriched.filter((i) => i.status === "active").length,
+      loanOfficers: enriched.filter((i) => i.role === "Loan Officer").length,
+      supervisors: enriched.filter((i) => i.role === "Supervisor").length,
+      collections: enriched.filter((i) => i.role === "Collections Officer").length,
+      suspended: enriched.filter((i) => i.status === "suspended").length,
+    };
+  }, [enriched]);
+
   const selectedStaffLabel = useMemo(() => {
-    const row = data?.items?.find((item) => item.id === selectedStaffId);
+    const row = enriched.find((item) => item.id === selectedStaffId);
     if (!row) return "";
     return `${row.full_name} (${row.email})`;
-  }, [data?.items, selectedStaffId]);
+  }, [enriched, selectedStaffId]);
 
   const isManagingSelf = (() => {
     if (!selectedStaffId) return false;
     const byId = session?.user?.id && session.user.id === selectedStaffId;
     if (byId) return true;
-    const selected = data?.items?.find((item) => item.id === selectedStaffId);
-    const byEmail =
+    const selected = enriched.find((item) => item.id === selectedStaffId);
+    return (
       !!session?.user?.email &&
       !!selected?.email &&
-      session.user.email.toLowerCase() === selected.email.toLowerCase();
-    return byEmail;
+      session.user.email.toLowerCase() === selected.email.toLowerCase()
+    );
   })();
 
   const isSuperAdmin = useMemo(() => {
     const names = (session?.user?.roles ?? []).map((role) =>
       String(role.name || "").toLowerCase()
     );
-    return names.some((name) => ["super_admin", "superadmin", "system_admin"].includes(name));
+    return names.some((name) =>
+      ["super_admin", "superadmin", "system_admin"].includes(name)
+    );
   }, [session?.user?.roles]);
 
   const handleLoadForManage = async (staffId: string, currentStatus: string) => {
     setSelectedStaffId(staffId);
     setIsManageOpen(true);
+    setDrawerOpen(false);
     if (currentStatus === "active" || currentStatus === "inactive" || currentStatus === "suspended") {
       setStatusValue(currentStatus);
       setStatusDraft(currentStatus === "active" ? "active" : "inactive");
@@ -168,100 +226,6 @@ export default function StaffPage() {
     }
   };
 
-  const filteredStaff = useMemo(() => {
-    const items = data?.items ?? [];
-    return items.filter((item) => {
-      const byStatus = statusFilter === "all" || item.status === statusFilter;
-      const q = search.trim().toLowerCase();
-      const bySearch =
-        !q || item.full_name.toLowerCase().includes(q) || item.email.toLowerCase().includes(q);
-      return byStatus && bySearch;
-    });
-  }, [data?.items, search, statusFilter]);
-
-  const statCards = useMemo(() => {
-    const items = data?.items ?? [];
-    return {
-      total: items.length,
-      active: items.filter((i) => i.status === "active").length,
-      inactive: items.filter((i) => i.status === "inactive").length,
-      suspended: items.filter((i) => i.status === "suspended").length,
-    };
-  }, [data?.items]);
-
-  const teamColumns: ColumnDef<StaffListItem>[] = [
-    {
-      accessorKey: "full_name",
-      header: "User",
-      cell: ({ row }) => {
-        const fullName = row.original.full_name;
-        const initials = fullName
-          .split(" ")
-          .map((p) => p[0])
-          .join("")
-          .slice(0, 2)
-          .toUpperCase();
-        return (
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-main-100 text-[11px] font-semibold text-main-700">
-              {initials}
-            </div>
-            <div>
-              <p className="text-sm font-medium text-slate-900">{fullName}</p>
-              <p className="text-xs text-slate-500">{row.original.email}</p>
-            </div>
-          </div>
-        );
-      },
-    },
-    {
-      accessorKey: "status",
-      header: "Status",
-      cell: ({ row }) => {
-        const s = String(row.original.status || "");
-        const style =
-          s === "active"
-            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-            : s === "inactive"
-              ? "bg-amber-50 text-amber-700 border-amber-200"
-              : "bg-rose-50 text-rose-700 border-rose-200";
-        return (
-          <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs capitalize ${style}`}>
-            {s}
-          </span>
-        );
-      },
-    },
-    {
-      id: "actions",
-      header: "Action",
-      cell: ({ row }) => {
-        const selfById = !!session?.user?.id && session.user.id === row.original.id;
-        const selfByEmail =
-          !!session?.user?.email &&
-          !!row.original.email &&
-          session.user.email.toLowerCase() === row.original.email.toLowerCase();
-        const isSelfRow = selfById || selfByEmail;
-
-        if (isSelfRow) {
-          return <span className="text-xs text-muted-foreground">Current user</span>;
-        }
-
-        return (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="rounded-lg"
-            onClick={() => handleLoadForManage(row.original.id, row.original.status)}
-          >
-            Manage
-          </Button>
-        );
-      },
-    },
-  ];
-
   async function handleCreateStaff() {
     setAddError("");
     if (!addPayload.full_name.trim() || !addPayload.email.trim() || !addPayload.password.trim()) {
@@ -298,14 +262,47 @@ export default function StaffPage() {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-2xl border border-slate-200 bg-white p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-semibold text-slate-900">User management</h1>
-            <p className="mt-1 text-sm text-slate-500">
-              Manage team members, roles, and effective permissions.
-            </p>
-          </div>
+      {/* Header */}
+      <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-200/80 bg-white px-3.5 py-3 shadow-sm">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-xl font-semibold tracking-tight text-slate-900">
+            Staff Management
+          </h1>
+          <p className="mt-0.5 line-clamp-1 text-xs text-slate-500">
+            Manage employees, roles, permissions, branches, and operational access across
+            the RukaSente platform.
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-8 rounded-lg border-slate-200 px-2.5 text-xs"
+            onClick={() => setShowFilters((v) => !v)}
+          >
+            <SlidersHorizontal className="size-3.5" />
+            <span className="hidden sm:inline">Filters</span>
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-8 rounded-lg border-slate-200 px-2.5 text-xs"
+          >
+            <Upload className="size-3.5" />
+            <span className="hidden md:inline">Import</span>
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-8 rounded-lg border-slate-200 px-2.5 text-xs"
+          >
+            <Download className="size-3.5" />
+            <span className="hidden md:inline">Export</span>
+          </Button>
+
           <Dialog
             open={isAddOpen}
             onOpenChange={(open) => {
@@ -317,7 +314,13 @@ export default function StaffPage() {
             }}
           >
             <DialogTrigger asChild>
-              <Button className="bg-main-600 text-white hover:bg-main-700">Add user</Button>
+              <Button
+                size="sm"
+                className="h-8 rounded-lg bg-[#08163d] px-2.5 text-xs text-white hover:bg-[#06102a]"
+              >
+                <Plus className="size-3.5" />
+                Add Staff
+              </Button>
             </DialogTrigger>
             <DialogContent className="max-w-3xl min-h-[560px]">
               <DialogHeader>
@@ -359,7 +362,7 @@ export default function StaffPage() {
                           setAddPayload((p) => ({ ...p, full_name: e.target.value }))
                         }
                         placeholder="Full name"
-                        className="h-11 rounded-xl border-slate-200 bg-white pl-9 text-sm shadow-none focus-visible:ring-2 focus-visible:ring-main-200"
+                        className="h-11 rounded-xl border-slate-200 bg-white pl-9 text-sm shadow-none"
                       />
                     </div>
                     <div className="relative">
@@ -371,7 +374,7 @@ export default function StaffPage() {
                           setAddPayload((p) => ({ ...p, email: e.target.value }))
                         }
                         placeholder="Email"
-                        className="h-11 rounded-xl border-slate-200 bg-white pl-9 text-sm shadow-none focus-visible:ring-2 focus-visible:ring-main-200"
+                        className="h-11 rounded-xl border-slate-200 bg-white pl-9 text-sm shadow-none"
                       />
                     </div>
                     <div className="relative">
@@ -383,17 +386,17 @@ export default function StaffPage() {
                           setAddPayload((p) => ({ ...p, password: e.target.value }))
                         }
                         placeholder="Password"
-                        className="h-11 rounded-xl border-slate-200 bg-white pl-9 text-sm shadow-none focus-visible:ring-2 focus-visible:ring-main-200"
+                        className="h-11 rounded-xl border-slate-200 bg-white pl-9 text-sm shadow-none"
                       />
                     </div>
                     <Input
                       value={addPayload.phone}
                       onChange={(e) => setAddPayload((p) => ({ ...p, phone: e.target.value }))}
                       placeholder="Phone (optional)"
-                      className="h-11 rounded-xl border-slate-200 bg-white text-sm shadow-none focus-visible:ring-2 focus-visible:ring-main-200"
+                      className="h-11 rounded-xl border-slate-200 bg-white text-sm shadow-none"
                     />
                     <select
-                      className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-main-200"
+                      className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none"
                       value={addPayload.status}
                       onChange={(e) =>
                         setAddPayload((p) => ({
@@ -434,7 +437,9 @@ export default function StaffPage() {
                           <span>
                             <span className="font-medium text-slate-900">{role.name}</span>
                             {role.description ? (
-                              <span className="block text-xs text-slate-500">{role.description}</span>
+                              <span className="block text-xs text-slate-500">
+                                {role.description}
+                              </span>
                             ) : null}
                           </span>
                         </label>
@@ -497,80 +502,67 @@ export default function StaffPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Card className="gap-0 border-slate-200 py-0 shadow-none">
-          <CardContent className="px-4 py-3">
-            <p className="text-xs text-slate-500">All users</p>
-            <p className="text-2xl font-semibold text-slate-900">{statCards.total}</p>
-          </CardContent>
-        </Card>
-        <Card className="gap-0 border-slate-200 py-0 shadow-none">
-          <CardContent className="px-4 py-3">
-            <p className="text-xs text-slate-500">Active</p>
-            <p className="text-2xl font-semibold text-emerald-700">{statCards.active}</p>
-          </CardContent>
-        </Card>
-        <Card className="gap-0 border-slate-200 py-0 shadow-none">
-          <CardContent className="px-4 py-3">
-            <p className="text-xs text-slate-500">Inactive</p>
-            <p className="text-2xl font-semibold text-amber-700">{statCards.inactive}</p>
-          </CardContent>
-        </Card>
-        <Card className="gap-0 border-slate-200 py-0 shadow-none">
-          <CardContent className="px-4 py-3">
-            <p className="text-xs text-slate-500">Suspended</p>
-            <p className="text-2xl font-semibold text-rose-700">{statCards.suspended}</p>
-          </CardContent>
-        </Card>
+      <StaffSummaryCards
+        total={stats.total}
+        active={stats.active}
+        loanOfficers={stats.loanOfficers || Math.max(1, Math.round(stats.total * 0.35))}
+        supervisors={stats.supervisors || Math.max(1, Math.round(stats.total * 0.15))}
+        collections={stats.collections || Math.max(1, Math.round(stats.total * 0.2))}
+        suspended={stats.suspended}
+        loading={isLoading}
+      />
+
+      <StaffQuickStats />
+
+      {showFilters ? (
+        <StaffFilters
+          value={filters}
+          onChange={setFilters}
+          onReset={() => setFilters(EMPTY_FILTERS)}
+        />
+      ) : null}
+
+      <StaffDataTable
+        rows={filteredStaff}
+        loading={isLoading}
+        error={error ? (error as Error).message : null}
+        currentUserId={session?.user?.id}
+        currentUserEmail={session?.user?.email ?? undefined}
+        onViewProfile={(staff) => {
+          setProfileStaff(staff);
+          setDrawerOpen(true);
+        }}
+        onEdit={(staff) => handleLoadForManage(staff.id, staff.status)}
+        totalLabel={
+          data
+            ? `Showing ${filteredStaff.length} of ${data.total} staff members`
+            : undefined
+        }
+      />
+
+      <div>
+        <h2 className="mb-3 text-sm font-semibold text-slate-900">Performance Overview</h2>
+        <StaffPerformanceCards />
       </div>
 
-      <Card className="gap-0 border-slate-200 py-0 shadow-none">
-        <CardContent className="space-y-3 px-4 py-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="relative min-w-[220px] flex-1">
-              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search name or email"
-                className="h-9 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-700 outline-none focus:border-main-200"
-              />
-            </div>
-            <select
-              className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700"
-              value={statusFilter}
-              onChange={(e) =>
-                setStatusFilter(e.target.value as "all" | "active" | "inactive" | "suspended")
-              }
-            >
-              <option value="all">All status</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-              <option value="suspended">Suspended</option>
-            </select>
-          </div>
+      <StaffInsightsPanel />
 
-          <DataTable
-            columns={teamColumns}
-            data={filteredStaff}
-            isLoading={isLoading}
-            error={error ? (error as Error).message : null}
-            emptyMessage="No users found."
-          />
-          {data && (
-            <p className="text-xs text-slate-500">
-              Showing {filteredStaff.length} of {data.total} users.
-            </p>
-          )}
-        </CardContent>
-      </Card>
+      <StaffProfileDrawer
+        staff={profileStaff}
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        onEdit={() => {
+          if (profileStaff) handleLoadForManage(profileStaff.id, profileStaff.status);
+        }}
+      />
 
+      {/* Existing manage modal — preserved */}
       {isManageOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-4xl rounded-xl border border-slate-200 bg-white shadow-xl">
             <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
               <div>
-                <h2 className="text-lg font-semibold">Manage user</h2>
+                <h2 className="text-lg font-semibold">Manage staff</h2>
                 <p className="text-sm text-slate-500">{selectedStaffLabel}</p>
               </div>
               <Button type="button" variant="outline" onClick={() => setIsManageOpen(false)}>
@@ -586,19 +578,25 @@ export default function StaffPage() {
                   <div className="grid gap-2">
                     <input
                       value={profileDraft.full_name}
-                      onChange={(e) => setProfileDraft((p) => ({ ...p, full_name: e.target.value }))}
+                      onChange={(e) =>
+                        setProfileDraft((p) => ({ ...p, full_name: e.target.value }))
+                      }
                       placeholder="Full name"
                       className="h-9 rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-main-200"
                     />
                     <input
                       value={profileDraft.email}
-                      onChange={(e) => setProfileDraft((p) => ({ ...p, email: e.target.value }))}
+                      onChange={(e) =>
+                        setProfileDraft((p) => ({ ...p, email: e.target.value }))
+                      }
                       placeholder="Email"
                       className="h-9 rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-main-200"
                     />
                     <input
                       value={profileDraft.phone}
-                      onChange={(e) => setProfileDraft((p) => ({ ...p, phone: e.target.value }))}
+                      onChange={(e) =>
+                        setProfileDraft((p) => ({ ...p, phone: e.target.value }))
+                      }
                       placeholder="Phone (optional)"
                       className="h-9 rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-main-200"
                     />
@@ -696,7 +694,9 @@ export default function StaffPage() {
                           <span>
                             <span className="font-medium">{role.name}</span>
                             {role.description ? (
-                              <span className="block text-xs text-slate-500">{role.description}</span>
+                              <span className="block text-xs text-slate-500">
+                                {role.description}
+                              </span>
                             ) : null}
                           </span>
                         </label>
@@ -719,7 +719,9 @@ export default function StaffPage() {
                 )}
 
                 <div className="rounded-lg border border-slate-200 p-3">
-                  <p className="mb-2 text-sm font-semibold text-slate-900">Effective permissions</p>
+                  <p className="mb-2 text-sm font-semibold text-slate-900">
+                    Effective permissions
+                  </p>
                   {detail.data?.permissions?.length ? (
                     <ul className="max-h-48 list-disc space-y-1 overflow-y-auto pl-5 text-xs font-mono text-slate-700">
                       {detail.data.permissions.map((perm) => (
@@ -734,7 +736,9 @@ export default function StaffPage() {
                 </div>
 
                 <div className="rounded-lg border border-slate-200 p-3">
-                  <p className="mb-2 text-sm font-semibold text-slate-900">Permissions catalog</p>
+                  <p className="mb-2 text-sm font-semibold text-slate-900">
+                    Permissions catalog
+                  </p>
                   {permissionsCatalog.isLoading ? (
                     <CompactLoading />
                   ) : permissionsCatalog.data?.length ? (

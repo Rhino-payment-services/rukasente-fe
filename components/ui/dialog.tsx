@@ -30,7 +30,7 @@ function DialogOverlay({
   return (
     <DialogPrimitive.Overlay
       data-slot="dialog-overlay"
-      className={cn("fixed inset-0 z-50 bg-black/40", className)}
+      className={cn("fixed inset-0 z-[110] bg-black/40", className)}
       {...props}
     />
   );
@@ -47,9 +47,14 @@ function DialogContent({
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(
-          "fixed left-1/2 top-1/2 z-50 w-full max-w-2xl -translate-x-1/2 -translate-y-1/2 rounded-xl border border-slate-200 bg-white p-0 shadow-xl",
+          "fixed left-1/2 top-1/2 z-[110] w-full max-w-2xl -translate-x-1/2 -translate-y-1/2 rounded-xl border border-slate-200 bg-white p-0 shadow-xl",
           className
         )}
+        onCloseAutoFocus={(e) => {
+          // Prevent focus restore issues that can leave the page feeling "stuck".
+          e.preventDefault();
+          unlockBodyIfNeeded();
+        }}
         {...props}
       >
         {children}
@@ -60,6 +65,11 @@ function DialogContent({
       </DialogPrimitive.Content>
     </DialogPortal>
   );
+}
+
+function unlockBodyIfNeeded() {
+  if (typeof document === "undefined") return;
+  document.body.style.pointerEvents = "";
 }
 
 function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {

@@ -9,7 +9,14 @@ export async function POST(req: Request, ctx: RouteCtx) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
     return NextResponse.json(
-      { success: false, error: { code: "unauthorized", message: "Unauthorized" } },
+      {
+        success: false,
+        error: {
+          code: "unauthorized",
+          message:
+            "Admin session missing or expired. Sign out and sign in again, then retry scoring.",
+        },
+      },
       { status: 401 }
     );
   }

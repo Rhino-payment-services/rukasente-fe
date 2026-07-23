@@ -22,10 +22,10 @@ export default function ScoringPage() {
           </p>
           <div className="grid gap-4 md:grid-cols-2">
             <Link
-              href="/scoring/rules"
+              href="/credit-score/rules"
               className="rounded-md border border-border p-4 hover:bg-muted/40"
             >
-              <h3 className="font-medium">Scoring rules</h3>
+              <h3 className="font-medium">Credit score rules</h3>
               <p className="text-sm text-muted-foreground">
                 Create and adjust rules used to compute borrower scores.
               </p>

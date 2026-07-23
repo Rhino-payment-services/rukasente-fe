@@ -1,33 +1,53 @@
 "use client";
 
 import { signIn, useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { useEffect, useState } from "react";
-import { Mail, Lock, Loader2, Eye, EyeOff, Globe, Apple } from "lucide-react";
+import { Mail, Lock, Loader2, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { RUKAPAY_LOGO_SRC } from "@/components/brand/rukapay-logo-mark";
 import { FullPageLoading } from "@/components/ui/loading";
 import { toast } from "sonner";
 
+const DASHBOARD_PATH = "/";
+
+function goToDashboard() {
+  // Hard navigation — App Router soft replace often stalls after next-auth signIn.
+  window.location.assign(DASHBOARD_PATH);
+}
+
 export default function LoginPage() {
-  const router = useRouter();
   const { status } = useSession();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [redirecting, setRedirecting] = useState(false);
 
   useEffect(() => {
     document.title = "Sign In · Ruka Sente";
   }, []);
 
   useEffect(() => {
-    if (status === "authenticated") {
-      router.replace("/");
-    }
-  }, [status, router]);
+    if (status !== "authenticated") return;
+
+    setRedirecting(true);
+    // Brief pause so the branded loader is visible, then hard-navigate home.
+    const timer = window.setTimeout(() => {
+      goToDashboard();
+    }, 1200);
+
+    // Safety net: if something blocks navigation, force it again.
+    const fallback = window.setTimeout(() => {
+      goToDashboard();
+    }, 2800);
+
+    return () => {
+      window.clearTimeout(timer);
+      window.clearTimeout(fallback);
+    };
+  }, [status]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -43,21 +63,25 @@ export default function LoginPage() {
         return;
       }
       if (res?.ok) {
-        // Drop any stale token from the previous session so the next API call
-        // pulls the fresh JWT from /api/auth/session instead of the old one.
         const { clearCachedAccessToken } = await import("@/lib/api-client");
         clearCachedAccessToken();
         toast.success("Welcome back");
-        router.replace("/");
-        router.refresh();
+        setRedirecting(true);
+        // Session will flip to authenticated; the effect above handles navigation.
+        // Kick an immediate hard redirect as well so we never sit forever.
+        window.setTimeout(() => goToDashboard(), 1200);
       }
     } finally {
       setSubmitting(false);
     }
   }
 
-  if (status === "loading" || status === "authenticated") {
-    return <FullPageLoading message="Loading..." />;
+  if (status === "loading") {
+    return <FullPageLoading message="Checking your session..." />;
+  }
+
+  if (status === "authenticated" || redirecting) {
+    return <FullPageLoading message="Signing you in..." />;
   }
 
   return (
@@ -89,32 +113,7 @@ export default function LoginPage() {
           Please enter your information to access your account.
         </p>
 
-        <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <button
-            type="button"
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
-          >
-            <Globe className="size-4 text-main-600" aria-hidden />
-            Log In with Google
-          </button>
-          <button
-            type="button"
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
-          >
-            <Apple className="size-4" aria-hidden />
-            Log In with Apple
-          </button>
-        </div>
-
-        <div className="my-6 flex items-center gap-3">
-          <div className="h-px flex-1 bg-slate-200" />
-          <span className="text-xs font-medium uppercase tracking-wide text-slate-400">
-            Or
-          </span>
-          <div className="h-px flex-1 bg-slate-200" />
-        </div>
-
-        <form onSubmit={onSubmit} className="space-y-4">
+        <form onSubmit={onSubmit} className="mt-6 space-y-4">
           <div className="space-y-1.5">
             <label htmlFor="email" className="text-xs font-medium text-slate-600">
               Email

@@ -16,7 +16,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   }, [status, router]);
 
   if (status === "loading") {
-    return <FullPageLoading message="Loading..." />;
+    return <FullPageLoading message="Preparing your workspace..." />;
   }
 
   if (status === "unauthenticated") {

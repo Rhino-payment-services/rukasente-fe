@@ -27,13 +27,26 @@ export async function POST(req: Request) {
     !body.rukapay_user_id?.trim() ||
     !body.full_name?.trim() ||
     !body.phone?.trim() ||
-    !body.email?.trim() ||
     !body.wallet_id?.trim()
   ) {
     return NextResponse.json(
       {
         success: false,
-        error: { code: "validation_error", message: "Missing required fields" },
+        error: {
+          code: "validation_error",
+          message: "Missing required fields (email is optional)",
+        },
+      },
+      { status: 400 }
+    );
+  }
+
+  const email = body.email?.trim() || "";
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: { code: "validation_error", message: "Invalid email address" },
       },
       { status: 400 }
     );
@@ -54,7 +67,7 @@ export async function POST(req: Request) {
       rukapay_user_id: body.rukapay_user_id,
       full_name: body.full_name,
       phone: body.phone,
-      email: body.email,
+      email,
       wallet_ids: [body.wallet_id],
       scoring_wallet_id: body.scoring_wallet_id || body.wallet_id,
     }),
