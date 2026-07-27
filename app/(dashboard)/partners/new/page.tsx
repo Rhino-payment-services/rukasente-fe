@@ -304,7 +304,7 @@ export default function NewPartnerPage() {
                 <Field
                   label="Allowed IPs / CIDRs"
                   optional
-                  hint="One per line. Include the rdbs_core server egress IP."
+                  hint="One per line. Only enforced when Require IP whitelist is on. Include the caller’s public egress IP."
                 >
                   <textarea
                     value={form.allowed_ips_text}
