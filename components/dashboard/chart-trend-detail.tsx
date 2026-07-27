@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   formatUgx,
@@ -53,12 +53,7 @@ export function ChartTrendDetail({
 }: ChartTrendDetailProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const dayFromUrl = searchParams.get("day");
-  const [selectedDay, setSelectedDay] = useState<string | null>(dayFromUrl);
-
-  useEffect(() => {
-    setSelectedDay(dayFromUrl);
-  }, [dayFromUrl, monthKey, kind]);
+  const selectedDay = searchParams.get("day");
 
   const isDisbursement = kind === "disbursement";
   const chartMax = maxOf(
@@ -80,7 +75,6 @@ export function ChartTrendDetail({
   ).length;
 
   const setDay = (day: string | null) => {
-    setSelectedDay(day);
     const params = new URLSearchParams(searchParams.toString());
     if (day) params.set("day", day);
     else params.delete("day");
@@ -106,7 +100,7 @@ export function ChartTrendDetail({
             className="h-8 rounded-md border border-slate-200 bg-white px-2 text-xs text-slate-800"
             value={monthKey}
             onChange={(e) => {
-              setSelectedDay(null);
+              setDay(null);
               onMonthChange?.(e.target.value);
             }}
           >

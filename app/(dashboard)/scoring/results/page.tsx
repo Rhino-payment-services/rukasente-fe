@@ -39,6 +39,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useClientMounted } from "@/lib/use-client-mounted";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatCurrency, formatDate } from "@/components/dashboard/scoring-shared";
@@ -626,7 +627,26 @@ function ManualRunScoreModal({
   busy: boolean;
   onSubmit: (rukapayUserId: string, walletId?: string) => Promise<void>;
 }) {
-  const [mounted, setMounted] = useState(false);
+  const mounted = useClientMounted();
+  if (!mounted || !open) return null;
+  return (
+    <ManualRunScoreModalInner
+      onClose={onClose}
+      busy={busy}
+      onSubmit={onSubmit}
+    />
+  );
+}
+
+function ManualRunScoreModalInner({
+  onClose,
+  busy,
+  onSubmit,
+}: {
+  onClose: () => void;
+  busy: boolean;
+  onSubmit: (rukapayUserId: string, walletId?: string) => Promise<void>;
+}) {
   const [rukapayUserId, setRukapayUserId] = useState("");
   const [walletId, setWalletId] = useState("");
   const titleId = useId();
@@ -637,12 +657,7 @@ function ManualRunScoreModal({
     onCloseRef.current = onClose;
   }, [onClose]);
 
-  useEffect(() => setMounted(true), []);
-
   useEffect(() => {
-    if (!open) return;
-    setRukapayUserId("");
-    setWalletId("");
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") onCloseRef.current();
     };
@@ -654,9 +669,7 @@ function ManualRunScoreModal({
       document.removeEventListener("keydown", onKeyDown);
       document.body.style.overflow = prev;
     };
-  }, [open]);
-
-  if (!mounted || !open) return null;
+  }, []);
 
   return createPortal(
     <div

@@ -118,9 +118,10 @@ export default function LoanApplicationDetailPage({
       return;
     }
     try {
+      const idempotencyKey = `admin-repay-${id}-${crypto.randomUUID()}`;
       await repay.mutateAsync({
         amount,
-        idempotency_key: `admin-repay-${id}-${Date.now()}`,
+        idempotency_key: idempotencyKey,
       });
       toast.success("Repayment recorded");
       setRepayOpen(false);

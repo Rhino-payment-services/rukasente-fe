@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef } from "react";
 import { createPortal } from "react-dom";
 import { AlertCircle, CheckCircle2, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useClientMounted } from "@/lib/use-client-mounted";
 
 export type ScoreResultFeedback =
   | {
@@ -27,7 +28,7 @@ type ScoreResultModalProps = {
  * Avoids focus-lock freezes seen with Dialog primitives.
  */
 export function ScoreResultModal({ feedback, onClose }: ScoreResultModalProps) {
-  const [mounted, setMounted] = useState(false);
+  const mounted = useClientMounted();
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
   const onCloseRef = useRef(onClose);
@@ -35,8 +36,6 @@ export function ScoreResultModal({ feedback, onClose }: ScoreResultModalProps) {
   useEffect(() => {
     onCloseRef.current = onClose;
   }, [onClose]);
-
-  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     if (!feedback) return;

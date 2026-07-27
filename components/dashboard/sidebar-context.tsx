@@ -7,6 +7,7 @@ import {
   useEffect,
   useMemo,
   useState,
+  useSyncExternalStore,
   type ReactNode,
 } from "react";
 
@@ -24,22 +25,39 @@ const SidebarContext = createContext<SidebarContextValue | null>(null);
 
 const STORAGE_KEY = "rukasente.sidebar.collapsed";
 
+function subscribeCollapsed(onStoreChange: () => void) {
+  window.addEventListener("storage", onStoreChange);
+  return () => window.removeEventListener("storage", onStoreChange);
+}
+
+function getCollapsedSnapshot() {
+  try {
+    return localStorage.getItem(STORAGE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function getCollapsedServerSnapshot() {
+  return false;
+}
+
 export function SidebarProvider({ children }: { children: ReactNode }) {
-  const [collapsed, setCollapsedState] = useState(false);
+  const storedCollapsed = useSyncExternalStore(
+    subscribeCollapsed,
+    getCollapsedSnapshot,
+    getCollapsedServerSnapshot
+  );
+  const [collapsedOverride, setCollapsedOverride] = useState<boolean | null>(
+    null
+  );
+  const collapsed =
+    collapsedOverride !== null ? collapsedOverride : storedCollapsed;
   const [mobileOpen, setMobileOpen] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
 
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw === "1") setCollapsedState(true);
-    } catch {
-      /* ignore */
-    }
-  }, []);
-
   const setCollapsed = useCallback((v: boolean) => {
-    setCollapsedState(v);
+    setCollapsedOverride(v);
     try {
       localStorage.setItem(STORAGE_KEY, v ? "1" : "0");
     } catch {

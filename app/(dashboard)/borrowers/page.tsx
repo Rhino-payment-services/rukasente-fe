@@ -195,7 +195,7 @@ export default function BorrowersPage() {
               : v === "pending"
                 ? "warning"
                 : "danger";
-          return <Badge variant={variant as any}>{v || "—"}</Badge>;
+          return <Badge variant={variant}>{v || "—"}</Badge>;
         },
       },
       {
@@ -205,7 +205,7 @@ export default function BorrowersPage() {
           const v = String(row.original.status || "").toLowerCase();
           const variant =
             v === "active" ? "info" : v === "inactive" ? "warning" : "danger";
-          return <Badge variant={variant as any}>{v || "—"}</Badge>;
+          return <Badge variant={variant}>{v || "—"}</Badge>;
         },
       },
       {
@@ -275,7 +275,11 @@ export default function BorrowersPage() {
               <select
                 className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700"
                 value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value as any)}
+                onChange={(e) =>
+                  setStatusFilter(
+                    e.target.value as "all" | "active" | "inactive" | "suspended"
+                  )
+                }
               >
                 <option value="all">All status</option>
                 <option value="active">Active</option>
@@ -285,7 +289,15 @@ export default function BorrowersPage() {
               <select
                 className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700"
                 value={kycFilter}
-                onChange={(e) => setKycFilter(e.target.value as any)}
+                onChange={(e) =>
+                  setKycFilter(
+                    e.target.value as
+                      | "all"
+                      | "verified"
+                      | "pending"
+                      | "rejected"
+                  )
+                }
               >
                 <option value="all">All KYC</option>
                 <option value="verified">Verified</option>

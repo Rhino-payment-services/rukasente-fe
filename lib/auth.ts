@@ -7,7 +7,11 @@ import { getApiBaseUrl } from "@/lib/config";
 const DEV_FALLBACK_NEXTAUTH_SECRET =
   "rukasente-fe-dev-only-set-NEXTAUTH_SECRET-in-env-local";
 
-function resolveNextAuthSecret(): string {
+/**
+ * Return undefined (not "") when missing so NextAuth can still read
+ * `process.env.NEXTAUTH_SECRET` via `??=` — an empty string blocks that fallback.
+ */
+function resolveNextAuthSecret(): string | undefined {
   const s = process.env.NEXTAUTH_SECRET?.trim();
   if (s) return s;
   if (process.env.NODE_ENV === "development") {
@@ -18,7 +22,7 @@ function resolveNextAuthSecret(): string {
     }
     return DEV_FALLBACK_NEXTAUTH_SECRET;
   }
-  return "";
+  return undefined;
 }
 
 type Envelope<T> = {

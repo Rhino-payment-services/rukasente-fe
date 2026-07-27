@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Command } from "cmdk";
 import {
@@ -16,6 +15,7 @@ import {
   Search,
 } from "lucide-react";
 import { useSidebar } from "@/components/dashboard/sidebar-context";
+import { useClientMounted } from "@/lib/use-client-mounted";
 import { cn } from "@/lib/utils";
 
 const LINKS = [
@@ -37,9 +37,7 @@ const LINKS = [
 export function CommandPalette() {
   const router = useRouter();
   const { commandOpen, setCommandOpen } = useSidebar();
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => setMounted(true), []);
+  const mounted = useClientMounted();
 
   if (!mounted || !commandOpen) return null;
 
