@@ -226,8 +226,9 @@ export default function PartnerDetailPage({
                   className="w-full rounded-md border border-slate-200 px-3 py-2 font-mono text-xs outline-none focus-visible:ring-2 focus-visible:ring-[rgba(8,22,61,0.15)]"
                 />
                 <span className="block text-[11px] text-slate-400">
-                  One IP or CIDR per line. Partner API calls must come from these
-                  addresses when whitelist is enabled or when the list is non-empty.
+                  One IP or CIDR per line. Enforced only when “Require IP whitelist”
+                  is checked. Use the public IP of the caller (or your reverse proxy)
+                  as seen by the API — check partner API request logs if unsure.
                 </span>
               </label>
               <Button
