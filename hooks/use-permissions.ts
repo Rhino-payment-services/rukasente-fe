@@ -1,51 +1,40 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { useMe } from "@/hooks/use-me";
 import { hasAll, hasAny, hasPermission } from "@/lib/permissions";
 
 /**
  * Fresh effective permissions from `/admin/me`, falling back to the login session copy.
- * Also syncs NextAuth JWT permissions when `/me` returns newer keys.
+ * Does not call NextAuth `update()` — that caused CSRF/session spam and page flicker.
  */
 export function usePermissions() {
-  const { data: session, status, update } = useSession();
-  const me = useMe();
-  const lastSynced = useRef<string>("");
+  const { data: session, status } = useSession();
+  const me = useMe({ enabled: status === "authenticated" });
 
   const permissions = useMemo(() => {
-    if (me.data?.permissions?.length) return me.data.permissions;
-    if (me.data && Array.isArray(me.data.permissions)) return me.data.permissions;
+    if (me.data && Array.isArray(me.data.permissions)) {
+      return me.data.permissions;
+    }
     return session?.user?.permissions ?? [];
   }, [me.data, session?.user?.permissions]);
 
   const roles = me.data?.roles ?? session?.user?.roles ?? [];
   const isPlatform = me.data?.is_platform ?? !!session?.user?.isPlatform;
 
-  useEffect(() => {
-    if (!me.data || status !== "authenticated") return;
-    const stamp = JSON.stringify({
-      p: me.data.permissions ?? [],
-      r: (me.data.roles ?? []).map((x) => x.id),
-      ip: me.data.is_platform,
-    });
-    if (stamp === lastSynced.current) return;
-    lastSynced.current = stamp;
-    void update({
-      permissions: me.data.permissions ?? [],
-      roles: me.data.roles ?? [],
-      isPlatform: me.data.is_platform,
-      partnerId: me.data.partner_id ?? null,
-      partner: me.data.partner ?? null,
-    });
-  }, [me.data, status, update]);
+  // Only block UI on the initial auth/me bootstrap — never on session "loading"
+  // after an update, which caused navigate flicker.
+  const hasSessionPerms = (session?.user?.permissions?.length ?? 0) > 0;
+  const isLoading =
+    status === "loading" ||
+    (status === "authenticated" && me.isLoading && !hasSessionPerms && !me.data);
 
   return {
     permissions,
     roles,
     isPlatform,
-    isLoading: status === "loading" || me.isLoading,
+    isLoading,
     can: (key: string) => hasPermission(permissions, key),
     canAny: (keys: string[]) => hasAny(permissions, keys),
     canAll: (keys: string[]) => hasAll(permissions, keys),

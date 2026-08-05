@@ -16,9 +16,10 @@ export function RequirePerm({
   children: React.ReactNode;
   description?: string;
 }) {
-  const { canAny, canAll, isLoading } = usePermissions();
+  const { canAny, canAll, isLoading, permissions } = usePermissions();
 
-  if (isLoading) {
+  // Prefer session/me permissions immediately; only show spinner on cold start.
+  if (isLoading && permissions.length === 0) {
     return (
       <div className="flex min-h-[30vh] items-center justify-center">
         <CompactLoading />
