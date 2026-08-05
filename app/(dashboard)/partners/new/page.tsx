@@ -3,24 +3,38 @@
 import Link from "next/link";
 import { FormEvent, useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import {
   ArrowLeft,
   Building2,
+  Copy,
   Globe2,
   Handshake,
-  ImageIcon,
-  Link2,
   Mail,
+  Palette,
   Phone,
-  Shield,
   UserRound,
+  Wallet,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { useCreatePartner } from "@/hooks/use-partners";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  useCreatePartner,
+  usePaymentProviders,
+  useRegisterLendingCompany,
+} from "@/hooks/use-partners";
 import { cn } from "@/lib/utils";
+import type { RegisterLendingCompanyResult } from "@/types/partner";
 
 const inputClass =
   "h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-[rgba(8,22,61,0.15)]";
@@ -94,13 +108,24 @@ function slugifyCode(name: string) {
 
 export default function NewPartnerPage() {
   const router = useRouter();
+  const { data: session } = useSession();
+  const isPlatform = !!session?.user?.isPlatform;
   const create = useCreatePartner();
+  const register = useRegisterLendingCompany();
+  const providersQ = usePaymentProviders();
   const [codeTouched, setCodeTouched] = useState(false);
+  const [tempReveal, setTempReveal] = useState<RegisterLendingCompanyResult | null>(
+    null
+  );
   const [form, setForm] = useState({
     name: "",
     code: "",
     description: "",
     status: "active",
+    country: "UG",
+    currency: "UGX",
+    primary_color: "#4f46e5",
+    payment_provider_id: "",
     api_base_url: "",
     contact_name: "",
     contact_email: "",
@@ -108,7 +133,13 @@ export default function NewPartnerPage() {
     logo_url: "",
     allowed_ips_text: "127.0.0.1\n::1",
     ip_whitelist_enabled: true,
+    admin_email: "",
+    admin_name: "",
+    admin_password: "",
   });
+
+  const providers = providersQ.data?.items ?? [];
+  const pending = create.isPending || register.isPending;
 
   const previewInitials = useMemo(() => {
     const parts = form.name.trim().split(/\s+/).filter(Boolean);
@@ -127,9 +158,42 @@ export default function NewPartnerPage() {
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     if (!form.name.trim() || !form.code.trim()) {
-      toast.error("Partner name and code are required");
+      toast.error("Name and code are required");
       return;
     }
+
+    if (isPlatform) {
+      if (!form.admin_email.trim() || !form.admin_name.trim()) {
+        toast.error("Admin email and full name are required");
+        return;
+      }
+      try {
+        const result = await register.mutateAsync({
+          name: form.name.trim(),
+          code: form.code.trim().toUpperCase(),
+          description: form.description.trim() || undefined,
+          primary_color: form.primary_color.trim() || undefined,
+          country: form.country.trim() || undefined,
+          currency: form.currency.trim() || undefined,
+          payment_provider_id: form.payment_provider_id || null,
+          contact_name: form.contact_name.trim() || undefined,
+          contact_email: form.contact_email.trim() || undefined,
+          contact_phone: form.contact_phone.trim() || undefined,
+          logo_url: form.logo_url.trim() || undefined,
+          admin_email: form.admin_email.trim(),
+          admin_name: form.admin_name.trim(),
+          admin_password: form.admin_password.trim() || undefined,
+        });
+        setTempReveal(result);
+        toast.success("Lending company registered");
+      } catch (err) {
+        toast.error(
+          err instanceof Error ? err.message : "Failed to register company"
+        );
+      }
+      return;
+    }
+
     try {
       const allowed_ips = form.allowed_ips_text
         .split(/[\n,]+/)
@@ -145,6 +209,10 @@ export default function NewPartnerPage() {
         contact_email: form.contact_email.trim(),
         contact_phone: form.contact_phone.trim(),
         logo_url: form.logo_url.trim(),
+        country: form.country.trim() || undefined,
+        currency: form.currency.trim() || undefined,
+        primary_color: form.primary_color.trim() || undefined,
+        payment_provider_id: form.payment_provider_id || null,
         allowed_ips,
         ip_whitelist_enabled: form.ip_whitelist_enabled,
       });
@@ -155,6 +223,11 @@ export default function NewPartnerPage() {
     }
   }
 
+  const title = isPlatform ? "Register lending company" : "New partner";
+  const subtitle = isPlatform
+    ? "Create a tenant partner and bootstrap admin account."
+    : "Register an integration tenant that can call Ruka Sente APIs.";
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200/80 bg-white px-3.5 py-3 shadow-sm">
@@ -164,17 +237,15 @@ export default function NewPartnerPage() {
           </span>
           <div className="min-w-0">
             <h1 className="text-xl font-semibold tracking-tight text-slate-900">
-              New partner
+              {title}
             </h1>
-            <p className="text-xs text-slate-500">
-              Register an integration tenant that can call Ruka Sente APIs.
-            </p>
+            <p className="text-xs text-slate-500">{subtitle}</p>
           </div>
         </div>
         <Button asChild variant="outline" size="sm" className="h-8 rounded-lg text-xs">
           <Link href="/partners">
             <ArrowLeft className="size-3.5" />
-            Back to partners
+            Back
           </Link>
         </Button>
       </div>
@@ -186,12 +257,15 @@ export default function NewPartnerPage() {
               <Section
                 icon={Building2}
                 title="Identity"
-                description="How this partner appears across Ruka Sente."
+                description={
+                  isPlatform
+                    ? "How this lending company appears on the platform."
+                    : "How this partner appears across Ruka Sente."
+                }
               >
                 <div className="grid gap-4 sm:grid-cols-2">
                   <Field
-                    label="Partner name"
-                    hint="Display name shown to staff"
+                    label={isPlatform ? "Company name" : "Partner name"}
                     className="sm:col-span-2"
                   >
                     <Input
@@ -202,10 +276,7 @@ export default function NewPartnerPage() {
                       className={inputClass}
                     />
                   </Field>
-                  <Field
-                    label="Partner code"
-                    hint="Unique uppercase ID used in APIs and audits"
-                  >
+                  <Field label="Code" hint="Unique uppercase ID">
                     <Input
                       required
                       value={form.code}
@@ -220,29 +291,48 @@ export default function NewPartnerPage() {
                       className={cn(inputClass, "font-mono tracking-wide")}
                     />
                   </Field>
-                  <Field label="Status" hint="Inactive partners cannot call APIs">
-                    <div className="grid grid-cols-2 gap-1.5 rounded-xl border border-slate-200 bg-slate-50 p-1">
-                      {(["active", "inactive"] as const).map((s) => (
-                        <button
-                          key={s}
-                          type="button"
-                          onClick={() => setForm((f) => ({ ...f, status: s }))}
-                          className={cn(
-                            "h-8 rounded-lg text-xs font-medium capitalize transition-colors",
-                            form.status === s
-                              ? "bg-white text-[#08163d] shadow-sm"
-                              : "text-slate-500 hover:text-slate-800"
-                          )}
-                        >
-                          {s}
-                        </button>
-                      ))}
+                  <Field label="Country" optional>
+                    <Input
+                      value={form.country}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, country: e.target.value }))
+                      }
+                      placeholder="UG"
+                      className={inputClass}
+                    />
+                  </Field>
+                  <Field label="Currency" optional>
+                    <Input
+                      value={form.currency}
+                      onChange={(e) =>
+                        setForm((f) => ({
+                          ...f,
+                          currency: e.target.value.toUpperCase(),
+                        }))
+                      }
+                      placeholder="UGX"
+                      className={inputClass}
+                    />
+                  </Field>
+                  <Field label="Primary color" optional>
+                    <div className="relative">
+                      <Palette className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+                      <Input
+                        value={form.primary_color}
+                        onChange={(e) =>
+                          setForm((f) => ({
+                            ...f,
+                            primary_color: e.target.value,
+                          }))
+                        }
+                        placeholder="#4f46e5"
+                        className={cn(inputClass, "pl-9")}
+                      />
                     </div>
                   </Field>
                   <Field
                     label="Description"
                     optional
-                    hint="Internal note about this integration"
                     className="sm:col-span-2"
                   >
                     <textarea
@@ -251,7 +341,7 @@ export default function NewPartnerPage() {
                         setForm((f) => ({ ...f, description: e.target.value }))
                       }
                       rows={3}
-                      placeholder="Mobile money lending partner for western region…"
+                      placeholder="Lending company for western region…"
                       className="w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-[rgba(8,22,61,0.15)]"
                     />
                   </Field>
@@ -259,72 +349,35 @@ export default function NewPartnerPage() {
               </Section>
 
               <Section
-                icon={Globe2}
-                title="Integration"
-                description="Technical endpoints and documentation for this partner."
+                icon={Wallet}
+                title="Payment rail"
+                description="Disbursement provider for this company."
               >
-                <Field
-                  label="API base URL"
-                  optional
-                  hint="Partner callback base or docs URL (informational)"
-                >
-                  <div className="relative">
-                    <Link2 className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
-                    <Input
-                      value={form.api_base_url}
-                      onChange={(e) =>
-                        setForm((f) => ({ ...f, api_base_url: e.target.value }))
-                      }
-                      placeholder="https://api.partner.example.com"
-                      className={cn(inputClass, "pl-9")}
-                    />
-                  </div>
-                </Field>
-              </Section>
-
-              <Section
-                icon={Shield}
-                title="IP whitelist"
-                description="Partner API calls must use a key and come from an allowed IP."
-              >
-                <label className="flex items-center gap-2 text-xs text-slate-700">
-                  <input
-                    type="checkbox"
-                    checked={form.ip_whitelist_enabled}
+                <Field label="Payment provider" optional>
+                  <select
+                    value={form.payment_provider_id}
                     onChange={(e) =>
                       setForm((f) => ({
                         ...f,
-                        ip_whitelist_enabled: e.target.checked,
+                        payment_provider_id: e.target.value,
                       }))
                     }
-                    className="rounded border-slate-300"
-                  />
-                  Require IP whitelist
-                </label>
-                <Field
-                  label="Allowed IPs / CIDRs"
-                  optional
-                  hint="One per line. Only enforced when Require IP whitelist is on. Include the caller’s public egress IP."
-                >
-                  <textarea
-                    value={form.allowed_ips_text}
-                    onChange={(e) =>
-                      setForm((f) => ({
-                        ...f,
-                        allowed_ips_text: e.target.value,
-                      }))
-                    }
-                    rows={4}
-                    placeholder={"127.0.0.1\n10.0.0.0/8"}
-                    className="w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2.5 font-mono text-xs text-slate-900 outline-none placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-[rgba(8,22,61,0.15)]"
-                  />
+                    className={inputClass}
+                  >
+                    <option value="">Default / none</option>
+                    {providers.map((pp) => (
+                      <option key={pp.id} value={pp.id}>
+                        {pp.name} ({pp.code})
+                      </option>
+                    ))}
+                  </select>
                 </Field>
               </Section>
 
               <Section
                 icon={UserRound}
                 title="Contact"
-                description="Who we reach for ops and credential issues."
+                description="Ops contact for this company."
               >
                 <div className="grid gap-4 sm:grid-cols-2">
                   <Field label="Contact name" optional className="sm:col-span-2">
@@ -344,9 +397,12 @@ export default function NewPartnerPage() {
                         type="email"
                         value={form.contact_email}
                         onChange={(e) =>
-                          setForm((f) => ({ ...f, contact_email: e.target.value }))
+                          setForm((f) => ({
+                            ...f,
+                            contact_email: e.target.value,
+                          }))
                         }
-                        placeholder="integrations@partner.com"
+                        placeholder="ops@company.com"
                         className={cn(inputClass, "pl-9")}
                       />
                     </div>
@@ -357,7 +413,10 @@ export default function NewPartnerPage() {
                       <Input
                         value={form.contact_phone}
                         onChange={(e) =>
-                          setForm((f) => ({ ...f, contact_phone: e.target.value }))
+                          setForm((f) => ({
+                            ...f,
+                            contact_phone: e.target.value,
+                          }))
                         }
                         placeholder="+2567…"
                         className={cn(inputClass, "pl-9")}
@@ -367,22 +426,64 @@ export default function NewPartnerPage() {
                 </div>
               </Section>
 
-              <Section
-                icon={ImageIcon}
-                title="Branding"
-                description="Optional logo used in partner detail views."
-              >
-                <Field label="Logo URL" optional hint="HTTPS image URL">
-                  <Input
-                    value={form.logo_url}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, logo_url: e.target.value }))
-                    }
-                    placeholder="https://cdn.partner.com/logo.png"
-                    className={inputClass}
-                  />
-                </Field>
-              </Section>
+              {isPlatform ? (
+                <Section
+                  icon={Globe2}
+                  title="Bootstrap admin"
+                  description="First staff user for this lending company. Password is shown once if generated."
+                >
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <Field label="Admin full name" className="sm:col-span-2">
+                      <Input
+                        required
+                        value={form.admin_name}
+                        onChange={(e) =>
+                          setForm((f) => ({
+                            ...f,
+                            admin_name: e.target.value,
+                          }))
+                        }
+                        placeholder="Admin name"
+                        className={inputClass}
+                      />
+                    </Field>
+                    <Field label="Admin email">
+                      <Input
+                        required
+                        type="email"
+                        value={form.admin_email}
+                        onChange={(e) =>
+                          setForm((f) => ({
+                            ...f,
+                            admin_email: e.target.value,
+                          }))
+                        }
+                        placeholder="admin@company.com"
+                        className={inputClass}
+                      />
+                    </Field>
+                    <Field
+                      label="Admin password"
+                      optional
+                      hint="Leave blank to auto-generate a temporary password"
+                    >
+                      <Input
+                        type="password"
+                        value={form.admin_password}
+                        onChange={(e) =>
+                          setForm((f) => ({
+                            ...f,
+                            admin_password: e.target.value,
+                          }))
+                        }
+                        placeholder="••••••••"
+                        className={inputClass}
+                        autoComplete="new-password"
+                      />
+                    </Field>
+                  </div>
+                </Section>
+              ) : null}
 
               <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 pt-4">
                 <Button
@@ -395,10 +496,14 @@ export default function NewPartnerPage() {
                 </Button>
                 <Button
                   type="submit"
-                  disabled={create.isPending}
+                  disabled={pending}
                   className="h-9 rounded-xl bg-[#08163d] px-4 text-white hover:bg-[#06102a]"
                 >
-                  {create.isPending ? "Creating…" : "Create partner"}
+                  {pending
+                    ? "Saving…"
+                    : isPlatform
+                      ? "Register company"
+                      : "Create partner"}
                 </Button>
               </div>
             </CardContent>
@@ -406,117 +511,109 @@ export default function NewPartnerPage() {
 
           <div className="space-y-4 lg:sticky lg:top-4 lg:self-start">
             <Card className="gap-0 overflow-hidden border-slate-200/80 py-0 shadow-sm">
-              <div className="bg-gradient-to-br from-[#08163d] to-[#142a5c] px-5 py-5 text-white">
+              <div
+                className="px-5 py-5 text-white"
+                style={{
+                  background: `linear-gradient(135deg, ${form.primary_color || "#08163d"}, #142a5c)`,
+                }}
+              >
                 <p className="text-[11px] font-medium uppercase tracking-wider text-white/60">
                   Live preview
                 </p>
                 <div className="mt-4 flex items-center gap-3">
-                  {form.logo_url.trim() ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={form.logo_url.trim()}
-                      alt=""
-                      className="size-12 rounded-xl bg-white/10 object-contain p-1 ring-1 ring-white/20"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = "none";
-                      }}
-                    />
-                  ) : (
-                    <span className="inline-flex size-12 items-center justify-center rounded-xl bg-white/10 text-sm font-semibold ring-1 ring-white/20">
-                      {previewInitials}
-                    </span>
-                  )}
+                  <span className="inline-flex size-12 items-center justify-center rounded-xl bg-white/10 text-sm font-semibold ring-1 ring-white/20">
+                    {previewInitials}
+                  </span>
                   <div className="min-w-0">
                     <p className="truncate text-lg font-semibold tracking-tight">
-                      {form.name.trim() || "Partner name"}
+                      {form.name.trim() || "Company name"}
                     </p>
                     <p className="font-mono text-xs text-white/70">
-                      {form.code.trim() || "CODE"}
+                      {form.code.trim() || "CODE"} · {form.currency || "UGX"}
                     </p>
                   </div>
                 </div>
               </div>
-              <CardContent className="space-y-3 p-5 text-sm">
-                <Row
-                  label="Status"
-                  value={
-                    <span
-                      className={cn(
-                        "inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium capitalize",
-                        form.status === "active"
-                          ? "bg-emerald-50 text-emerald-700"
-                          : "bg-amber-50 text-amber-700"
-                      )}
-                    >
-                      {form.status}
-                    </span>
-                  }
-                />
-                <Row
-                  label="Description"
-                  value={form.description.trim() || "—"}
-                />
-                <Row label="API URL" value={form.api_base_url.trim() || "—"} mono />
-                <Row
-                  label="Contact"
-                  value={
-                    form.contact_name.trim() ||
-                    form.contact_email.trim() ||
-                    form.contact_phone.trim()
-                      ? [
-                          form.contact_name.trim(),
-                          form.contact_email.trim(),
-                          form.contact_phone.trim(),
-                        ]
-                          .filter(Boolean)
-                          .join(" · ")
-                      : "—"
-                  }
-                />
-              </CardContent>
-            </Card>
-
-            <Card className="gap-0 border-slate-200/80 bg-slate-50/60 py-0 shadow-sm">
-              <CardContent className="space-y-2 p-4 text-xs text-slate-600">
-                <p className="font-semibold text-slate-800">After create</p>
-                <ol className="list-decimal space-y-1.5 pl-4">
-                  <li>Open the partner and generate API credentials.</li>
-                  <li>Share the API key + secret once (secret is not shown again).</li>
-                  <li>
-                    Partner authenticates with{" "}
-                    <code className="rounded bg-white px-1">X-API-Key</code> and{" "}
-                    <code className="rounded bg-white px-1">X-API-Secret</code>.
-                  </li>
-                </ol>
+              <CardContent className="space-y-2 p-5 text-xs text-slate-600">
+                {isPlatform ? (
+                  <ol className="list-decimal space-y-1.5 pl-4">
+                    <li>Register creates the partner tenant and admin staff user.</li>
+                    <li>Copy the temporary password — it is shown only once.</li>
+                    <li>Admin signs in and can manage loans for that company.</li>
+                  </ol>
+                ) : (
+                  <ol className="list-decimal space-y-1.5 pl-4">
+                    <li>Open the partner and generate API credentials.</li>
+                    <li>Share the API key + secret once.</li>
+                  </ol>
+                )}
               </CardContent>
             </Card>
           </div>
         </div>
       </form>
-    </div>
-  );
-}
 
-function Row({
-  label,
-  value,
-  mono,
-}: {
-  label: string;
-  value: ReactNode;
-  mono?: boolean;
-}) {
-  return (
-    <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-2 last:border-0 last:pb-0">
-      <span className="shrink-0 text-[11px] font-medium text-slate-400">{label}</span>
-      <span
-        className={cn(
-          "min-w-0 text-right text-slate-800",
-          mono && "break-all font-mono text-[11px]"
-        )}
+      <Dialog
+        open={!!tempReveal}
+        onOpenChange={(open) => {
+          if (!open && tempReveal) {
+            const id = tempReveal.partner.id;
+            setTempReveal(null);
+            router.push(`/partners/${id}`);
+          }
+        }}
       >
-        {value}
-      </span>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Temporary admin password</DialogTitle>
+            <DialogDescription>
+              {tempReveal?.warning ||
+                "Copy this password now. It will not be shown again."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 px-5 py-4">
+            <div>
+              <p className="text-[11px] font-medium text-slate-500">Admin email</p>
+              <p className="text-sm text-slate-900">{tempReveal?.admin_email}</p>
+            </div>
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-3">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[11px] font-medium text-amber-800/80">
+                  Temporary password
+                </p>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 gap-1 text-xs"
+                  onClick={() => {
+                    if (!tempReveal?.admin_password) return;
+                    void navigator.clipboard.writeText(tempReveal.admin_password);
+                    toast.success("Password copied");
+                  }}
+                >
+                  <Copy className="size-3" />
+                  Copy
+                </Button>
+              </div>
+              <p className="mt-1 break-all font-mono text-sm text-slate-900">
+                {tempReveal?.admin_password}
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              className="bg-[#08163d] text-white hover:bg-[#06102a]"
+              onClick={() => {
+                const id = tempReveal?.partner.id;
+                setTempReveal(null);
+                if (id) router.push(`/partners/${id}`);
+              }}
+            >
+              I’ve saved it — open company
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

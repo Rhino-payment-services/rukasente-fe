@@ -14,6 +14,7 @@ import { hasPermission, Perm } from "@/lib/permissions";
 
 export default function PartnersPage() {
   const { data: session } = useSession();
+  const isPlatform = !!session?.user?.isPlatform;
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
@@ -52,10 +53,12 @@ export default function PartnersPage() {
           </span>
           <div className="min-w-0">
             <h1 className="text-xl font-semibold tracking-tight text-slate-900">
-              Partners
+              {isPlatform ? "Lending companies" : "Partners"}
             </h1>
             <p className="text-xs text-slate-500">
-              Register RukaPay and other third-party integration partners.
+              {isPlatform
+                ? "Onboard and manage multi-tenant lending companies."
+                : "Register RukaPay and other third-party integration partners."}
             </p>
           </div>
         </div>
@@ -66,7 +69,7 @@ export default function PartnersPage() {
         >
           <Link href="/partners/new">
             <Plus className="size-3.5" />
-            New partner
+            {isPlatform ? "Register company" : "New partner"}
           </Link>
         </Button>
       </div>

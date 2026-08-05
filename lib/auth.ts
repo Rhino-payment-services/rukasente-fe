@@ -2,6 +2,7 @@ import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import axios from "axios";
 import { getApiBaseUrl } from "@/lib/config";
+import type { PartnerSessionSummary, StaffRoleRef } from "@/types/next-auth";
 
 /** Stable dev-only secret so JWT cookies encrypt/decrypt when .env is incomplete. Never use in production. */
 const DEV_FALLBACK_NEXTAUTH_SECRET =
@@ -31,6 +32,16 @@ type Envelope<T> = {
   error?: { code: string; message: string };
 };
 
+type LoginPartner = {
+  id: string;
+  name: string;
+  code: string;
+  is_internal: boolean;
+  logo_url?: string;
+  primary_color?: string;
+  currency?: string;
+};
+
 type LoginData = {
   access_token: string;
   token_type: string;
@@ -40,13 +51,11 @@ type LoginData = {
     id: string;
     full_name: string;
     email: string;
+    partner_id?: string | null;
+    is_platform?: boolean;
+    partner?: LoginPartner | null;
     permissions?: string[];
-    roles?: Array<{
-      id: string;
-      name: string;
-      description?: string;
-      is_system: boolean;
-    }>;
+    roles?: StaffRoleRef[];
   };
 };
 
@@ -56,6 +65,21 @@ type RefreshData = {
   token_type: string;
   expires_in_seconds: number;
 };
+
+function mapPartnerSummary(
+  p?: LoginPartner | null
+): PartnerSessionSummary | null {
+  if (!p?.id) return null;
+  return {
+    id: p.id,
+    name: p.name,
+    code: p.code,
+    is_internal: !!p.is_internal,
+    logo_url: p.logo_url,
+    primary_color: p.primary_color,
+    currency: p.currency,
+  };
+}
 
 async function refreshAccessToken(token: {
   refreshToken?: string;
@@ -131,6 +155,9 @@ export const authOptions: NextAuthOptions = {
             expiresInSeconds: d.expires_in_seconds,
             permissions: d.user.permissions ?? [],
             roles: d.user.roles ?? [],
+            partnerId: d.user.partner_id ?? null,
+            isPlatform: !!d.user.is_platform,
+            partner: mapPartnerSummary(d.user.partner),
           };
         } catch (err: unknown) {
           if (axios.isAxiosError(err)) {
@@ -162,12 +189,18 @@ export const authOptions: NextAuthOptions = {
           expiresInSeconds?: number;
           permissions?: string[];
           roles?: unknown[];
+          partnerId?: string | null;
+          isPlatform?: boolean;
+          partner?: PartnerSessionSummary | null;
         };
         token.accessToken = u.accessToken;
         token.refreshToken = u.refreshToken;
         token.expiresInSeconds = u.expiresInSeconds;
         token.permissions = u.permissions ?? [];
         token.roles = u.roles as typeof token.roles;
+        token.partnerId = u.partnerId ?? null;
+        token.isPlatform = !!u.isPlatform;
+        token.partner = u.partner ?? null;
         token.sub = u.id;
         if (typeof u.expiresInSeconds === "number" && u.expiresInSeconds > 0) {
           const expSeconds = Math.floor(Date.now() / 1000) + u.expiresInSeconds;
@@ -193,6 +226,9 @@ export const authOptions: NextAuthOptions = {
         session.user.id = (token.sub as string) || "";
         session.user.permissions = (token.permissions as string[]) ?? [];
         session.user.roles = token.roles ?? [];
+        session.user.partnerId = token.partnerId ?? null;
+        session.user.isPlatform = !!token.isPlatform;
+        session.user.partner = token.partner ?? null;
         session.accessToken = token.accessToken as string;
         session.refreshToken = token.refreshToken as string | undefined;
         session.authError = token.authError as string | undefined;

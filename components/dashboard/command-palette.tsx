@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { Command } from "cmdk";
 import {
+  Cable,
   LayoutDashboard,
   Users,
   UserCircle,
@@ -30,7 +31,8 @@ const LINKS = [
   { href: "/scoring", label: "Scoring", icon: LineChart, group: "Analytics" },
   { href: "/scoring/results", label: "Score results", icon: FileText, group: "Analytics" },
   { href: "/scoring/eligibility", label: "Eligibility", icon: FileText, group: "Analytics" },
-  { href: "/partners", label: "Partners", icon: Link2, group: "Integrations" },
+  { href: "/partners", label: "Lending companies", icon: Link2, group: "Integrations" },
+  { href: "/payment-providers", label: "Payment providers", icon: Cable, group: "Integrations" },
   { href: "/integrations", label: "API endpoints", icon: Plug, group: "Integrations" },
 ];
 

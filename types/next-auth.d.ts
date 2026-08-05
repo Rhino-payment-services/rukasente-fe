@@ -8,6 +8,17 @@ export type StaffRoleRef = {
   is_system: boolean;
 };
 
+/** Compact partner/tenant projection from login/me. */
+export type PartnerSessionSummary = {
+  id: string;
+  name: string;
+  code: string;
+  is_internal: boolean;
+  logo_url?: string;
+  primary_color?: string;
+  currency?: string;
+};
+
 declare module "next-auth" {
   interface User {
     accessToken?: string;
@@ -15,6 +26,9 @@ declare module "next-auth" {
     expiresInSeconds?: number;
     permissions?: string[];
     roles?: StaffRoleRef[];
+    partnerId?: string | null;
+    isPlatform?: boolean;
+    partner?: PartnerSessionSummary | null;
   }
 
   interface Session {
@@ -28,6 +42,9 @@ declare module "next-auth" {
       image?: string | null;
       permissions: string[];
       roles?: StaffRoleRef[];
+      partnerId?: string | null;
+      isPlatform?: boolean;
+      partner?: PartnerSessionSummary | null;
     };
   }
 }
@@ -41,5 +58,8 @@ declare module "next-auth/jwt" {
     expiresInSeconds?: number;
     expiresAt?: number;
     authError?: string;
+    partnerId?: string | null;
+    isPlatform?: boolean;
+    partner?: PartnerSessionSummary | null;
   }
 }

@@ -1,12 +1,12 @@
 "use client";
 
 import {
-  BadgeCheck,
-  ClipboardList,
+  AlertTriangle,
+  CircleCheck,
+  FileClock,
+  FolderOpen,
   Gauge,
-  HandCoins,
-  Percent,
-  Timer,
+  ShieldCheck,
   Users,
   Wallet,
 } from "lucide-react";
@@ -20,6 +20,8 @@ import { KpiStrip, type KPIItem } from "@/components/dashboard/kpi-strip";
 import { AnalyticsCharts } from "@/components/dashboard/analytics-charts";
 import { RecentLoanApplicationsTable } from "@/components/dashboard/performance-history-table";
 import { QuickActions } from "@/components/dashboard/quick-actions";
+import { ActivityFeed } from "@/components/dashboard/activity-feed";
+import { SystemAlerts } from "@/components/dashboard/system-alerts";
 
 function formatCount(n: number | null | undefined): string {
   if (n === null || n === undefined) return "—";
@@ -36,43 +38,50 @@ export default function OverviewPage() {
       value: formatCount(stats.borrowersTotal),
       subtitle: "Enrolled profiles",
       icon: Users,
+      tone: "violet",
     },
     {
       title: "Active Loans",
       value: formatCount(stats.activeLoans),
       subtitle: "Approved / outstanding",
-      icon: HandCoins,
+      icon: FolderOpen,
+      tone: "blue",
     },
     {
       title: "Total Loan Portfolio",
       value: formatUgx(stats.portfolioAmount),
       subtitle: "Active + repaid book",
       icon: Wallet,
+      tone: "violet",
     },
     {
       title: "Loans Approved Today",
       value: formatCount(stats.approvedToday),
       subtitle: "Decisions today",
-      icon: BadgeCheck,
+      icon: ShieldCheck,
+      tone: "emerald",
     },
     {
       title: "Pending Applications",
       value: formatCount(stats.pendingApps),
       subtitle: "Awaiting review",
-      icon: ClipboardList,
+      icon: FileClock,
+      tone: "blue",
     },
     {
       title: "Overdue Loans",
       value: formatCount(stats.overdueLoans),
       subtitle: "Past due date",
-      icon: Timer,
+      icon: AlertTriangle,
+      tone: "rose",
     },
     {
       title: "Repayment Rate",
       value:
         stats.repaymentRate == null ? "—" : `${stats.repaymentRate}%`,
       subtitle: "Repaid vs closed / overdue",
-      icon: Percent,
+      icon: CircleCheck,
+      tone: "violet",
     },
     {
       title: "Average Credit Score",
@@ -82,11 +91,12 @@ export default function OverviewPage() {
           ? `From ${stats.scoresTotal.toLocaleString()} scores`
           : "Portfolio mean",
       icon: Gauge,
+      tone: "amber",
     },
   ];
 
   return (
-    <div className="flex w-full max-w-[1600px] flex-1 flex-col gap-4">
+    <div className="flex w-full max-w-[1600px] flex-1 flex-col gap-5">
       <GreetingSection fullName={me?.full_name} />
       <QuickActions />
       <KpiStrip items={topStats} loading={stats.isLoading} />
@@ -97,6 +107,15 @@ export default function OverviewPage() {
         riskBands={stats.riskBands}
         loading={stats.isLoading}
       />
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <ActivityFeed apps={stats.recentApps} loading={stats.isLoading} />
+        <SystemAlerts
+          overdueLoans={stats.overdueLoans}
+          pendingApps={stats.pendingApps}
+          repaymentRate={stats.repaymentRate}
+          loading={stats.isLoading}
+        />
+      </div>
       <RecentLoanApplicationsTable
         apps={stats.recentApps}
         scoreByBorrower={stats.scoreByBorrower}

@@ -2,14 +2,15 @@
 
 import Link from "next/link";
 import {
+  Activity,
   CheckCircle2,
-  FilePlus2,
   Download,
+  FilePlus2,
   RefreshCw,
-  ScanSearch,
   UserPlus,
   type LucideIcon,
 } from "lucide-react";
+import { motion, useReducedMotion } from "motion/react";
 import { cn } from "@/lib/utils";
 
 type QuickAction = {
@@ -22,42 +23,53 @@ type QuickAction = {
 const actions: QuickAction[] = [
   { label: "Approve Loan", href: "/loan-applications", icon: CheckCircle2, primary: true },
   { label: "Create Loan", href: "/loan-applications/new", icon: FilePlus2 },
-  { label: "Run Credit Check", href: "/scoring/results", icon: ScanSearch },
+  { label: "Run Credit Check", href: "/scoring/results", icon: Activity },
   { label: "Register Borrower", href: "/manual-borrower", icon: UserPlus },
   { label: "Sync from RukaPay", href: "/integrations", icon: RefreshCw },
   { label: "Export Report", href: "/loan-applications", icon: Download },
 ];
 
 export function QuickActions() {
-  return (
-    <section className="flex flex-wrap items-center gap-x-3 gap-y-2">
-      <div className="mr-1 shrink-0">
-        <h2 className="text-sm font-semibold tracking-tight text-slate-900">
-          Quick Actions
-        </h2>
-      </div>
+  const reduceMotion = useReducedMotion();
 
-      <div className="flex flex-wrap items-center gap-1.5">
+  return (
+    <motion.section
+      className="flex flex-wrap items-center gap-x-3 gap-y-2.5"
+      initial={reduceMotion ? false : { opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, delay: 0.05, ease: "easeOut" }}
+    >
+      <h2 className="mr-1 shrink-0 text-sm font-semibold text-[#0f172a]">
+        Quick Actions
+      </h2>
+
+      <div className="flex flex-wrap items-center gap-2">
         {actions.map((action) => {
           const Icon = action.icon;
           return (
-            <Link
+            <motion.div
               key={action.label}
-              href={action.href}
-              className={cn(
-                "inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium transition-colors",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#08163d]/25",
-                action.primary
-                  ? "bg-[#08163d] text-white hover:bg-[#06102a]"
-                  : "bg-slate-100/80 text-slate-700 hover:bg-[rgba(8,22,61,0.08)] hover:text-[#08163d]"
-              )}
+              whileHover={reduceMotion ? undefined : { y: -1 }}
+              whileTap={reduceMotion ? undefined : { scale: 0.98 }}
+              transition={{ type: "spring", stiffness: 400, damping: 28 }}
             >
-              <Icon className="size-3.5 shrink-0 opacity-80" aria-hidden />
-              {action.label}
-            </Link>
+              <Link
+                href={action.href}
+                className={cn(
+                  "inline-flex h-9 items-center gap-2 rounded-xl px-3.5 text-xs font-medium transition-colors",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/30",
+                  action.primary
+                    ? "bg-[#4f46e5] text-white hover:bg-[#4338ca]"
+                    : "border border-slate-200 bg-white text-[#312e81] hover:border-indigo-200 hover:bg-indigo-50/40"
+                )}
+              >
+                <Icon className="size-3.5 shrink-0" aria-hidden />
+                {action.label}
+              </Link>
+            </motion.div>
           );
         })}
       </div>
-    </section>
+    </motion.section>
   );
 }

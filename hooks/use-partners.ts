@@ -12,6 +12,10 @@ import type {
   PartnerCredentialCreated,
   PartnerStats,
   PartnerUpdatePayload,
+  PaymentProvider,
+  PaymentProviderCreatePayload,
+  RegisterLendingCompanyPayload,
+  RegisterLendingCompanyResult,
 } from "@/types/partner";
 import type { BorrowerRow } from "@/hooks/use-borrowers";
 
@@ -113,6 +117,51 @@ export function useCreatePartner() {
       return unwrapEnvelope<Partner>(res);
     },
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["partners"] }),
+  });
+}
+
+export function useRegisterLendingCompany() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: RegisterLendingCompanyPayload) => {
+      const res = await apiClient.post(
+        "/admin/partners/register-lending-company",
+        payload
+      );
+      return unwrapEnvelope<RegisterLendingCompanyResult>(res);
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["partners"] }),
+  });
+}
+
+export function usePaymentProviders() {
+  return useQuery({
+    queryKey: ["payment-providers"],
+    queryFn: async () => {
+      const res = await apiClient.get("/admin/payment-providers");
+      return unwrapEnvelope<{ items: PaymentProvider[] }>(res);
+    },
+  });
+}
+
+export function useCreatePaymentProvider() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: PaymentProviderCreatePayload) => {
+      const res = await apiClient.post("/admin/payment-providers", payload);
+      return unwrapEnvelope<PaymentProvider>(res);
+    },
+    onSuccess: () =>
+      void qc.invalidateQueries({ queryKey: ["payment-providers"] }),
+  });
+}
+
+export function useTestPaymentProvider() {
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await apiClient.post(`/admin/payment-providers/${id}/test`);
+      return unwrapEnvelope<{ status: string }>(res);
+    },
   });
 }
 

@@ -1,15 +1,33 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useMemo, useState, type ReactNode } from "react";
+import {
+  FormEvent,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import { useRouter } from "next/navigation";
 import axios from "axios";
-import { ArrowLeft, FilePlus2, UserRound, WalletCards } from "lucide-react";
+import {
+  ArrowLeft,
+  Check,
+  FilePlus2,
+  Loader2,
+  Search,
+  UserRound,
+  WalletCards,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { useBorrowersList } from "@/hooks/use-borrowers";
+import {
+  useBorrowerSearch,
+  type BorrowerRow,
+} from "@/hooks/use-borrowers";
 import {
   useCreateBorrowerLoanApplication,
   useLoanProducts,
@@ -17,7 +35,7 @@ import {
 import { cn } from "@/lib/utils";
 
 const selectClass =
-  "h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus-visible:ring-2 focus-visible:ring-main-500/30";
+  "h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus-visible:ring-2 focus-visible:ring-main-500/30 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400";
 
 function formatMoney(n: number) {
   return `UGX ${n.toLocaleString()}`;
@@ -43,46 +61,44 @@ function Field({
   );
 }
 
+function useDebouncedValue<T>(value: T, delayMs: number) {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const id = window.setTimeout(() => setDebounced(value), delayMs);
+    return () => window.clearTimeout(id);
+  }, [value, delayMs]);
+  return debounced;
+}
+
 export default function NewLoanApplicationPage() {
   const router = useRouter();
-  const borrowersQ = useBorrowersList(1, 100);
   const productsQ = useLoanProducts({ page: 1, page_size: 100, active: "true" });
   const createApp = useCreateBorrowerLoanApplication();
 
-  const [borrowerSearch, setBorrowerSearch] = useState("");
-  const [rukapayUserId, setRukapayUserId] = useState("");
+  const [borrowerQuery, setBorrowerQuery] = useState("");
+  const debouncedQuery = useDebouncedValue(borrowerQuery.trim(), 350);
+  const searchQ = useBorrowerSearch(debouncedQuery, 1, 12);
+
+  const [selectedBorrower, setSelectedBorrower] = useState<BorrowerRow | null>(null);
   const [productId, setProductId] = useState("");
   const [amount, setAmount] = useState("");
   const [tenorDays, setTenorDays] = useState("");
   const [purpose, setPurpose] = useState("");
-
-  const borrowers = useMemo(() => {
-    const rows = borrowersQ.data?.items ?? [];
-    const q = borrowerSearch.trim().toLowerCase();
-    if (!q) return rows;
-    return rows.filter(
-      (b) =>
-        b.full_name?.toLowerCase().includes(q) ||
-        b.phone?.toLowerCase().includes(q) ||
-        b.email?.toLowerCase().includes(q) ||
-        b.rukapay_user_id?.toLowerCase().includes(q)
-    );
-  }, [borrowersQ.data?.items, borrowerSearch]);
 
   const products = useMemo(
     () => (productsQ.data?.items ?? []).filter((p) => p.is_active),
     [productsQ.data?.items]
   );
 
-  const selectedBorrower = useMemo(
-    () => borrowersQ.data?.items?.find((b) => b.rukapay_user_id === rukapayUserId),
-    [borrowersQ.data?.items, rukapayUserId]
-  );
-
   const selectedProduct = useMemo(
     () => products.find((p) => p.id === productId),
     [products, productId]
   );
+
+  const results = searchQ.data?.items ?? [];
+  const showResults =
+    !selectedBorrower && debouncedQuery.length >= 2 && borrowerQuery.trim().length >= 2;
+  const loanSectionEnabled = Boolean(selectedBorrower?.rukapay_user_id);
 
   function onSelectProduct(id: string) {
     setProductId(id);
@@ -92,10 +108,19 @@ export default function NewLoanApplicationPage() {
     }
   }
 
+  function clearBorrower() {
+    setSelectedBorrower(null);
+    setBorrowerQuery("");
+    setProductId("");
+    setAmount("");
+    setTenorDays("");
+  }
+
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
+    const rukapayUserId = selectedBorrower?.rukapay_user_id?.trim() ?? "";
     if (!rukapayUserId) {
-      toast.error("Select a Ruka Sente borrower with an existing profile");
+      toast.error("Search and select a Ruka Sente borrower first");
       return;
     }
     if (!productId || !selectedProduct) {
@@ -148,7 +173,6 @@ export default function NewLoanApplicationPage() {
       } else if (err instanceof Error) {
         message = err.message;
       }
-      // Friendly hints for common eligibility/score blockers
       if (/score/i.test(message)) {
         message += " — run scoring for this borrower first (Manual borrower or Borrowers).";
       } else if (/eligible/i.test(message)) {
@@ -170,7 +194,7 @@ export default function NewLoanApplicationPage() {
               New loan application
             </h1>
             <p className="mt-0.5 line-clamp-1 text-xs text-slate-500">
-              Create an application for a borrower who already has a Ruka Sente profile.
+              Search an existing borrower, then complete the loan details.
             </p>
           </div>
         </div>
@@ -191,113 +215,243 @@ export default function NewLoanApplicationPage() {
                   <UserRound className="size-3.5" />
                   Existing borrower
                 </div>
-                <Field label="Search borrowers" hint="Name, phone, email, or RukaPay user ID">
-                  <Input
-                    value={borrowerSearch}
-                    onChange={(e) => setBorrowerSearch(e.target.value)}
-                    placeholder="Search…"
-                    className="h-10 rounded-xl border-slate-200"
-                  />
-                </Field>
-                <Field label="Borrower profile" hint="Only users already enrolled in Ruka Sente">
-                  <select
-                    className={selectClass}
-                    value={rukapayUserId}
-                    onChange={(e) => setRukapayUserId(e.target.value)}
-                    required
-                  >
-                    <option value="">Select borrower…</option>
-                    {borrowers.map((b) => (
-                      <option
-                        key={b.rukapay_user_id || b.id}
-                        value={b.rukapay_user_id || ""}
-                        disabled={!b.rukapay_user_id}
+
+                {selectedBorrower ? (
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-3">
+                        <span className="mt-0.5 flex size-8 items-center justify-center rounded-full bg-emerald-600 text-white">
+                          <Check className="size-4" strokeWidth={2.5} />
+                        </span>
+                        <div>
+                          <p className="text-sm font-semibold text-slate-900">
+                            Borrower selected
+                          </p>
+                          <p className="mt-0.5 text-xs text-slate-500">
+                            Loan product section is unlocked.
+                          </p>
+                        </div>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 rounded-lg text-xs text-slate-600"
+                        onClick={clearBorrower}
                       >
-                        {b.full_name} · {b.phone}
-                        {b.kyc_status ? ` · KYC ${b.kyc_status}` : ""}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-                {borrowersQ.isLoading ? (
-                  <p className="text-xs text-slate-500">Loading borrowers…</p>
-                ) : borrowers.length === 0 ? (
-                  <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                    No matching borrowers. Enroll them first via Manual borrower.
-                  </p>
-                ) : null}
+                        <X className="size-3.5" />
+                        Change
+                      </Button>
+                    </div>
+                    <dl className="mt-4 grid gap-2 sm:grid-cols-2">
+                      <MiniRow label="Name" value={selectedBorrower.full_name} />
+                      <MiniRow label="Phone" value={selectedBorrower.phone || "—"} />
+                      <MiniRow
+                        label="RukaPay ID"
+                        value={selectedBorrower.rukapay_user_id || "—"}
+                        mono
+                      />
+                      <MiniRow
+                        label="Email"
+                        value={selectedBorrower.email || "—"}
+                      />
+                      <MiniRow
+                        label="National ID"
+                        value={selectedBorrower.national_id || "—"}
+                      />
+                      <MiniRow
+                        label="KYC"
+                        value={selectedBorrower.kyc_status || "—"}
+                      />
+                    </dl>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <Field
+                      label="Search borrower"
+                      hint="Search by name, phone, email, national ID, or RukaPay user ID"
+                    >
+                      <div className="relative">
+                        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+                        <Input
+                          value={borrowerQuery}
+                          onChange={(e) => setBorrowerQuery(e.target.value)}
+                          placeholder="Name, phone, email, national ID, or user ID…"
+                          className="h-11 rounded-xl border-slate-200 pl-10 pr-10"
+                          autoComplete="off"
+                        />
+                        {searchQ.isFetching ? (
+                          <Loader2 className="absolute right-3 top-1/2 size-4 -translate-y-1/2 animate-spin text-slate-400" />
+                        ) : null}
+                      </div>
+                    </Field>
+
+                    {borrowerQuery.trim().length > 0 && borrowerQuery.trim().length < 2 ? (
+                      <p className="text-xs text-slate-400">
+                        Type at least 2 characters to search.
+                      </p>
+                    ) : null}
+
+                    {showResults ? (
+                      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                        {searchQ.isLoading ? (
+                          <div className="flex items-center gap-2 px-4 py-6 text-sm text-slate-500">
+                            <Loader2 className="size-4 animate-spin" />
+                            Searching borrowers…
+                          </div>
+                        ) : results.length === 0 ? (
+                          <div className="px-4 py-6 text-sm text-slate-500">
+                            No borrowers match “{debouncedQuery}”. Enroll them first via Manual
+                            borrower.
+                          </div>
+                        ) : (
+                          <ul className="max-h-80 divide-y divide-slate-100 overflow-auto">
+                            {results.map((b) => (
+                              <li key={b.id || b.rukapay_user_id}>
+                                <button
+                                  type="button"
+                                  disabled={!b.rukapay_user_id}
+                                  onClick={() => {
+                                    setSelectedBorrower(b);
+                                    setBorrowerQuery(b.full_name || "");
+                                  }}
+                                  className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-600">
+                                    <UserRound className="size-4" />
+                                  </span>
+                                  <span className="min-w-0 flex-1">
+                                    <span className="block truncate text-sm font-semibold text-slate-900">
+                                      {b.full_name}
+                                    </span>
+                                    <span className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[12px] text-slate-500">
+                                      {b.phone ? <span>{b.phone}</span> : null}
+                                      {b.rukapay_user_id ? (
+                                        <span className="font-mono text-[11px]">
+                                          {b.rukapay_user_id}
+                                        </span>
+                                      ) : null}
+                                      {b.email ? <span className="truncate">{b.email}</span> : null}
+                                    </span>
+                                    <span className="mt-1 flex flex-wrap gap-2 text-[11px]">
+                                      {b.kyc_status ? (
+                                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-600">
+                                          KYC {b.kyc_status}
+                                        </span>
+                                      ) : null}
+                                      {b.status ? (
+                                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-600">
+                                          {b.status}
+                                        </span>
+                                      ) : null}
+                                      {b.national_id ? (
+                                        <span className="rounded-full bg-slate-100 px-2 py-0.5 font-mono text-slate-600">
+                                          NID {b.national_id}
+                                        </span>
+                                      ) : null}
+                                    </span>
+                                  </span>
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                        {searchQ.data && searchQ.data.total > results.length ? (
+                          <p className="border-t border-slate-100 bg-slate-50 px-4 py-2 text-[11px] text-slate-500">
+                            Showing {results.length} of {searchQ.data.total} matches. Refine your
+                            search for better results.
+                          </p>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+                )}
               </section>
 
-              <section className="space-y-3">
+              <section
+                className={cn(
+                  "space-y-3 rounded-2xl border p-4 transition-opacity",
+                  loanSectionEnabled
+                    ? "border-slate-200 bg-white"
+                    : "border-dashed border-slate-200 bg-slate-50/70 opacity-70"
+                )}
+              >
                 <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
                   <WalletCards className="size-3.5" />
                   Application details
                 </div>
-                <Field label="Loan product">
-                  <select
-                    className={selectClass}
-                    value={productId}
-                    onChange={(e) => onSelectProduct(e.target.value)}
-                    required
-                  >
-                    <option value="">Select product…</option>
-                    {products.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name} ({formatMoney(p.min_amount)} – {formatMoney(p.max_amount)})
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-                <div className="grid gap-3 md:grid-cols-2">
-                  <Field
-                    label="Requested amount (UGX)"
-                    hint={
-                      selectedProduct
-                        ? `${formatMoney(selectedProduct.min_amount)} – ${formatMoney(selectedProduct.max_amount)}`
-                        : undefined
-                    }
-                  >
+                {!loanSectionEnabled ? (
+                  <p className="text-xs text-slate-500">
+                    Select a borrower above to enable loan product, amount, and tenor.
+                  </p>
+                ) : null}
+                <fieldset disabled={!loanSectionEnabled} className="space-y-3">
+                  <Field label="Loan product">
+                    <select
+                      className={selectClass}
+                      value={productId}
+                      onChange={(e) => onSelectProduct(e.target.value)}
+                      required={loanSectionEnabled}
+                    >
+                      <option value="">Select product…</option>
+                      {products.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name} ({formatMoney(p.min_amount)} – {formatMoney(p.max_amount)})
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <Field
+                      label="Requested amount (UGX)"
+                      hint={
+                        selectedProduct
+                          ? `${formatMoney(selectedProduct.min_amount)} – ${formatMoney(selectedProduct.max_amount)}`
+                          : undefined
+                      }
+                    >
+                      <Input
+                        type="number"
+                        value={amount}
+                        onChange={(e) => setAmount(e.target.value)}
+                        className="h-10 rounded-xl border-slate-200"
+                        required={loanSectionEnabled}
+                        min={1}
+                      />
+                    </Field>
+                    <Field
+                      label="Tenor (days)"
+                      hint={
+                        selectedProduct
+                          ? `${selectedProduct.min_tenor_days} – ${selectedProduct.max_tenor_days} days`
+                          : undefined
+                      }
+                    >
+                      <Input
+                        type="number"
+                        value={tenorDays}
+                        onChange={(e) => setTenorDays(e.target.value)}
+                        className="h-10 rounded-xl border-slate-200"
+                        required={loanSectionEnabled}
+                        min={1}
+                      />
+                    </Field>
+                  </div>
+                  <Field label="Purpose" hint="Optional">
                     <Input
-                      type="number"
-                      value={amount}
-                      onChange={(e) => setAmount(e.target.value)}
+                      value={purpose}
+                      onChange={(e) => setPurpose(e.target.value)}
+                      placeholder="Working capital, school fees…"
                       className="h-10 rounded-xl border-slate-200"
-                      required
-                      min={1}
                     />
                   </Field>
-                  <Field
-                    label="Tenor (days)"
-                    hint={
-                      selectedProduct
-                        ? `${selectedProduct.min_tenor_days} – ${selectedProduct.max_tenor_days} days`
-                        : undefined
-                    }
-                  >
-                    <Input
-                      type="number"
-                      value={tenorDays}
-                      onChange={(e) => setTenorDays(e.target.value)}
-                      className="h-10 rounded-xl border-slate-200"
-                      required
-                      min={1}
-                    />
-                  </Field>
-                </div>
-                <Field label="Purpose" hint="Optional">
-                  <Input
-                    value={purpose}
-                    onChange={(e) => setPurpose(e.target.value)}
-                    placeholder="Working capital, school fees…"
-                    className="h-10 rounded-xl border-slate-200"
-                  />
-                </Field>
+                </fieldset>
               </section>
 
               <div className="flex flex-wrap items-center gap-3 border-t border-slate-100 pt-4">
                 <Button
                   type="submit"
-                  disabled={createApp.isPending}
+                  disabled={createApp.isPending || !loanSectionEnabled}
                   className="h-10 rounded-xl bg-main-600 px-5 text-white hover:bg-main-700"
                 >
                   {createApp.isPending ? "Creating…" : "Create application"}
@@ -319,7 +473,9 @@ export default function NewLoanApplicationPage() {
                   <Row label="Name" value={selectedBorrower.full_name} />
                   <Row label="Phone" value={selectedBorrower.phone || "—"} />
                   <Row label="Email" value={selectedBorrower.email || "—"} />
+                  <Row label="National ID" value={selectedBorrower.national_id || "—"} />
                   <Row label="KYC" value={selectedBorrower.kyc_status || "—"} />
+                  <Row label="Status" value={selectedBorrower.status || "—"} />
                   <Row
                     label="RukaPay user"
                     value={selectedBorrower.rukapay_user_id || "—"}
@@ -333,7 +489,7 @@ export default function NewLoanApplicationPage() {
                 </dl>
               ) : (
                 <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-8 text-center text-sm text-slate-500">
-                  Choose a borrower to preview their profile.
+                  Search and select a borrower to preview their profile.
                 </p>
               )}
             </CardContent>
@@ -343,6 +499,7 @@ export default function NewLoanApplicationPage() {
             <CardContent className="space-y-2 p-5 text-sm text-slate-600">
               <h3 className="text-sm font-semibold text-slate-900">Before you submit</h3>
               <ul className="list-disc space-y-1 pl-4">
+                <li>Search scales to large borrower databases — results are ranked server-side.</li>
                 <li>Borrower must exist in Ruka Sente (Manual borrower / enroll).</li>
                 <li>Run score at least once so eligibility exists.</li>
                 <li>Amount must pass product rules and score loan limits.</li>
@@ -351,6 +508,32 @@ export default function NewLoanApplicationPage() {
           </Card>
         </div>
       </div>
+    </div>
+  );
+}
+
+function MiniRow({
+  label,
+  value,
+  mono,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+}) {
+  return (
+    <div className="rounded-lg border border-emerald-100/80 bg-white/70 px-3 py-2">
+      <dt className="text-[10px] font-medium uppercase tracking-wide text-slate-500">
+        {label}
+      </dt>
+      <dd
+        className={cn(
+          "mt-0.5 text-sm font-medium text-slate-900",
+          mono && "break-all font-mono text-xs"
+        )}
+      >
+        {value}
+      </dd>
     </div>
   );
 }

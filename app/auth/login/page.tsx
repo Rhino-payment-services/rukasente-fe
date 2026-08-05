@@ -88,21 +88,14 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-white px-4 py-8">
       <section className="w-full max-w-lg rounded-3xl bg-white p-7 sm:p-9">
         <div className="mb-10 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5">
-            <div className="flex size-9 items-center justify-center rounded-md bg-main-50 ring-1 ring-main-100">
-              <Image
-                src={RUKAPAY_LOGO_SRC}
-                alt="RukaPay"
-                width={28}
-                height={28}
-                className="rounded-sm object-cover"
-                priority
-              />
-            </div>
-            <span className="text-base font-semibold tracking-tight text-slate-900">
-              Ruka Sente
-            </span>
-          </div>
+          <Image
+            src={RUKAPAY_LOGO_SRC}
+            alt="RukaSente"
+            width={360}
+            height={180}
+            className="h-20 w-auto object-contain sm:h-24"
+            priority
+          />
           <p className="hidden text-sm text-slate-500 sm:block">Welcome back</p>
         </div>
 

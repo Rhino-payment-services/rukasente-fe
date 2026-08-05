@@ -27,97 +27,158 @@ import { Perm, hasPermission } from "@/lib/permissions";
 import { RukaPayLogoMark } from "@/components/brand/rukapay-logo-mark";
 import { useSidebar } from "@/components/dashboard/sidebar-context";
 
+type NavChild = {
+  href: string;
+  label: string;
+  /** Prefer platform; allow partner.view for tenants. */
+  platformOnly?: boolean;
+  /** Strict: only when session.user.isPlatform. */
+  requirePlatform?: boolean;
+};
+
 type NavItem = {
   href: string;
   label: string;
   icon: LucideIcon;
   perm?: string;
   anyOf?: string[];
+  /** When true, require session.user.isPlatform (or listed perms). */
+  platformOnly?: boolean;
   badge?: string;
-  children?: Array<{ href: string; label: string }>;
+  children?: NavChild[];
 };
 
 type NavSection = { title: string; items: NavItem[] };
 
-const sections: NavSection[] = [
-  {
-    title: "Overview",
-    items: [{ href: "/", label: "Overview", icon: LayoutDashboard }],
-  },
-  {
-    title: "Operations",
-    items: [
-      {
-        href: "/loan-applications",
-        label: "Loan applications",
-        icon: WalletCards,
-        anyOf: [Perm.LoanApplicationView, Perm.StaffView],
-      },
-      {
-        href: "/loan-products",
-        label: "Loan products",
-        icon: WalletCards,
-        anyOf: [Perm.LoanProductView, Perm.StaffView],
-      },
-      { href: "/borrowers", label: "Borrowers", icon: UserCircle, perm: Perm.BorrowerView },
-      {
-        href: "/manual-borrower",
-        label: "Manual borrower",
-        icon: Link2,
-        anyOf: [Perm.BorrowerView, Perm.StaffView],
-      },
-    ],
-  },
-  {
-    title: "Management",
-    items: [
-      { href: "/staff", label: "Staff", icon: Users, perm: Perm.StaffView },
-      {
-        href: "/subscriptions",
-        label: "Subscriptions",
-        icon: CreditCard,
-        perm: Perm.SubscriptionView,
-      },
-    ],
-  },
-  {
-    title: "Analytics",
-    items: [
-      {
-        href: "/scoring",
-        label: "Scoring",
-        icon: LineChart,
-        perm: Perm.ScoringView,
-        children: [
-          { href: "/credit-score/rules", label: "Credit score rules" },
-          { href: "/scoring/results", label: "Score results" },
-          { href: "/loan-score-limits", label: "Score loan limits" },
-          { href: "/scoring/eligibility", label: "Eligibility" },
-          { href: "/scoring/manual-review", label: "Manual review" },
-        ],
-      },
-    ],
-  },
-  {
-    title: "System",
-    items: [
-      {
-        href: "/integrations",
-        label: "Integrations",
-        icon: Plug,
-        anyOf: [Perm.PartnerView, Perm.IntegrationView],
-        children: [
-          { href: "/partners", label: "Partners" },
-          { href: "/integrations", label: "API endpoints" },
-        ],
-      },
-    ],
-  },
-];
+function buildSections(isPlatform: boolean): NavSection[] {
+  const partnersLabel = isPlatform ? "Lending companies" : "Partners";
+  return [
+    {
+      title: "Overview",
+      items: [{ href: "/", label: "Overview", icon: LayoutDashboard }],
+    },
+    {
+      title: "Operations",
+      items: [
+        {
+          href: "/loan-applications",
+          label: "Loan applications",
+          icon: WalletCards,
+          anyOf: [Perm.LoanApplicationView, Perm.StaffView],
+        },
+        {
+          href: "/loan-products",
+          label: "Loan products",
+          icon: WalletCards,
+          anyOf: [Perm.LoanProductView, Perm.StaffView],
+        },
+        {
+          href: "/borrowers",
+          label: "Borrowers",
+          icon: UserCircle,
+          perm: Perm.BorrowerView,
+        },
+        {
+          href: "/manual-borrower",
+          label: "Manual borrower",
+          icon: Link2,
+          anyOf: [Perm.BorrowerView, Perm.StaffView],
+        },
+      ],
+    },
+    {
+      title: "Management",
+      items: [
+        { href: "/staff", label: "Staff", icon: Users, perm: Perm.StaffView },
+        {
+          href: "/subscriptions",
+          label: "Subscriptions",
+          icon: CreditCard,
+          perm: Perm.SubscriptionView,
+        },
+      ],
+    },
+    {
+      title: "Analytics",
+      items: [
+        {
+          href: "/scoring",
+          label: "Scoring",
+          icon: LineChart,
+          perm: Perm.ScoringView,
+          children: [
+            { href: "/credit-score/rules", label: "Credit score rules" },
+            { href: "/scoring/results", label: "Score results" },
+            { href: "/loan-score-limits", label: "Score loan limits" },
+            { href: "/scoring/eligibility", label: "Eligibility" },
+            { href: "/scoring/manual-review", label: "Manual review" },
+          ],
+        },
+      ],
+    },
+    {
+      title: "System",
+      items: [
+        {
+          href: "/integrations",
+          label: "Integrations",
+          icon: Plug,
+          // Platform operators, or staff with partner/integration perms.
+          anyOf: [
+            Perm.PartnerView,
+            Perm.IntegrationView,
+            Perm.PlatformPartnerCreate,
+          ],
+          children: [
+            {
+              href: "/partners",
+              label: partnersLabel,
+              platformOnly: true,
+            },
+            {
+              href: "/payment-providers",
+              label: "Payment providers",
+              requirePlatform: true,
+            },
+            { href: "/integrations", label: "API endpoints" },
+          ],
+        },
+      ],
+    },
+  ];
+}
 
-function isNavVisible(perms: string[], item: NavItem): boolean {
+function isNavVisible(
+  perms: string[],
+  item: NavItem,
+  isPlatform: boolean
+): boolean {
+  if (item.platformOnly && !isPlatform) {
+    return false;
+  }
   if (item.anyOf?.length) return item.anyOf.some((k) => hasPermission(perms, k));
   if (item.perm) return hasPermission(perms, item.perm);
+  return true;
+}
+
+function isChildVisible(
+  child: NavChild,
+  perms: string[],
+  isPlatform: boolean
+): boolean {
+  if (child.requirePlatform) {
+    if (!isPlatform) return false;
+    return (
+      hasPermission(perms, Perm.PlatformPartnerCreate) ||
+      hasPermission(perms, Perm.PartnerCreate) ||
+      hasPermission(perms, Perm.PartnerView) ||
+      hasPermission(perms, Perm.IntegrationView)
+    );
+  }
+  if (child.platformOnly) {
+    // Lending-company list is platform-only; tenants never see other companies.
+    return isPlatform;
+  }
   return true;
 }
 
@@ -140,6 +201,8 @@ export function Sidebar({
   const pathname = usePathname();
   const { data: session } = useSession();
   const perms = session?.user?.permissions ?? [];
+  const isPlatform = !!session?.user?.isPlatform;
+  const sections = useMemo(() => buildSections(isPlatform), [isPlatform]);
   const { collapsed, toggleCollapsed, setCommandOpen } = useSidebar();
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
 
@@ -154,10 +217,9 @@ export function Sidebar({
 
   return (
     <>
-      {/* Mobile overlay */}
       <div
         className={cn(
-          "fixed inset-0 z-40 bg-slate-900/30 backdrop-blur-[1px] transition-opacity md:hidden",
+          "fixed inset-0 z-40 bg-slate-950/50 backdrop-blur-[2px] transition-opacity md:hidden",
           isOpen ? "opacity-100" : "pointer-events-none opacity-0"
         )}
         onClick={onClose}
@@ -166,52 +228,42 @@ export function Sidebar({
 
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 flex flex-col border-r border-slate-200/70 bg-white transition-[width,transform] duration-300 ease-out",
-          collapsed ? "md:w-[72px]" : "md:w-[240px]",
-          "w-[240px]",
+          "fixed inset-y-0 left-0 z-50 flex flex-col overflow-hidden bg-[#08163d] text-slate-200 transition-[width,transform] duration-300 ease-out",
+          collapsed ? "md:w-[80px]" : "md:w-[272px]",
+          "w-[272px]",
           isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
         )}
       >
-        <div className="flex h-full min-h-0 flex-col px-3 py-3">
-          {/* Brand */}
-          <div
-            className={cn(
-              "mb-3 flex items-center gap-2.5 px-1",
-              collapsed && "md:justify-center"
-            )}
+        <div
+          className={cn(
+            "flex shrink-0 items-center gap-2 border-b border-slate-200/80 bg-slate-100 px-4 py-3.5",
+            collapsed && "md:justify-center md:px-2"
+          )}
+        >
+          <Link
+            href="/"
+            onClick={onClose}
+            className="flex min-w-0 flex-1 items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/40"
           >
-            <Link
-              href="/"
-              onClick={onClose}
-              className="flex min-w-0 items-center gap-2.5 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#08163d]/20"
-            >
-              <RukaPayLogoMark size={collapsed ? 30 : 32} className="rounded-lg shrink-0" />
-              <span
-                className={cn(
-                  "truncate text-[15px] font-semibold tracking-tight text-[#08163d] transition-opacity",
-                  collapsed && "md:hidden"
-                )}
-              >
-                Ruka Sente
-              </span>
-            </Link>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onClose}
-              className="ml-auto size-8 text-slate-500 md:hidden"
-              aria-label="Close sidebar"
-            >
-              <X className="size-4" />
-            </Button>
-          </div>
+            <RukaPayLogoMark height={collapsed ? 26 : 36} />
+          </Link>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onClose}
+            className="size-8 shrink-0 text-slate-500 hover:bg-slate-100 hover:text-slate-800 md:hidden"
+            aria-label="Close sidebar"
+          >
+            <X className="size-4" />
+          </Button>
+        </div>
 
-          {/* Command / search */}
+        <div className="flex min-h-0 flex-1 flex-col px-3.5 py-4">
           <button
             type="button"
             onClick={() => setCommandOpen(true)}
             className={cn(
-              "mb-3 flex h-9 items-center gap-2 rounded-xl border border-slate-200/80 bg-slate-50/80 px-2.5 text-left text-xs text-slate-500 transition hover:bg-slate-100",
+              "mb-5 flex h-10 items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3.5 text-left text-xs text-slate-400 transition hover:bg-white/10 hover:text-slate-200",
               collapsed && "md:justify-center md:px-0"
             )}
             title="Search (⌘K)"
@@ -222,7 +274,7 @@ export function Sidebar({
             </span>
             <kbd
               className={cn(
-                "rounded border border-slate-200 bg-white px-1 py-px text-[10px] text-slate-400",
+                "rounded-md border border-white/10 bg-white/5 px-1.5 py-0.5 text-[10px] text-slate-500",
                 collapsed && "md:hidden"
               )}
             >
@@ -230,22 +282,28 @@ export function Sidebar({
             </kbd>
           </button>
 
-          {/* Nav */}
-          <nav className="flex-1 space-y-4 overflow-y-auto pb-3">
+          <nav className="flex-1 space-y-5 overflow-y-auto pb-3 scrollbar-thin">
             {sections.map((section) => {
-              const visible = section.items.filter((i) => isNavVisible(perms, i));
+              const visible = section.items
+                .filter((i) => isNavVisible(perms, i, isPlatform))
+                .map((item) => ({
+                  ...item,
+                  children: item.children?.filter((c) =>
+                    isChildVisible(c, perms, isPlatform)
+                  ),
+                }));
               if (!visible.length) return null;
               return (
                 <div key={section.title}>
                   <div
                     className={cn(
-                      "mb-1.5 px-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400",
+                      "mb-2 px-2.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500",
                       collapsed && "md:hidden"
                     )}
                   >
                     {section.title}
                   </div>
-                  <ul className="space-y-0.5">
+                  <ul className="space-y-1">
                     {visible.map((item) => {
                       const Icon = item.icon;
                       const childActive =
@@ -283,32 +341,27 @@ export function Sidebar({
                                 }));
                               }}
                               className={cn(
-                                "flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-[13px] font-medium transition-all",
+                                "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-medium transition-all",
                                 active
-                                  ? "bg-[rgba(8,22,61,0.06)] text-[#08163d]"
-                                  : "text-slate-600 hover:bg-slate-50 hover:text-slate-900",
+                                  ? "nav-active-pill"
+                                  : "text-slate-300 hover:bg-white/8 hover:text-white",
                                 collapsed && "md:justify-center md:px-0"
                               )}
                             >
-                              <Icon
-                                className={cn(
-                                  "size-4 shrink-0",
-                                  active ? "text-[#08163d]" : "text-slate-400"
-                                )}
-                              />
+                              <Icon className="size-4 shrink-0 opacity-90" />
                               <span className={cn("truncate", collapsed && "md:hidden")}>
                                 {item.label}
                               </span>
                               <span className={cn("ml-auto", collapsed && "md:hidden")}>
                                 {groupOpen ? (
-                                  <ChevronDown className="size-3.5 opacity-50" />
+                                  <ChevronDown className="size-3.5 opacity-70" />
                                 ) : (
-                                  <ChevronRight className="size-3.5 opacity-50" />
+                                  <ChevronRight className="size-3.5 opacity-70" />
                                 )}
                               </span>
                             </button>
                             {groupOpen && !collapsed ? (
-                              <ul className="ml-4 mt-0.5 space-y-0.5 border-l border-slate-100 pl-2.5">
+                              <ul className="ml-4 mt-1 space-y-0.5 border-l border-white/10 pl-3">
                                 {item.children.map((child) => {
                                   const isChildActive =
                                     pathname === child.href ||
@@ -319,10 +372,10 @@ export function Sidebar({
                                         href={child.href}
                                         onClick={onClose}
                                         className={cn(
-                                          "block rounded-lg px-2 py-1.5 text-[12px] transition-colors",
+                                          "block rounded-lg px-2.5 py-1.5 text-[12px] transition-colors",
                                           isChildActive
-                                            ? "bg-[rgba(8,22,61,0.06)] font-medium text-[#08163d]"
-                                            : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
+                                            ? "bg-white/10 font-medium text-white"
+                                            : "text-slate-400 hover:bg-white/5 hover:text-slate-200"
                                         )}
                                       >
                                         {child.label}
@@ -343,22 +396,14 @@ export function Sidebar({
                             onClick={onClose}
                             title={item.label}
                             className={cn(
-                              "relative flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-[13px] font-medium transition-all",
+                              "flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-medium transition-all",
                               active
-                                ? "bg-[rgba(8,22,61,0.06)] text-[#08163d]"
-                                : "text-slate-600 hover:bg-slate-50 hover:text-slate-900",
+                                ? "nav-active-pill"
+                                : "text-slate-300 hover:bg-white/8 hover:text-white",
                               collapsed && "md:justify-center md:px-0"
                             )}
                           >
-                            {active ? (
-                              <span className="absolute left-0 top-1/2 hidden h-4 w-0.5 -translate-y-1/2 rounded-full bg-[#08163d] md:block" />
-                            ) : null}
-                            <Icon
-                              className={cn(
-                                "size-4 shrink-0",
-                                active ? "text-[#08163d]" : "text-slate-400"
-                              )}
-                            />
+                            <Icon className="size-4 shrink-0 opacity-90" />
                             <span className={cn("truncate", collapsed && "md:hidden")}>
                               {item.label}
                             </span>
@@ -372,13 +417,44 @@ export function Sidebar({
             })}
           </nav>
 
-          {/* Collapse + profile */}
-          <div className="mt-auto space-y-2 border-t border-slate-100 pt-3">
+          <div className="mt-auto space-y-3 border-t border-white/10 pt-4">
+            <div
+              className={cn(
+                "rounded-2xl border border-white/10 bg-white/5 p-3",
+                collapsed && "md:px-2 md:py-2.5"
+              )}
+              title={`${session?.user?.name ?? "Staff"} · ${roleLabel}`}
+            >
+              <div
+                className={cn(
+                  "flex items-center gap-3",
+                  collapsed && "md:justify-center"
+                )}
+              >
+                <div className="relative flex size-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-violet-600 text-[11px] font-semibold text-white shadow-md">
+                  {initialsFromSession(session?.user?.name, session?.user?.email)}
+                  <span className="absolute bottom-0 right-0 size-2.5 rounded-full border-2 border-[#08163d] bg-emerald-400" />
+                </div>
+                <div className={cn("min-w-0 flex-1", collapsed && "md:hidden")}>
+                  <p className="truncate text-xs font-semibold text-white">
+                    {session?.user?.name ?? "Staff"}
+                  </p>
+                  <p className="truncate text-[10px] text-slate-400">
+                    {session?.user?.email ?? roleLabel}
+                  </p>
+                  <p className="mt-0.5 flex items-center gap-1 text-[10px] text-emerald-400">
+                    <span className="size-1.5 rounded-full bg-emerald-400" />
+                    Active
+                  </p>
+                </div>
+              </div>
+            </div>
+
             <button
               type="button"
               onClick={toggleCollapsed}
               className={cn(
-                "hidden h-8 w-full items-center gap-2 rounded-xl px-2.5 text-xs font-medium text-slate-500 transition hover:bg-slate-50 hover:text-slate-800 md:flex",
+                "hidden h-9 w-full items-center gap-2 rounded-xl px-3 text-xs font-medium text-slate-400 transition hover:bg-white/8 hover:text-white md:flex",
                 collapsed && "justify-center px-0"
               )}
               title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
@@ -392,25 +468,6 @@ export function Sidebar({
                 </>
               )}
             </button>
-
-            <div
-              className={cn(
-                "flex items-center gap-2.5 rounded-xl bg-slate-50/90 p-2",
-                collapsed && "md:justify-center md:px-1"
-              )}
-              title={`${session?.user?.name ?? "Staff"} · ${roleLabel}`}
-            >
-              <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[#08163d] text-[11px] font-semibold text-white">
-                {initialsFromSession(session?.user?.name, session?.user?.email)}
-              </div>
-              <div className={cn("min-w-0 flex-1", collapsed && "md:hidden")}>
-                <p className="truncate text-xs font-semibold text-slate-900">
-                  {session?.user?.name ?? "Staff"}
-                </p>
-                <p className="truncate text-[10px] text-slate-500">{roleLabel}</p>
-                <p className="truncate text-[10px] text-slate-400">Kampala HQ · Active</p>
-              </div>
-            </div>
           </div>
         </div>
       </aside>

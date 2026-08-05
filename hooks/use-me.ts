@@ -4,8 +4,21 @@ import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { unwrapEnvelope } from "@/lib/api-envelope";
 
+export type PartnerSummary = {
+  id: string;
+  name: string;
+  code: string;
+  is_internal: boolean;
+  logo_url?: string;
+  primary_color?: string;
+  currency?: string;
+};
+
 export type StaffSummary = {
   id: string;
+  partner_id?: string | null;
+  is_platform: boolean;
+  partner?: PartnerSummary | null;
   full_name: string;
   email: string;
   phone?: string;

@@ -14,23 +14,23 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   const { collapsed, mobileOpen, setMobileOpen } = useSidebar();
 
   return (
-    <div className="min-h-screen w-full bg-slate-50">
+    <div className="min-h-screen w-full bg-[#f5f7fb]">
       <Sidebar isOpen={mobileOpen} onClose={() => setMobileOpen(false)} />
       <div
         className={cn(
           "flex min-h-screen min-w-0 flex-1 flex-col transition-[margin] duration-300 ease-out",
-          collapsed ? "md:ml-[72px]" : "md:ml-[240px]"
+          collapsed ? "md:ml-[80px]" : "md:ml-[272px]"
         )}
       >
-        <div className="sticky top-0 z-30 border-b border-transparent bg-slate-50/80 backdrop-blur-md">
-          <div className="w-full px-4 md:px-5">
+        <div className="sticky top-0 z-30 border-b border-slate-200/70 bg-white shadow-[0_1px_0_rgba(15,23,42,0.03)]">
+          <div className="w-full px-4 md:px-6">
             <Topbar
               onMenuToggle={() => setMobileOpen(!mobileOpen)}
               isMenuOpen={mobileOpen}
             />
           </div>
         </div>
-        <main className="flex-1 overflow-auto px-4 py-4 md:px-5 md:py-5">
+        <main className="flex-1 overflow-auto px-4 py-5 md:px-6 md:py-6">
           <div className="mx-auto w-full max-w-[1600px]">{children}</div>
         </main>
       </div>

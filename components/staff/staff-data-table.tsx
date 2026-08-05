@@ -5,19 +5,13 @@ import {
   MoreHorizontal,
   Eye,
   Pencil,
-  KeyRound,
   UserCog,
-  Shield,
-  UserX,
-  Ban,
-  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { CompactLoading } from "@/components/ui/loading";
 import { RoleBadge, StatusBadge } from "@/components/staff/staff-badges";
 import type { EnrichedStaff } from "@/lib/staff-enrichment";
-import { cn } from "@/lib/utils";
 
 type Props = {
   rows: EnrichedStaff[];
@@ -67,13 +61,10 @@ export function StaffDataTable({
                     Staff
                   </th>
                   <th className="min-w-[130px] px-3 py-2.5 font-medium">Role</th>
-                  <th className="hidden min-w-[140px] px-3 py-2.5 font-medium lg:table-cell">
-                    Location
-                  </th>
                   <th className="min-w-[90px] px-3 py-2.5 font-medium">Status</th>
                   <th className="min-w-[100px] px-3 py-2.5 font-medium">Last login</th>
                   <th className="hidden min-w-[100px] px-3 py-2.5 font-medium xl:table-cell">
-                    Access
+                    Date joined
                   </th>
                   <th className="sticky right-0 z-[1] w-12 bg-slate-50/95 px-2 py-2.5 text-center font-medium backdrop-blur">
                     <span className="sr-only">Actions</span>
@@ -117,7 +108,7 @@ export function StaffDataTable({
                             </div>
                             <p className="truncate text-[11px] text-slate-500">{row.email}</p>
                             <p className="truncate text-[10px] tabular-nums text-slate-400">
-                              {row.employeeId}
+                              ID: {row.employeeId.slice(0, 8)}
                               <span className="mx-1 text-slate-300">·</span>
                               <span className="whitespace-nowrap">{row.phone}</span>
                             </p>
@@ -126,14 +117,6 @@ export function StaffDataTable({
                       </td>
                       <td className="px-3 py-2.5">
                         <RoleBadge role={row.role} />
-                      </td>
-                      <td className="hidden px-3 py-2.5 lg:table-cell">
-                        <p className="truncate text-[12px] font-medium text-slate-700">
-                          {row.branch}
-                        </p>
-                        <p className="truncate text-[11px] text-slate-400">
-                          {row.department}
-                        </p>
                       </td>
                       <td className="px-3 py-2.5">
                         <StatusBadge status={row.status} />
@@ -144,7 +127,9 @@ export function StaffDataTable({
                         </span>
                       </td>
                       <td className="hidden px-3 py-2.5 xl:table-cell">
-                        <AccessCell permissions={row.permissions} />
+                        <span className="whitespace-nowrap text-[12px] text-slate-600">
+                          {row.dateJoined}
+                        </span>
                       </td>
                       <td className="sticky right-0 z-[1] bg-white px-2 py-2.5 text-center group-hover:bg-slate-50/90">
                         <ActionsMenu
@@ -175,26 +160,6 @@ export function StaffDataTable({
         ) : null}
       </CardContent>
     </Card>
-  );
-}
-
-function AccessCell({ permissions }: { permissions: string[] }) {
-  if (!permissions.length) {
-    return <span className="text-slate-400">—</span>;
-  }
-  const first = permissions[0];
-  const rest = permissions.length - 1;
-  return (
-    <div className="flex items-center gap-1 whitespace-nowrap">
-      <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600">
-        {first}
-      </span>
-      {rest > 0 ? (
-        <span className="rounded-md bg-slate-50 px-1.5 py-0.5 text-[10px] font-medium text-slate-400">
-          +{rest}
-        </span>
-      ) : null}
-    </div>
   );
 }
 
@@ -229,12 +194,7 @@ function ActionsMenu({
   const items = [
     { label: "View Profile", icon: Eye, onClick: onView },
     { label: "Edit Staff", icon: Pencil, onClick: onEdit },
-    { label: "Reset Password", icon: KeyRound, onClick: () => onOpenChange(false) },
     { label: "Assign Role", icon: UserCog, onClick: onEdit },
-    { label: "Change Permissions", icon: Shield, onClick: onEdit },
-    { label: "Deactivate", icon: UserX, onClick: () => onOpenChange(false) },
-    { label: "Suspend", icon: Ban, onClick: () => onOpenChange(false), danger: true },
-    { label: "Delete", icon: Trash2, onClick: () => onOpenChange(false), danger: true },
   ];
 
   return (
@@ -258,10 +218,7 @@ function ActionsMenu({
                 key={item.label}
                 type="button"
                 onClick={item.onClick}
-                className={cn(
-                  "flex w-full items-center gap-2 px-3 py-2 text-left text-xs transition-colors hover:bg-slate-50",
-                  item.danger ? "text-rose-600" : "text-slate-700"
-                )}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-slate-700 transition-colors hover:bg-slate-50"
               >
                 <Icon className="size-3.5 opacity-70" />
                 {item.label}
