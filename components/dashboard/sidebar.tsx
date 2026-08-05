@@ -24,6 +24,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Perm, hasPermission } from "@/lib/permissions";
+import { usePermissions } from "@/hooks/use-permissions";
 import { RukaPayLogoMark } from "@/components/brand/rukapay-logo-mark";
 import { useSidebar } from "@/components/dashboard/sidebar-context";
 
@@ -34,6 +35,8 @@ type NavChild = {
   platformOnly?: boolean;
   /** Strict: only when session.user.isPlatform. */
   requirePlatform?: boolean;
+  perm?: string;
+  anyOf?: string[];
 };
 
 type NavItem = {
@@ -64,13 +67,13 @@ function buildSections(isPlatform: boolean): NavSection[] {
           href: "/loan-applications",
           label: "Loan applications",
           icon: WalletCards,
-          anyOf: [Perm.LoanApplicationView, Perm.StaffView],
+          perm: Perm.LoanApplicationView,
         },
         {
           href: "/loan-products",
           label: "Loan products",
           icon: WalletCards,
-          anyOf: [Perm.LoanProductView, Perm.StaffView],
+          perm: Perm.LoanProductView,
         },
         {
           href: "/borrowers",
@@ -82,7 +85,7 @@ function buildSections(isPlatform: boolean): NavSection[] {
           href: "/manual-borrower",
           label: "Manual borrower",
           icon: Link2,
-          anyOf: [Perm.BorrowerView, Perm.StaffView],
+          perm: Perm.BorrowerView,
         },
       ],
     },
@@ -105,13 +108,39 @@ function buildSections(isPlatform: boolean): NavSection[] {
           href: "/scoring",
           label: "Scoring",
           icon: LineChart,
-          perm: Perm.ScoringView,
+          anyOf: [
+            Perm.ScoringView,
+            Perm.ScoringRuleView,
+            Perm.ManualReviewView,
+            Perm.LoanScoreLimitView,
+            Perm.EligibilityDecisionView,
+          ],
           children: [
-            { href: "/credit-score/rules", label: "Credit score rules" },
-            { href: "/scoring/results", label: "Score results" },
-            { href: "/loan-score-limits", label: "Score loan limits" },
-            { href: "/scoring/eligibility", label: "Eligibility" },
-            { href: "/scoring/manual-review", label: "Manual review" },
+            {
+              href: "/credit-score/rules",
+              label: "Credit score rules",
+              perm: Perm.ScoringRuleView,
+            },
+            {
+              href: "/scoring/results",
+              label: "Score results",
+              perm: Perm.ScoringView,
+            },
+            {
+              href: "/loan-score-limits",
+              label: "Score loan limits",
+              perm: Perm.LoanScoreLimitView,
+            },
+            {
+              href: "/scoring/eligibility",
+              label: "Eligibility",
+              anyOf: [Perm.EligibilityDecisionView, Perm.EligibilityView],
+            },
+            {
+              href: "/scoring/manual-review",
+              label: "Manual review",
+              perm: Perm.ManualReviewView,
+            },
           ],
         },
       ],
@@ -123,7 +152,6 @@ function buildSections(isPlatform: boolean): NavSection[] {
           href: "/integrations",
           label: "Integrations",
           icon: Plug,
-          // Platform operators, or staff with partner/integration perms.
           anyOf: [
             Perm.PartnerView,
             Perm.IntegrationView,
@@ -140,7 +168,11 @@ function buildSections(isPlatform: boolean): NavSection[] {
               label: "Payment providers",
               requirePlatform: true,
             },
-            { href: "/integrations", label: "API endpoints" },
+            {
+              href: "/integrations",
+              label: "API endpoints",
+              anyOf: [Perm.IntegrationView, Perm.PartnerView],
+            },
           ],
         },
       ],
@@ -176,9 +208,12 @@ function isChildVisible(
     );
   }
   if (child.platformOnly) {
-    // Lending-company list is platform-only; tenants never see other companies.
     return isPlatform;
   }
+  if (child.anyOf?.length) {
+    return child.anyOf.some((k) => hasPermission(perms, k));
+  }
+  if (child.perm) return hasPermission(perms, child.perm);
   return true;
 }
 
@@ -200,20 +235,18 @@ export function Sidebar({
 }) {
   const pathname = usePathname();
   const { data: session } = useSession();
-  const perms = session?.user?.permissions ?? [];
-  const isPlatform = !!session?.user?.isPlatform;
+  const { permissions: perms, isPlatform, roles } = usePermissions();
   const sections = useMemo(() => buildSections(isPlatform), [isPlatform]);
   const { collapsed, toggleCollapsed, setCommandOpen } = useSidebar();
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
 
   const roleLabel = useMemo(() => {
-    const roles = session?.user?.roles ?? [];
     const name = roles[0]?.name;
     if (!name) return "Administrator";
     return String(name)
       .replace(/_/g, " ")
       .replace(/\b\w/g, (c) => c.toUpperCase());
-  }, [session?.user?.roles]);
+  }, [roles]);
 
   return (
     <>

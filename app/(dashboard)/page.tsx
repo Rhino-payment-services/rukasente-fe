@@ -32,58 +32,65 @@ export default function OverviewPage() {
   const { data: me } = useMe();
   const stats = useDashboardStats();
 
-  const topStats: KPIItem[] = [
-    {
+  const topStats: KPIItem[] = [];
+  if (stats.canBorrowers) {
+    topStats.push({
       title: "Total Borrowers",
       value: formatCount(stats.borrowersTotal),
       subtitle: "Enrolled profiles",
       icon: Users,
       tone: "violet",
-    },
-    {
-      title: "Active Loans",
-      value: formatCount(stats.activeLoans),
-      subtitle: "Approved / outstanding",
-      icon: FolderOpen,
-      tone: "blue",
-    },
-    {
-      title: "Total Loan Portfolio",
-      value: formatUgx(stats.portfolioAmount),
-      subtitle: "Active + repaid book",
-      icon: Wallet,
-      tone: "violet",
-    },
-    {
-      title: "Loans Approved Today",
-      value: formatCount(stats.approvedToday),
-      subtitle: "Decisions today",
-      icon: ShieldCheck,
-      tone: "emerald",
-    },
-    {
-      title: "Pending Applications",
-      value: formatCount(stats.pendingApps),
-      subtitle: "Awaiting review",
-      icon: FileClock,
-      tone: "blue",
-    },
-    {
-      title: "Overdue Loans",
-      value: formatCount(stats.overdueLoans),
-      subtitle: "Past due date",
-      icon: AlertTriangle,
-      tone: "rose",
-    },
-    {
-      title: "Repayment Rate",
-      value:
-        stats.repaymentRate == null ? "—" : `${stats.repaymentRate}%`,
-      subtitle: "Repaid vs closed / overdue",
-      icon: CircleCheck,
-      tone: "violet",
-    },
-    {
+    });
+  }
+  if (stats.canApps) {
+    topStats.push(
+      {
+        title: "Active Loans",
+        value: formatCount(stats.activeLoans),
+        subtitle: "Approved / outstanding",
+        icon: FolderOpen,
+        tone: "blue",
+      },
+      {
+        title: "Total Loan Portfolio",
+        value: formatUgx(stats.portfolioAmount),
+        subtitle: "Active + repaid book",
+        icon: Wallet,
+        tone: "violet",
+      },
+      {
+        title: "Loans Approved Today",
+        value: formatCount(stats.approvedToday),
+        subtitle: "Decisions today",
+        icon: ShieldCheck,
+        tone: "emerald",
+      },
+      {
+        title: "Pending Applications",
+        value: formatCount(stats.pendingApps),
+        subtitle: "Awaiting review",
+        icon: FileClock,
+        tone: "blue",
+      },
+      {
+        title: "Overdue Loans",
+        value: formatCount(stats.overdueLoans),
+        subtitle: "Past due date",
+        icon: AlertTriangle,
+        tone: "rose",
+      },
+      {
+        title: "Repayment Rate",
+        value:
+          stats.repaymentRate == null ? "—" : `${stats.repaymentRate}%`,
+        subtitle: "Repaid vs closed / overdue",
+        icon: CircleCheck,
+        tone: "violet",
+      }
+    );
+  }
+  if (stats.canScoring) {
+    topStats.push({
       title: "Average Credit Score",
       value: formatCount(stats.avgScore),
       subtitle:
@@ -92,35 +99,43 @@ export default function OverviewPage() {
           : "Portfolio mean",
       icon: Gauge,
       tone: "amber",
-    },
-  ];
+    });
+  }
 
   return (
     <div className="flex w-full max-w-[1600px] flex-1 flex-col gap-5">
       <GreetingSection fullName={me?.full_name} />
       <QuickActions />
-      <KpiStrip items={topStats} loading={stats.isLoading} />
-      <AnalyticsCharts
-        disbursementTrend={stats.disbursementTrend}
-        applicationTrend={stats.applicationTrend}
-        statusBreakdown={stats.statusBreakdown}
-        riskBands={stats.riskBands}
-        loading={stats.isLoading}
-      />
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <ActivityFeed apps={stats.recentApps} loading={stats.isLoading} />
-        <SystemAlerts
-          overdueLoans={stats.overdueLoans}
-          pendingApps={stats.pendingApps}
-          repaymentRate={stats.repaymentRate}
+      {topStats.length ? (
+        <KpiStrip items={topStats} loading={stats.isLoading} />
+      ) : null}
+      {stats.canApps || stats.canScoring ? (
+        <AnalyticsCharts
+          disbursementTrend={stats.disbursementTrend}
+          applicationTrend={stats.applicationTrend}
+          statusBreakdown={stats.statusBreakdown}
+          riskBands={stats.canScoring ? stats.riskBands : []}
           loading={stats.isLoading}
         />
-      </div>
-      <RecentLoanApplicationsTable
-        apps={stats.recentApps}
-        scoreByBorrower={stats.scoreByBorrower}
-        loading={stats.isLoading}
-      />
+      ) : null}
+      {stats.canApps ? (
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <ActivityFeed apps={stats.recentApps} loading={stats.isLoading} />
+          <SystemAlerts
+            overdueLoans={stats.overdueLoans}
+            pendingApps={stats.pendingApps}
+            repaymentRate={stats.repaymentRate}
+            loading={stats.isLoading}
+          />
+        </div>
+      ) : null}
+      {stats.canApps ? (
+        <RecentLoanApplicationsTable
+          apps={stats.recentApps}
+          scoreByBorrower={stats.scoreByBorrower}
+          loading={stats.isLoading}
+        />
+      ) : null}
     </div>
   );
 }

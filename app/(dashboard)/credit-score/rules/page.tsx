@@ -1,5 +1,9 @@
 "use client";
 
+import { NoAccess } from "@/components/auth/no-access";
+import { usePermissions } from "@/hooks/use-permissions";
+import { Perm } from "@/lib/permissions";
+
 import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -96,6 +100,8 @@ function conditionLabel(rule: CreditScoreRuleResponse) {
 }
 
 export default function CreditScoreRulesPage() {
+  const { can } = usePermissions();
+
   const rulesQ = useScoringRules();
   const statsQ = useCreditScoreRuleStats();
   const createRule = useCreateScoringRule();
@@ -274,6 +280,10 @@ export default function CreditScoreRulesPage() {
       setActionError((err as Error).message || "Failed to reset rules.");
     }
   };
+
+  if (!can(Perm.ScoringRuleView)) {
+    return <NoAccess description="You need scoring.rule.view to open credit score rules." />;
+  }
 
   return (
     <ScoringPageShell

@@ -18,6 +18,9 @@ import {
   ProductStats,
   Paginated,
 } from "@/types/loan";
+import { usePermissions } from "@/hooks/use-permissions";
+import { Perm } from "@/lib/permissions";
+
 export function useLoanProducts(params?: {
   page?: number;
   page_size?: number;
@@ -25,8 +28,10 @@ export function useLoanProducts(params?: {
   currency?: string;
   search?: string;
 }) {
+  const { can } = usePermissions();
   return useQuery({
     queryKey: ["loan-products", params],
+    enabled: can(Perm.LoanProductView),
     queryFn: async () => {
       const res = await apiClient.get("/admin/loan-products", { params });
       return unwrapEnvelope<Paginated<LoanProduct>>(res);
@@ -144,8 +149,10 @@ export function useLoanProductStats() {
 }
 
 export function useCreditScoreLoanLimits() {
+  const { can } = usePermissions();
   return useQuery({
     queryKey: ["loan-score-limits"],
+    enabled: can(Perm.LoanScoreLimitView),
     queryFn: async () => {
       const res = await apiClient.get("/admin/loan-score-limits");
       return unwrapEnvelope<CreditScoreLoanLimit[]>(res);
@@ -209,8 +216,10 @@ export function useLoanApplications(params?: {
   product_id?: string;
   borrower_id?: string;
 }) {
+  const { can } = usePermissions();
   return useQuery({
     queryKey: ["loan-applications", params],
+    enabled: can(Perm.LoanApplicationView),
     queryFn: async () => {
       const res = await apiClient.get("/admin/loan-applications", { params });
       return unwrapEnvelope<Paginated<LoanApplication>>(res);

@@ -95,6 +95,9 @@ export function StaffProfileDrawer({
               Role & Access
             </p>
             <RoleBadge role={staff.role} />
+            <p className="text-xs text-slate-600">
+              Company: <span className="font-medium text-slate-800">{staff.company}</span>
+            </p>
             <div className="pt-1">
               <PermissionChips permissions={staff.permissions} />
             </div>

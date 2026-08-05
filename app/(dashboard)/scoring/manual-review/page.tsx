@@ -1,5 +1,9 @@
 "use client";
 
+import { NoAccess } from "@/components/auth/no-access";
+import { usePermissions } from "@/hooks/use-permissions";
+import { Perm } from "@/lib/permissions";
+
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import {
@@ -69,6 +73,8 @@ function resolutionVariant(
 }
 
 export default function ScoringManualReviewPage() {
+  const { can } = usePermissions();
+
   const manualQ = useManualReviewCases(1, 100);
   const borrowersQ = useBorrowersList(1, 200);
   const updateCase = useUpdateManualReviewCase();
@@ -152,6 +158,10 @@ export default function ScoringManualReviewPage() {
       setBusyAction(null);
     }
   };
+
+  if (!can(Perm.ManualReviewView)) {
+    return <NoAccess description="You need manual.review.view to open manual review." />;
+  }
 
   return (
     <ScoringPageShell

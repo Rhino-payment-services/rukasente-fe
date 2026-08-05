@@ -44,6 +44,9 @@ import {
 import { SubscriptionRow, useSubscriptionsList } from "@/hooks/use-subscriptions";
 import { useRunScoring } from "@/hooks/use-scoring";
 import { scoringErrorMessage } from "@/lib/scoring-errors";
+import { NoAccess } from "@/components/auth/no-access";
+import { usePermissions } from "@/hooks/use-permissions";
+import { Perm } from "@/lib/permissions";
 
 type ScoreRunCtx = {
   runningUserId: string | null;
@@ -119,6 +122,7 @@ function initials(name?: string) {
 }
 
 export default function SubscriptionsPage() {
+  const { can } = usePermissions();
   const [page, setPage] = useState(1);
   const [pageSize] = useState(20);
   const { data, isLoading, error } = useSubscriptionsList(page, pageSize);
@@ -323,6 +327,12 @@ export default function SubscriptionsPage() {
     }
     return counts;
   }, [raw]);
+
+  if (!can(Perm.SubscriptionView)) {
+    return (
+      <NoAccess description="You need subscription.view to open subscriptions." />
+    );
+  }
 
   return (
     <ScoreRunContext.Provider value={scoreCtx}>
