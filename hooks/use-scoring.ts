@@ -4,6 +4,8 @@ import axios from "axios";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { unwrapEnvelope } from "@/lib/api-envelope";
+import { usePermissions } from "@/hooks/use-permissions";
+import { Perm } from "@/lib/permissions";
 
 // ── Credit Score Rules Engine ─────────────────────────────────────────────────
 
@@ -127,8 +129,10 @@ export type EligibilityListResponse = {
 // ── Hooks ─────────────────────────────────────────────────────────────────────
 
 export function useScoringResults(page = 1, pageSize = 20) {
+  const { can } = usePermissions();
   return useQuery({
     queryKey: ["scoring-results", page, pageSize],
+    enabled: can(Perm.ScoringView),
     queryFn: async () => {
       const res = await apiClient.get("/admin/scoring/results", {
         params: { page, page_size: pageSize },
@@ -141,8 +145,10 @@ export function useScoringResults(page = 1, pageSize = 20) {
 const CREDIT_RULES_KEY = ["credit-score-rules"] as const;
 
 export function useScoringRules() {
+  const { can } = usePermissions();
   return useQuery({
     queryKey: CREDIT_RULES_KEY,
+    enabled: can(Perm.ScoringRuleView),
     queryFn: async () => {
       const res = await apiClient.get("/admin/credit-score/rules");
       return unwrapEnvelope<CreditScoreRuleResponse[]>(res);
@@ -151,8 +157,10 @@ export function useScoringRules() {
 }
 
 export function useCreditScoreRuleStats() {
+  const { can } = usePermissions();
   return useQuery({
     queryKey: [...CREDIT_RULES_KEY, "stats"],
+    enabled: can(Perm.ScoringRuleView),
     queryFn: async () => {
       const res = await apiClient.get("/admin/credit-score/rules/stats");
       return unwrapEnvelope<CreditScoreRuleStats>(res);
@@ -234,8 +242,10 @@ export function useResetCreditScoreRules() {
 }
 
 export function useManualReviewCases(page = 1, pageSize = 100) {
+  const { can } = usePermissions();
   return useQuery({
     queryKey: ["manual-review", page, pageSize],
+    enabled: can(Perm.ManualReviewView),
     queryFn: async () => {
       const res = await apiClient.get("/admin/manual-review-cases", {
         params: { page, page_size: pageSize },

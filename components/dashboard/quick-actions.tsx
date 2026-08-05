@@ -12,25 +12,63 @@ import {
 } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 import { cn } from "@/lib/utils";
+import { usePermissions } from "@/hooks/use-permissions";
+import { Perm } from "@/lib/permissions";
 
 type QuickAction = {
   label: string;
   href: string;
   icon: LucideIcon;
   primary?: boolean;
+  anyOf: string[];
 };
 
 const actions: QuickAction[] = [
-  { label: "Approve Loan", href: "/loan-applications", icon: CheckCircle2, primary: true },
-  { label: "Create Loan", href: "/loan-applications/new", icon: FilePlus2 },
-  { label: "Run Credit Check", href: "/scoring/results", icon: Activity },
-  { label: "Register Borrower", href: "/manual-borrower", icon: UserPlus },
-  { label: "Sync from RukaPay", href: "/integrations", icon: RefreshCw },
-  { label: "Export Report", href: "/loan-applications", icon: Download },
+  {
+    label: "Approve Loan",
+    href: "/loan-applications",
+    icon: CheckCircle2,
+    primary: true,
+    anyOf: [Perm.LoanApplicationView, Perm.LoanApplicationApprove],
+  },
+  {
+    label: "Create Loan",
+    href: "/loan-applications/new",
+    icon: FilePlus2,
+    anyOf: [Perm.LoanApplicationCreate, Perm.LoanApplicationView],
+  },
+  {
+    label: "Run Credit Check",
+    href: "/scoring/results",
+    icon: Activity,
+    anyOf: [Perm.ScoringView, Perm.ScoringRun],
+  },
+  {
+    label: "Register Borrower",
+    href: "/manual-borrower",
+    icon: UserPlus,
+    anyOf: [Perm.BorrowerView, Perm.BorrowerCreate],
+  },
+  {
+    label: "Sync from RukaPay",
+    href: "/integrations",
+    icon: RefreshCw,
+    anyOf: [Perm.IntegrationView, Perm.PartnerView],
+  },
+  {
+    label: "Export Report",
+    href: "/loan-applications",
+    icon: Download,
+    anyOf: [Perm.LoanApplicationView],
+  },
 ];
 
 export function QuickActions() {
   const reduceMotion = useReducedMotion();
+  const { canAny } = usePermissions();
+  const visible = actions.filter((a) => canAny(a.anyOf));
+
+  if (!visible.length) return null;
 
   return (
     <motion.section
@@ -44,7 +82,7 @@ export function QuickActions() {
       </h2>
 
       <div className="flex flex-wrap items-center gap-2">
-        {actions.map((action) => {
+        {visible.map((action) => {
           const Icon = action.icon;
           return (
             <motion.div

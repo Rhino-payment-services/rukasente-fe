@@ -9,6 +9,7 @@ export type StaffFilterState = {
   role: string;
   status: string;
   dateJoined: string;
+  company: string;
 };
 
 export const EMPTY_FILTERS: StaffFilterState = {
@@ -16,6 +17,7 @@ export const EMPTY_FILTERS: StaffFilterState = {
   role: "all",
   status: "all",
   dateJoined: "all",
+  company: "all",
 };
 
 export function StaffFilters({
@@ -24,12 +26,14 @@ export function StaffFilters({
   onReset,
   roles,
   years,
+  companies,
 }: {
   value: StaffFilterState;
   onChange: (next: StaffFilterState) => void;
   onReset: () => void;
   roles: string[];
   years: string[];
+  companies?: string[];
 }) {
   return (
     <Card className="gap-0 border-slate-200/80 bg-white py-0 shadow-sm">
@@ -63,7 +67,11 @@ export function StaffFilters({
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
+        <div
+          className={`grid grid-cols-2 gap-2 ${
+            companies?.length ? "md:grid-cols-4" : "md:grid-cols-3"
+          }`}
+        >
           <FilterSelect
             label="Role"
             value={value.role}
@@ -82,6 +90,14 @@ export function StaffFilters({
             onChange={(dateJoined) => onChange({ ...value, dateJoined })}
             options={["all", ...years]}
           />
+          {companies?.length ? (
+            <FilterSelect
+              label="Company"
+              value={value.company}
+              onChange={(company) => onChange({ ...value, company })}
+              options={["all", ...companies]}
+            />
+          ) : null}
         </div>
       </CardContent>
     </Card>

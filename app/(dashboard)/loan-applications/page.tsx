@@ -19,6 +19,9 @@ import { CompactLoading } from "@/components/ui/loading";
 import { useLoanApplications } from "@/hooks/use-loan";
 import type { LoanApplication } from "@/types/loan";
 import { cn } from "@/lib/utils";
+import { NoAccess } from "@/components/auth/no-access";
+import { usePermissions } from "@/hooks/use-permissions";
+import { Perm } from "@/lib/permissions";
 
 function formatMoney(amount: number, currency = "UGX") {
   return `${currency} ${Number(amount || 0).toLocaleString()}`;
@@ -66,6 +69,7 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export default function LoanApplicationsPage() {
+  const { can } = usePermissions();
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
   const appsQ = useLoanApplications({
@@ -109,6 +113,12 @@ export default function LoanApplicationsPage() {
   function resetFilters() {
     setSearch("");
     setStatus("");
+  }
+
+  if (!can(Perm.LoanApplicationView)) {
+    return (
+      <NoAccess description="You need loan.application.view to open loan applications." />
+    );
   }
 
   return (

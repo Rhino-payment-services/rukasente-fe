@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import {
   Mail,
@@ -30,8 +30,10 @@ import {
   fetchStaffDetailById,
   useAssignStaffRoles,
   useCreateStaff,
+  useSetStaffDirectPermissions,
   useStaffDetail,
   useStaffList,
+  useStaffPermissions,
   useUpdateStaffProfile,
   useUpdateStaffStatus,
 } from "@/hooks/use-staff";
@@ -46,16 +48,32 @@ import {
 } from "@/components/staff/staff-filters";
 import { StaffDataTable } from "@/components/staff/staff-data-table";
 import { StaffProfileDrawer } from "@/components/staff/staff-profile-drawer";
+import { StaffDirectPermissionChecklist } from "@/components/staff/staff-direct-permissions";
+import { NoAccess } from "@/components/auth/no-access";
+import { usePermissions } from "@/hooks/use-permissions";
+import { Perm } from "@/lib/permissions";
+import { usePartners } from "@/hooks/use-partners";
+
+/** Sentinel for platform (NULL partner_id) in the create company select. */
+const PLATFORM_COMPANY = "__platform__";
 
 export default function StaffPage() {
   const { data: session } = useSession();
+  const { can, isPlatform } = usePermissions();
+  const canView = can(Perm.StaffView);
+  const canCreate = can(Perm.StaffCreate);
+  const canAssignRole = can(Perm.RoleAssign);
+  const canViewPerms = can(Perm.PermissionView);
+
   const roles = useRoles();
   const permissionsCatalog = usePermissionsCatalog();
+  const partners = usePartners({ page: 1, page_size: 100, enabled: isPlatform });
   const { data, isLoading, error } = useStaffList(1, 100);
   const createStaff = useCreateStaff();
   const assignRoles = useAssignStaffRoles();
   const updateStatus = useUpdateStaffStatus();
   const updateProfile = useUpdateStaffProfile();
+  const setDirectPerms = useSetStaffDirectPermissions();
 
   const [filters, setFilters] = useState<StaffFilterState>(EMPTY_FILTERS);
   const [showFilters, setShowFilters] = useState(true);
@@ -65,7 +83,11 @@ export default function StaffPage() {
   const [selectedStaffId, setSelectedStaffId] = useState("");
   const [isManageOpen, setIsManageOpen] = useState(false);
   const detail = useStaffDetail(selectedStaffId || undefined);
+  const staffPerms = useStaffPermissions(
+    isManageOpen && canViewPerms ? selectedStaffId || undefined : undefined
+  );
   const [assignRoleId, setAssignRoleId] = useState("");
+  const [directKeys, setDirectKeys] = useState<string[]>([]);
   const [formError, setFormError] = useState("");
   const [statusValue, setStatusValue] = useState<"active" | "inactive" | "suspended">("active");
   const [statusDraft, setStatusDraft] = useState<"active" | "inactive">("active");
@@ -85,6 +107,19 @@ export default function StaffPage() {
     phone: "",
   });
   const [addRoleId, setAddRoleId] = useState("");
+  const [addCompanyId, setAddCompanyId] = useState(PLATFORM_COMPANY);
+
+  useEffect(() => {
+    if (staffPerms.data) {
+      setDirectKeys(staffPerms.data.direct ?? []);
+    }
+  }, [staffPerms.data]);
+
+  const assignableRoles = useMemo(() => {
+    const rows = roles.data ?? [];
+    if (isPlatform) return rows;
+    return rows.filter((r) => r.name !== "platform_owner");
+  }, [roles.data, isPlatform]);
 
   const enriched = useMemo(
     () => (data?.items ?? []).map((item) => enrichStaff(item)),
@@ -99,7 +134,8 @@ export default function StaffPage() {
         item.full_name.toLowerCase().includes(q) ||
         item.email.toLowerCase().includes(q) ||
         item.phone.toLowerCase().includes(q) ||
-        item.employeeId.toLowerCase().includes(q);
+        item.employeeId.toLowerCase().includes(q) ||
+        item.company.toLowerCase().includes(q);
       const byRole =
         filters.role === "all" ||
         item.roles?.some((role) => role.name === filters.role);
@@ -107,9 +143,17 @@ export default function StaffPage() {
       const byJoined =
         filters.dateJoined === "all" ||
         item.created_at.startsWith(filters.dateJoined);
-      return bySearch && byRole && byStatus && byJoined;
+      const byCompany =
+        filters.company === "all" || item.company === filters.company;
+      return bySearch && byRole && byStatus && byJoined && byCompany;
     });
   }, [enriched, filters]);
+
+  const filterCompanies = useMemo(
+    () =>
+      Array.from(new Set(enriched.map((item) => item.company).filter(Boolean))).sort(),
+    [enriched]
+  );
 
   const stats = useMemo(() => {
     return {
@@ -260,12 +304,18 @@ export default function StaffPage() {
       setAddError("Select one role before creating the user.");
       return;
     }
+    if (isPlatform && !addCompanyId) {
+      setAddError("Select a company for this staff user.");
+      return;
+    }
 
     try {
       const created = await createStaff.mutateAsync({
         ...addPayload,
         full_name: addPayload.full_name.trim(),
         email: addPayload.email.trim(),
+        partner_id:
+          isPlatform && addCompanyId !== PLATFORM_COMPANY ? addCompanyId : null,
       });
       await assignRoles.mutateAsync({ staffId: created.id, roleIds: [addRoleId] });
       setIsAddOpen(false);
@@ -278,10 +328,34 @@ export default function StaffPage() {
         phone: "",
       });
       setAddRoleId("");
+      setAddCompanyId(PLATFORM_COMPANY);
       setAddError("");
     } catch (err) {
       setAddError((err as Error).message || "Failed to create user.");
     }
+  }
+
+  const handleSaveDirectPermissions = async () => {
+    if (!selectedStaffId) return;
+    setFormError("");
+    if (isManagingSelf) {
+      setFormError("You cannot change your own direct permissions.");
+      return;
+    }
+    try {
+      await setDirectPerms.mutateAsync({
+        staffId: selectedStaffId,
+        permissionKeys: directKeys,
+      });
+      await staffPerms.refetch();
+      await detail.refetch();
+    } catch (err) {
+      setFormError((err as Error).message || "Failed to save permissions.");
+    }
+  };
+
+  if (!canView) {
+    return <NoAccess description="You need staff.view to manage staff accounts." />;
   }
 
   return (
@@ -327,6 +401,7 @@ export default function StaffPage() {
             <span className="hidden md:inline">Export</span>
           </Button>
 
+          {canCreate ? (
           <Dialog
             open={isAddOpen}
             onOpenChange={(open) => {
@@ -433,6 +508,21 @@ export default function StaffPage() {
                       <option value="inactive">Inactive</option>
                       <option value="suspended">Suspended</option>
                     </select>
+                    {isPlatform ? (
+                      <select
+                        className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none"
+                        value={addCompanyId}
+                        onChange={(e) => setAddCompanyId(e.target.value)}
+                      >
+                        <option value={PLATFORM_COMPANY}>RukaSente (platform)</option>
+                        {(partners.data?.items ?? []).map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name}
+                            {p.code ? ` (${p.code})` : ""}
+                          </option>
+                        ))}
+                      </select>
+                    ) : null}
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -441,9 +531,18 @@ export default function StaffPage() {
                       <p className="mt-1 text-xs text-slate-600">
                         {addPayload.full_name || "—"} · {addPayload.email || "—"}
                       </p>
+                      {isPlatform ? (
+                        <p className="mt-1 text-xs text-slate-500">
+                          Company:{" "}
+                          {addCompanyId === PLATFORM_COMPANY
+                            ? "RukaSente (platform)"
+                            : (partners.data?.items ?? []).find((p) => p.id === addCompanyId)
+                                ?.name || "—"}
+                        </p>
+                      ) : null}
                     </div>
                     <div className="grid max-h-64 gap-2 overflow-y-auto pr-1 md:grid-cols-2">
-                      {roles.data?.map((role) => (
+                      {assignableRoles.map((role) => (
                         <label
                           key={role.id}
                           className={`flex items-start gap-2 rounded-lg border p-2 text-sm ${
@@ -523,6 +622,7 @@ export default function StaffPage() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
+          ) : null}
         </div>
       </div>
 
@@ -543,6 +643,7 @@ export default function StaffPage() {
           onReset={() => setFilters(EMPTY_FILTERS)}
           roles={filterRoles}
           years={filterYears}
+          companies={isPlatform ? filterCompanies : undefined}
         />
       ) : null}
 
@@ -552,6 +653,7 @@ export default function StaffPage() {
         error={error ? (error as Error).message : null}
         currentUserId={session?.user?.id}
         currentUserEmail={session?.user?.email ?? undefined}
+        showCompany={isPlatform}
         onViewProfile={(staff) => {
           setProfileStaff(staff);
           setDrawerOpen(true);
@@ -689,14 +791,14 @@ export default function StaffPage() {
               </div>
 
               <div className="space-y-4">
-                {roles.data && (
+                {canAssignRole && assignableRoles.length > 0 && (
                   <div className="rounded-lg border border-slate-200 p-3">
                     <p className="mb-2 text-sm font-semibold text-slate-900">Role assignment</p>
                     <p className="mb-2 text-xs text-slate-500">
-                      Assign one role. Effective permissions update immediately.
+                      Assign one role template. Direct permissions below are optional overrides.
                     </p>
                     <div className="grid max-h-56 gap-2 overflow-y-auto pr-1">
-                      {roles.data.map((role) => (
+                      {assignableRoles.map((role) => (
                         <label
                           key={role.id}
                           className="flex items-start gap-2 rounded border border-slate-200 p-2 text-sm"
@@ -735,54 +837,60 @@ export default function StaffPage() {
                   </div>
                 )}
 
-                <div className="rounded-lg border border-slate-200 p-3">
-                  <p className="mb-2 text-sm font-semibold text-slate-900">
-                    Effective permissions
-                  </p>
-                  {detail.data?.permissions?.length ? (
-                    <ul className="max-h-48 list-disc space-y-1 overflow-y-auto pl-5 text-xs font-mono text-slate-700">
-                      {detail.data.permissions.map((perm) => (
-                        <li key={perm}>{perm}</li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-xs text-slate-500">
-                      No effective permissions yet. Assign role to populate this list.
+                {canAssignRole && canViewPerms ? (
+                  <div className="rounded-lg border border-slate-200 p-3">
+                    <p className="mb-2 text-sm font-semibold text-slate-900">
+                      Direct permissions
                     </p>
-                  )}
-                </div>
-
-                <div className="rounded-lg border border-slate-200 p-3">
-                  <p className="mb-2 text-sm font-semibold text-slate-900">
-                    Permissions catalog
-                  </p>
-                  {permissionsCatalog.isLoading ? (
-                    <CompactLoading />
-                  ) : permissionsCatalog.data?.length ? (
-                    <div className="max-h-56 overflow-y-auto pr-1">
-                      <div className="grid gap-2">
-                        {permissionsCatalog.data.map((perm) => {
-                          const enabled = !!detail.data?.permissions?.includes(perm.key);
-                          return (
-                            <div
-                              key={perm.id}
-                              className={`rounded border px-2 py-1 text-xs ${
-                                enabled
-                                  ? "border-emerald-200 bg-emerald-50 text-emerald-900"
-                                  : "border-slate-200 bg-white text-slate-500"
-                              }`}
-                            >
-                              <p className="font-mono">{perm.key}</p>
-                              {perm.description ? <p>{perm.description}</p> : null}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="text-xs text-slate-500">No permissions found.</p>
-                  )}
-                </div>
+                    <p className="mb-2 text-xs text-slate-500">
+                      One-by-one grants on top of the role template.
+                    </p>
+                    {permissionsCatalog.isLoading || staffPerms.isLoading ? (
+                      <CompactLoading />
+                    ) : (
+                      <StaffDirectPermissionChecklist
+                        catalog={permissionsCatalog.data ?? []}
+                        fromRoles={staffPerms.data?.from_roles ?? []}
+                        directSelected={directKeys}
+                        onChange={setDirectKeys}
+                        disabled={isManagingSelf}
+                        hidePlatformKeys={!isPlatform}
+                      />
+                    )}
+                    <Button
+                      type="button"
+                      className="mt-3"
+                      variant="outline"
+                      onClick={handleSaveDirectPermissions}
+                      disabled={
+                        !selectedStaffId ||
+                        setDirectPerms.isPending ||
+                        isManagingSelf
+                      }
+                    >
+                      {setDirectPerms.isPending ? "Saving..." : "Save direct permissions"}
+                    </Button>
+                  </div>
+                ) : canViewPerms ? (
+                  <div className="rounded-lg border border-slate-200 p-3">
+                    <p className="mb-2 text-sm font-semibold text-slate-900">
+                      Effective permissions
+                    </p>
+                    {(staffPerms.data?.effective ?? detail.data?.permissions)?.length ? (
+                      <ul className="max-h-48 list-disc space-y-1 overflow-y-auto pl-5 text-xs font-mono text-slate-700">
+                        {(staffPerms.data?.effective ?? detail.data?.permissions ?? []).map(
+                          (perm) => (
+                            <li key={perm}>{perm}</li>
+                          )
+                        )}
+                      </ul>
+                    ) : (
+                      <p className="text-xs text-slate-500">
+                        No effective permissions yet.
+                      </p>
+                    )}
+                  </div>
+                ) : null}
               </div>
               {formError ? (
                 <div className="lg:col-span-2">

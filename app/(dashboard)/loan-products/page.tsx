@@ -26,6 +26,9 @@ import { useLoanProducts, useSetLoanProductStatus, useDeleteLoanProduct } from "
 import type { LoanProduct } from "@/types/loan";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { NoAccess } from "@/components/auth/no-access";
+import { usePermissions } from "@/hooks/use-permissions";
+import { Perm } from "@/lib/permissions";
 
 function formatMoney(n: number, currency = "UGX") {
   return `${currency} ${n.toLocaleString()}`;
@@ -62,6 +65,7 @@ function ReviewPill({ required }: { required: boolean }) {
 }
 
 export default function LoanProductsPage() {
+  const { can } = usePermissions();
   const [search, setSearch] = useState("");
   const [activeFilter, setActiveFilter] = useState("");
   const [interestFilter, setInterestFilter] = useState("all");
@@ -131,6 +135,12 @@ export default function LoanProductsPage() {
     } catch (err) {
       toast.error((err as Error).message || "Failed to delete product");
     }
+  }
+
+  if (!can(Perm.LoanProductView)) {
+    return (
+      <NoAccess description="You need loan.product.view to open loan products." />
+    );
   }
 
   return (

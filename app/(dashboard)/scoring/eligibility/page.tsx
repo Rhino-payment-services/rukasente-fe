@@ -1,5 +1,9 @@
 "use client";
 
+import { NoAccess } from "@/components/auth/no-access";
+import { usePermissions } from "@/hooks/use-permissions";
+import { Perm } from "@/lib/permissions";
+
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import {
@@ -69,6 +73,8 @@ function sourceVariant(
 }
 
 export default function ScoringEligibilityPage() {
+  const { canAny } = usePermissions();
+
   const eligQ = useEligibilityDecisions(1, 100);
   const borrowersQ = useBorrowersList(1, 200);
 
@@ -123,6 +129,10 @@ export default function ScoringEligibilityPage() {
           new Date(b.checked_at).getTime() - new Date(a.checked_at).getTime()
       );
   }, [items, search, statusFilter, borrowerNameById]);
+
+  if (!canAny([Perm.EligibilityDecisionView, Perm.EligibilityView])) {
+    return <NoAccess description="You need eligibility decision view access." />;
+  }
 
   return (
     <ScoringPageShell

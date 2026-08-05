@@ -10,7 +10,6 @@ import {
   useRef,
   useState,
 } from "react";
-import { useSession } from "next-auth/react";
 import {
   ColumnDef,
   SortingState,
@@ -52,7 +51,9 @@ import {
 } from "@/hooks/use-borrowers";
 import { useRunScoring } from "@/hooks/use-scoring";
 import { scoringErrorMessage } from "@/lib/scoring-errors";
-import { hasPermission, Perm } from "@/lib/permissions";
+import { Perm } from "@/lib/permissions";
+import { NoAccess } from "@/components/auth/no-access";
+import { usePermissions } from "@/hooks/use-permissions";
 
 type ScoreRunCtx = {
   runningUserId: string | null;
@@ -68,11 +69,8 @@ function useScoreRun() {
 }
 
 export default function BorrowersPage() {
-  const { data: session } = useSession();
-  const canUpdateKyc = hasPermission(
-    session?.user?.permissions,
-    Perm.BorrowerUpdate
-  );
+  const { can } = usePermissions();
+  const canUpdateKyc = can(Perm.BorrowerUpdate);
 
   const [page, setPage] = useState(1);
   const [pageSize] = useState(20);
@@ -243,6 +241,10 @@ export default function BorrowersPage() {
     getSortedRowModel: getSortedRowModel(),
     autoResetPageIndex: false,
   });
+
+  if (!can(Perm.BorrowerView)) {
+    return <NoAccess description="You need borrower.view to open borrowers." />;
+  }
 
   return (
     <ScoreRunContext.Provider value={scoreCtx}>
