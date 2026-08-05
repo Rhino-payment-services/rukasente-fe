@@ -4,6 +4,11 @@ export type Partner = {
   code: string;
   description: string;
   status: "active" | "inactive" | string;
+  is_internal?: boolean;
+  primary_color?: string;
+  country?: string;
+  currency?: string;
+  payment_provider_id?: string | null;
   api_base_url: string;
   contact_name: string;
   contact_email: string;
@@ -23,6 +28,11 @@ export type PartnerCreatePayload = {
   code: string;
   description?: string;
   status?: string;
+  is_internal?: boolean;
+  primary_color?: string;
+  country?: string;
+  currency?: string;
+  payment_provider_id?: string | null;
   api_base_url?: string;
   contact_name?: string;
   contact_email?: string;
@@ -37,6 +47,57 @@ export type PartnerUpdatePayload = Partial<
 > & {
   allowed_ips?: string[];
   ip_whitelist_enabled?: boolean;
+  payment_provider_id?: string | null;
+};
+
+export type RegisterLendingCompanyPayload = {
+  name: string;
+  code: string;
+  description?: string;
+  primary_color?: string;
+  country?: string;
+  currency?: string;
+  payment_provider_id?: string | null;
+  contact_name?: string;
+  contact_email?: string;
+  contact_phone?: string;
+  logo_url?: string;
+  allowed_ips?: string[];
+  admin_email: string;
+  admin_name: string;
+  admin_password?: string;
+};
+
+export type RegisterLendingCompanyResult = {
+  partner: Partner;
+  admin_email: string;
+  admin_password: string;
+  warning: string;
+};
+
+export type PaymentProvider = {
+  id: string;
+  code: string;
+  name: string;
+  status: string;
+  adapter_key: string;
+  base_url?: string;
+  config_json?: string;
+  capabilities_json?: string;
+  has_credentials: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type PaymentProviderCreatePayload = {
+  code: string;
+  name: string;
+  status?: string;
+  adapter_key: string;
+  base_url?: string;
+  credentials?: string;
+  config_json?: string;
+  capabilities_json?: string;
 };
 
 export type PartnerCredential = {

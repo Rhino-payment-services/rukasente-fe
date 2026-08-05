@@ -1,7 +1,7 @@
 "use client";
 
 import type { LucideIcon } from "lucide-react";
-import { X, Mail, Phone, BadgeCheck, Building2, MapPin, Calendar } from "lucide-react";
+import { X, Mail, Phone, BadgeCheck, Calendar } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   PermissionChips,
@@ -9,7 +9,6 @@ import {
   StatusBadge,
 } from "@/components/staff/staff-badges";
 import type { EnrichedStaff } from "@/lib/staff-enrichment";
-import { STAFF_ACTIVITY } from "@/lib/staff-enrichment";
 
 export function StaffProfileDrawer({
   staff,
@@ -69,9 +68,11 @@ export function StaffProfileDrawer({
           </div>
 
           <div className="grid grid-cols-2 gap-2">
-            <InfoTile icon={BadgeCheck} label="Employee ID" value={staff.employeeId} />
-            <InfoTile icon={Building2} label="Department" value={staff.department} />
-            <InfoTile icon={MapPin} label="Branch" value={staff.branch} />
+            <InfoTile
+              icon={BadgeCheck}
+              label="Staff ID"
+              value={staff.employeeId.slice(0, 8)}
+            />
             <InfoTile icon={Calendar} label="Date Joined" value={staff.dateJoined} />
           </div>
 
@@ -100,50 +101,6 @@ export function StaffProfileDrawer({
             <p className="text-xs text-slate-500">Last login: {staff.lastLogin}</p>
           </section>
 
-          <section className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-              Performance Summary
-            </p>
-            <div className="grid grid-cols-3 gap-2">
-              <MiniStat label="Loans" value="48" />
-              <MiniStat label="Approval" value="91%" />
-              <MiniStat label="Score" value="94" />
-            </div>
-          </section>
-
-          <section className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-              Assigned
-            </p>
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <div className="rounded-lg border border-slate-100 p-2.5">
-                <p className="text-slate-400">Borrowers</p>
-                <p className="mt-0.5 text-base font-semibold text-slate-900">36</p>
-              </div>
-              <div className="rounded-lg border border-slate-100 p-2.5">
-                <p className="text-slate-400">Active Loans</p>
-                <p className="mt-0.5 text-base font-semibold text-slate-900">22</p>
-              </div>
-            </div>
-          </section>
-
-          <section className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-              Recent Activity
-            </p>
-            <ul className="space-y-2">
-              {STAFF_ACTIVITY.slice(0, 4).map((a) => (
-                <li
-                  key={a.title + a.time}
-                  className="rounded-lg border border-slate-100 px-3 py-2"
-                >
-                  <p className="text-xs font-medium text-slate-800">{a.title}</p>
-                  <p className="text-[11px] text-slate-500">{a.detail}</p>
-                  <p className="mt-0.5 text-[10px] text-slate-400">{a.time}</p>
-                </li>
-              ))}
-            </ul>
-          </section>
         </div>
 
         <div className="flex gap-2 border-t border-slate-100 px-5 py-4">
@@ -188,11 +145,3 @@ function InfoTile({
   );
 }
 
-function MiniStat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg bg-slate-50 px-2 py-2 text-center">
-      <p className="text-[10px] text-slate-400">{label}</p>
-      <p className="text-sm font-semibold text-slate-900">{value}</p>
-    </div>
-  );
-}

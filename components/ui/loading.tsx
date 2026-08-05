@@ -39,7 +39,7 @@ export function FullPageLoading({
         transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
       >
         {/* Logo + orbit rings */}
-        <div className="relative mb-7 flex size-[7.5rem] items-center justify-center">
+        <div className="relative mb-7 flex size-[11rem] items-center justify-center sm:size-[12.5rem]">
           <motion.span
             className="absolute inset-0 rounded-full border border-[#08163d]/15"
             animate={{ rotate: 360 }}
@@ -57,29 +57,20 @@ export function FullPageLoading({
           />
 
           <motion.div
-            className="relative z-10 flex size-16 items-center justify-center rounded-2xl bg-white shadow-[0_12px_40px_-12px_rgba(8,22,61,0.35)] ring-1 ring-[#08163d]/10"
+            className="relative z-10 flex items-center justify-center rounded-2xl bg-white px-4 py-3 shadow-[0_12px_40px_-12px_rgba(8,22,61,0.35)] ring-1 ring-[#08163d]/10"
             animate={{ scale: [1, 1.04, 1] }}
             transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
           >
             <Image
               src={RUKAPAY_LOGO_SRC}
-              alt="Ruka Sente"
-              width={44}
-              height={44}
-              className="rounded-lg object-cover"
+              alt="RukaSente"
+              width={220}
+              height={110}
+              className="h-14 w-auto object-contain sm:h-16"
               priority
             />
           </motion.div>
         </div>
-
-        <motion.p
-          className="text-lg font-semibold tracking-tight text-[#08163d]"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.15, duration: 0.4 }}
-        >
-          Ruka Sente
-        </motion.p>
 
         <motion.p
           className="mt-2 text-sm text-slate-500"

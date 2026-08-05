@@ -8,7 +8,13 @@ export type StaffListItem = {
   id: string;
   full_name: string;
   email: string;
+  phone?: string;
   status: string;
+  created_at: string;
+  updated_at: string;
+  last_login_at?: string;
+  roles?: RoleRef[];
+  permissions?: string[];
 };
 
 export type StaffListResponse = {

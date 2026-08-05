@@ -7,8 +7,6 @@ import { Card, CardContent } from "@/components/ui/card";
 export type StaffFilterState = {
   search: string;
   role: string;
-  department: string;
-  branch: string;
   status: string;
   dateJoined: string;
 };
@@ -16,8 +14,6 @@ export type StaffFilterState = {
 export const EMPTY_FILTERS: StaffFilterState = {
   search: "",
   role: "all",
-  department: "all",
-  branch: "all",
   status: "all",
   dateJoined: "all",
 };
@@ -26,10 +22,14 @@ export function StaffFilters({
   value,
   onChange,
   onReset,
+  roles,
+  years,
 }: {
   value: StaffFilterState;
   onChange: (next: StaffFilterState) => void;
   onReset: () => void;
+  roles: string[];
+  years: string[];
 }) {
   return (
     <Card className="gap-0 border-slate-200/80 bg-white py-0 shadow-sm">
@@ -63,55 +63,24 @@ export function StaffFilters({
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-5">
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
           <FilterSelect
             label="Role"
             value={value.role}
             onChange={(role) => onChange({ ...value, role })}
-            options={[
-              "all",
-              "System Administrator",
-              "Loan Officer",
-              "Collections Officer",
-              "Finance Officer",
-              "Supervisor",
-              "Credit Analyst",
-              "Branch Manager",
-              "Support Officer",
-              "Auditor",
-            ]}
-          />
-          <FilterSelect
-            label="Department"
-            value={value.department}
-            onChange={(department) => onChange({ ...value, department })}
-            options={[
-              "all",
-              "Credit Operations",
-              "Collections",
-              "Finance",
-              "Risk & Compliance",
-              "Customer Support",
-              "Branch Operations",
-            ]}
-          />
-          <FilterSelect
-            label="Branch"
-            value={value.branch}
-            onChange={(branch) => onChange({ ...value, branch })}
-            options={["all", "Kampala HQ", "Entebbe", "Jinja", "Mbarara", "Gulu", "Mbale"]}
+            options={["all", ...roles]}
           />
           <FilterSelect
             label="Status"
             value={value.status}
             onChange={(status) => onChange({ ...value, status })}
-            options={["all", "active", "pending", "on_leave", "suspended", "inactive"]}
+            options={["all", "active", "suspended", "inactive"]}
           />
           <FilterSelect
             label="Date Joined"
             value={value.dateJoined}
             onChange={(dateJoined) => onChange({ ...value, dateJoined })}
-            options={["all", "2025", "2024", "2023"]}
+            options={["all", ...years]}
           />
         </div>
       </CardContent>

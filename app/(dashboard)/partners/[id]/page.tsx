@@ -17,6 +17,7 @@ import {
   usePartnerBorrowers,
   usePartnerCredentials,
   usePartnerStats,
+  usePaymentProviders,
   useRegeneratePartnerCredential,
   useRevokePartnerCredential,
   useUpdatePartner,
@@ -44,6 +45,7 @@ export default function PartnerDetailPage({
   const credsQ = usePartnerCredentials(id);
   const borrowersQ = usePartnerBorrowers(id, 1, 20);
   const logsQ = usePartnerAPILogs(id, 1, 20);
+  const providersQ = usePaymentProviders();
   const update = useUpdatePartner(id);
   const generate = useGeneratePartnerCredential(id);
   const revoke = useRevokePartnerCredential(id);
@@ -75,6 +77,10 @@ export default function PartnerDetailPage({
         contact_email: String(fd.get("contact_email") || ""),
         contact_phone: String(fd.get("contact_phone") || ""),
         logo_url: String(fd.get("logo_url") || ""),
+        country: String(fd.get("country") || ""),
+        currency: String(fd.get("currency") || ""),
+        primary_color: String(fd.get("primary_color") || ""),
+        payment_provider_id: String(fd.get("payment_provider_id") || "") || null,
         allowed_ips,
         ip_whitelist_enabled: fd.get("ip_whitelist_enabled") === "on",
       });
@@ -101,6 +107,11 @@ export default function PartnerDetailPage({
   }
 
   const stats = statsQ.data;
+  const providers = providersQ.data?.items ?? [];
+  const providerLabel =
+    providers.find((pp) => pp.id === p.payment_provider_id)?.name ||
+    p.payment_provider_id ||
+    "—";
 
   return (
     <div className="space-y-4">
@@ -205,6 +216,38 @@ export default function PartnerDetailPage({
                 placeholder="Contact phone"
               />
               <Input name="logo_url" defaultValue={p.logo_url} placeholder="Logo URL" />
+              <Input
+                name="country"
+                defaultValue={p.country || ""}
+                placeholder="Country (e.g. UG)"
+              />
+              <Input
+                name="currency"
+                defaultValue={p.currency || ""}
+                placeholder="Currency (e.g. UGX)"
+              />
+              <Input
+                name="primary_color"
+                defaultValue={p.primary_color || ""}
+                placeholder="Primary color (#4f46e5)"
+              />
+              <label className="block space-y-1.5">
+                <span className="text-xs font-medium text-slate-700">
+                  Payment provider
+                </span>
+                <select
+                  name="payment_provider_id"
+                  defaultValue={p.payment_provider_id || ""}
+                  className="h-10 w-full rounded-md border border-slate-200 px-3 text-sm"
+                >
+                  <option value="">None / default</option>
+                  {providers.map((pp) => (
+                    <option key={pp.id} value={pp.id}>
+                      {pp.name} ({pp.code})
+                    </option>
+                  ))}
+                </select>
+              </label>
               <label className="sm:col-span-2 flex items-center gap-2 text-xs text-slate-700">
                 <input
                   type="checkbox"
@@ -255,6 +298,16 @@ export default function PartnerDetailPage({
                   {p.contact_name || "—"} · {p.contact_email || "—"} ·{" "}
                   {p.contact_phone || "—"}
                 </dd>
+              </div>
+              <div>
+                <dt className="text-xs text-slate-400">Country / currency</dt>
+                <dd>
+                  {p.country || "—"} · {p.currency || "—"}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs text-slate-400">Payment provider</dt>
+                <dd className="truncate">{providerLabel}</dd>
               </div>
               <div>
                 <dt className="text-xs text-slate-400">IP whitelist</dt>

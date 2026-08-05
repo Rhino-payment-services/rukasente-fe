@@ -37,8 +37,6 @@ import {
 } from "@/hooks/use-staff";
 import { enrichStaff, type EnrichedStaff } from "@/lib/staff-enrichment";
 import {
-  StaffPerformanceCards,
-  StaffQuickStats,
   StaffSummaryCards,
 } from "@/components/staff/staff-kpi-cards";
 import {
@@ -48,7 +46,6 @@ import {
 } from "@/components/staff/staff-filters";
 import { StaffDataTable } from "@/components/staff/staff-data-table";
 import { StaffProfileDrawer } from "@/components/staff/staff-profile-drawer";
-import { StaffInsightsPanel } from "@/components/staff/staff-insights";
 
 export default function StaffPage() {
   const { data: session } = useSession();
@@ -90,7 +87,7 @@ export default function StaffPage() {
   const [addRoleId, setAddRoleId] = useState("");
 
   const enriched = useMemo(
-    () => (data?.items ?? []).map((item, i) => enrichStaff(item, i)),
+    () => (data?.items ?? []).map((item) => enrichStaff(item)),
     [data?.items]
   );
 
@@ -103,13 +100,14 @@ export default function StaffPage() {
         item.email.toLowerCase().includes(q) ||
         item.phone.toLowerCase().includes(q) ||
         item.employeeId.toLowerCase().includes(q);
-      const byRole = filters.role === "all" || item.role === filters.role;
-      const byDept = filters.department === "all" || item.department === filters.department;
-      const byBranch = filters.branch === "all" || item.branch === filters.branch;
+      const byRole =
+        filters.role === "all" ||
+        item.roles?.some((role) => role.name === filters.role);
       const byStatus = filters.status === "all" || item.status === filters.status;
       const byJoined =
-        filters.dateJoined === "all" || item.dateJoined.startsWith(filters.dateJoined);
-      return bySearch && byRole && byDept && byBranch && byStatus && byJoined;
+        filters.dateJoined === "all" ||
+        item.created_at.startsWith(filters.dateJoined);
+      return bySearch && byRole && byStatus && byJoined;
     });
   }, [enriched, filters]);
 
@@ -117,12 +115,38 @@ export default function StaffPage() {
     return {
       total: enriched.length,
       active: enriched.filter((i) => i.status === "active").length,
-      loanOfficers: enriched.filter((i) => i.role === "Loan Officer").length,
-      supervisors: enriched.filter((i) => i.role === "Supervisor").length,
-      collections: enriched.filter((i) => i.role === "Collections Officer").length,
+      loanOfficers: enriched.filter((i) =>
+        i.roles?.some((role) => role.name === "Loan Officer")
+      ).length,
+      supervisors: enriched.filter((i) =>
+        i.roles?.some((role) => role.name === "Supervisor")
+      ).length,
+      collections: enriched.filter((i) =>
+        i.roles?.some((role) => role.name === "Collections Officer")
+      ).length,
       suspended: enriched.filter((i) => i.status === "suspended").length,
     };
   }, [enriched]);
+
+  const filterRoles = useMemo(
+    () =>
+      Array.from(
+        new Set(enriched.flatMap((item) => item.roles?.map((role) => role.name) ?? []))
+      ).sort(),
+    [enriched]
+  );
+
+  const filterYears = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          enriched
+            .map((item) => item.created_at.slice(0, 4))
+            .filter((year) => /^\d{4}$/.test(year))
+        )
+      ).sort((a, b) => b.localeCompare(a)),
+    [enriched]
+  );
 
   const selectedStaffLabel = useMemo(() => {
     const row = enriched.find((item) => item.id === selectedStaffId);
@@ -269,8 +293,8 @@ export default function StaffPage() {
             Staff Management
           </h1>
           <p className="mt-0.5 line-clamp-1 text-xs text-slate-500">
-            Manage employees, roles, permissions, branches, and operational access across
-            the RukaSente platform.
+            Manage staff accounts, roles, permissions, and operational access across the
+            RukaSente platform.
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
@@ -505,20 +529,20 @@ export default function StaffPage() {
       <StaffSummaryCards
         total={stats.total}
         active={stats.active}
-        loanOfficers={stats.loanOfficers || Math.max(1, Math.round(stats.total * 0.35))}
-        supervisors={stats.supervisors || Math.max(1, Math.round(stats.total * 0.15))}
-        collections={stats.collections || Math.max(1, Math.round(stats.total * 0.2))}
+        loanOfficers={stats.loanOfficers}
+        supervisors={stats.supervisors}
+        collections={stats.collections}
         suspended={stats.suspended}
         loading={isLoading}
       />
-
-      <StaffQuickStats />
 
       {showFilters ? (
         <StaffFilters
           value={filters}
           onChange={setFilters}
           onReset={() => setFilters(EMPTY_FILTERS)}
+          roles={filterRoles}
+          years={filterYears}
         />
       ) : null}
 
@@ -539,13 +563,6 @@ export default function StaffPage() {
             : undefined
         }
       />
-
-      <div>
-        <h2 className="mb-3 text-sm font-semibold text-slate-900">Performance Overview</h2>
-        <StaffPerformanceCards />
-      </div>
-
-      <StaffInsightsPanel />
 
       <StaffProfileDrawer
         staff={profileStaff}

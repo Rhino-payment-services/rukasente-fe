@@ -22,6 +22,7 @@ export type BorrowerRow = {
   full_name: string;
   phone: string;
   email?: string | null;
+  national_id?: string | null;
   kyc_status: string;
   status: string;
   scoring_wallet_id?: string | null;
@@ -94,6 +95,22 @@ export function useBorrowersList(page = 1, pageSize = 20) {
       });
       return unwrapEnvelope<BorrowerListResponse>(res);
     },
+  });
+}
+
+/** Server-side ranked borrower search. Enabled only when q has 2+ characters. */
+export function useBorrowerSearch(q: string, page = 1, pageSize = 10) {
+  const query = q.trim();
+  return useQuery({
+    queryKey: ["borrowers-search", query, page, pageSize],
+    enabled: query.length >= 2,
+    queryFn: async () => {
+      const res = await apiClient.get("/admin/borrowers/search", {
+        params: { q: query, page, page_size: pageSize },
+      });
+      return unwrapEnvelope<BorrowerListResponse>(res);
+    },
+    placeholderData: (prev) => prev,
   });
 }
 
