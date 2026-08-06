@@ -24,11 +24,14 @@ export function usePartners(params?: {
   page_size?: number;
   status?: string;
   search?: string;
+  enabled?: boolean;
 }) {
+  const { enabled = true, ...queryParams } = params ?? {};
   return useQuery({
-    queryKey: ["partners", params],
+    queryKey: ["partners", queryParams],
+    enabled,
     queryFn: async () => {
-      const res = await apiClient.get("/admin/partners", { params });
+      const res = await apiClient.get("/admin/partners", { params: queryParams });
       return unwrapEnvelope<PaginatedPartners>(res);
     },
   });

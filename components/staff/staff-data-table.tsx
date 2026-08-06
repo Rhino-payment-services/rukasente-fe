@@ -19,6 +19,7 @@ type Props = {
   error?: string | null;
   currentUserId?: string;
   currentUserEmail?: string;
+  showCompany?: boolean;
   onViewProfile: (staff: EnrichedStaff) => void;
   onEdit: (staff: EnrichedStaff) => void;
   totalLabel?: string;
@@ -30,6 +31,7 @@ export function StaffDataTable({
   error,
   currentUserId,
   currentUserEmail,
+  showCompany,
   onViewProfile,
   onEdit,
   totalLabel,
@@ -60,6 +62,9 @@ export function StaffDataTable({
                   <th className="sticky left-0 z-[1] min-w-[220px] bg-slate-50/95 px-3 py-2.5 font-medium backdrop-blur">
                     Staff
                   </th>
+                  {showCompany ? (
+                    <th className="min-w-[140px] px-3 py-2.5 font-medium">Company</th>
+                  ) : null}
                   <th className="min-w-[130px] px-3 py-2.5 font-medium">Role</th>
                   <th className="min-w-[90px] px-3 py-2.5 font-medium">Status</th>
                   <th className="min-w-[100px] px-3 py-2.5 font-medium">Last login</th>
@@ -115,6 +120,13 @@ export function StaffDataTable({
                           </div>
                         </div>
                       </td>
+                      {showCompany ? (
+                        <td className="px-3 py-2.5">
+                          <span className="inline-flex max-w-[180px] truncate rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700">
+                            {row.company}
+                          </span>
+                        </td>
+                      ) : null}
                       <td className="px-3 py-2.5">
                         <RoleBadge role={row.role} />
                       </td>

@@ -1,5 +1,9 @@
 "use client";
 
+import { NoAccess } from "@/components/auth/no-access";
+import { usePermissions } from "@/hooks/use-permissions";
+import { Perm } from "@/lib/permissions";
+
 import {
   createContext,
   useCallback,
@@ -125,6 +129,8 @@ function initials(name?: string) {
 }
 
 export default function ScoringResultsPage() {
+  const { can } = usePermissions();
+
   const [page, setPage] = useState(1);
   const [pageSize] = useState(20);
   const { data, isLoading, error } = useScoringResults(page, pageSize);
@@ -389,6 +395,10 @@ export default function ScoringResultsPage() {
     counts.avg_score = raw.length ? Math.round(scoreSum / raw.length) : 0;
     return counts;
   }, [raw]);
+
+  if (!can(Perm.ScoringView)) {
+    return <NoAccess description="You need scoring.view to open score results." />;
+  }
 
   return (
     <ScoreRunContext.Provider value={scoreCtx}>

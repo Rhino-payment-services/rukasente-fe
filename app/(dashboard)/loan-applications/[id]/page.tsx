@@ -19,6 +19,7 @@ import {
   useReviewLoanApplication,
 } from "@/hooks/use-loan";
 import { hasPermission, Perm } from "@/lib/permissions";
+import { usePermissions } from "@/hooks/use-permissions";
 import { toast } from "sonner";
 
 function formatMoney(amount: number, currency = "UGX") {
@@ -60,6 +61,7 @@ export default function LoanApplicationDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { data: session } = useSession();
+  const { permissions: livePerms } = usePermissions();
   const { id } = use(params);
   const appQ = useLoanApplication(id);
   const reviewsQ = useLoanApplicationReviews(id);
@@ -75,6 +77,13 @@ export default function LoanApplicationDetailPage({
   const [repayAmount, setRepayAmount] = useState("");
   const [repayError, setRepayError] = useState("");
   const [showLedger, setShowLedger] = useState(false);
+
+  const permissions =
+    livePerms.length > 0 ? livePerms : session?.user?.permissions ?? [];
+  const canReview = hasPermission(permissions, Perm.LoanApplicationReview);
+  const canApprove = hasPermission(permissions, Perm.LoanApplicationApprove);
+  const canDecline = hasPermission(permissions, Perm.LoanApplicationDecline);
+  const canRepay = hasPermission(permissions, Perm.LoanRepayment);
 
   async function submitReview(e: FormEvent) {
     e.preventDefault();
@@ -137,11 +146,6 @@ export default function LoanApplicationDetailPage({
   const app = appQ.data;
   const account = accountQ.data;
   const currency = account?.currency || app?.currency || "UGX";
-  const permissions = session?.user?.permissions ?? [];
-  const canReview = hasPermission(permissions, Perm.LoanApplicationReview);
-  const canApprove = hasPermission(permissions, Perm.LoanApplicationApprove);
-  const canDecline = hasPermission(permissions, Perm.LoanApplicationDecline);
-  const canRepay = hasPermission(permissions, Perm.LoanRepayment);
 
   const paidPct = useMemo(() => {
     if (!account?.total_repayable) return 0;

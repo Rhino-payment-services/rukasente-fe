@@ -12,9 +12,28 @@ import {
   useCreateStaff,
   useStaffDetail,
 } from "@/hooks/use-staff";
+import { RequirePerm } from "@/components/auth/require-perm";
+import { Perm } from "@/lib/permissions";
+import { usePermissions } from "@/hooks/use-permissions";
+import { usePartners } from "@/hooks/use-partners";
+
+const PLATFORM_COMPANY = "__platform__";
 
 export default function AddStaffPage() {
+  return (
+    <RequirePerm
+      anyOf={[Perm.StaffCreate]}
+      description="You need staff.create to add staff accounts."
+    >
+      <AddStaffForm />
+    </RequirePerm>
+  );
+}
+
+function AddStaffForm() {
+  const { isPlatform } = usePermissions();
   const roles = useRoles();
+  const partners = usePartners({ page: 1, page_size: 100, enabled: isPlatform });
   const createStaff = useCreateStaff();
   const assignRoles = useAssignStaffRoles();
 
@@ -25,15 +44,21 @@ export default function AddStaffPage() {
     "active"
   );
   const [selectedRoleId, setSelectedRoleId] = useState<string>("");
+  const [companyId, setCompanyId] = useState(PLATFORM_COMPANY);
   const [createdStaffId, setCreatedStaffId] = useState<string>("");
   const [formError, setFormError] = useState("");
 
   const createdDetail = useStaffDetail(createdStaffId || undefined);
 
+  const assignableRoles = useMemo(() => {
+    const rows = roles.data ?? [];
+    if (isPlatform) return rows;
+    return rows.filter((role) => role.name !== "platform_owner");
+  }, [roles.data, isPlatform]);
+
   const selectedRoles = useMemo(() => {
-    if (!roles.data) return [];
-    return roles.data.filter((role) => role.id === selectedRoleId);
-  }, [roles.data, selectedRoleId]);
+    return assignableRoles.filter((role) => role.id === selectedRoleId);
+  }, [assignableRoles, selectedRoleId]);
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -50,6 +75,8 @@ export default function AddStaffPage() {
         email: email.trim(),
         password,
         status,
+        partner_id:
+          isPlatform && companyId !== PLATFORM_COMPANY ? companyId : null,
       });
 
       let targetId = created.id;
@@ -67,6 +94,7 @@ export default function AddStaffPage() {
       setPassword("");
       setStatus("active");
       setSelectedRoleId("");
+      setCompanyId(PLATFORM_COMPANY);
     } catch (err) {
       setFormError((err as Error).message || "Failed to create user.");
     }
@@ -83,128 +111,134 @@ export default function AddStaffPage() {
             </p>
           </div>
           <Button asChild variant="outline" className="rounded-lg">
-          <Link href="/staff">Back to staff</Link>
-        </Button>
+            <Link href="/staff">Back to staff</Link>
+          </Button>
         </div>
       </div>
 
       <Card className="gap-0 border-slate-200 py-0 shadow-none">
         <CardHeader className="px-5 py-4">
-          <CardTitle className="text-lg text-slate-900">Create staff user</CardTitle>
+          <CardTitle className="text-lg text-slate-900">Staff details</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-5 px-5 pb-5">
-          <form className="space-y-4" onSubmit={handleSubmit}>
-            <div className="grid gap-3 md:grid-cols-3">
-              <div className="relative">
-                <User className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
-                <Input
-                  placeholder="Full name"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  className="h-11 rounded-xl border-slate-200 bg-white pl-9 text-sm shadow-none focus-visible:ring-2 focus-visible:ring-main-200"
-                />
-              </div>
-              <div className="relative">
-                <Mail className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
-                <Input
-                  placeholder="Email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="h-11 rounded-xl border-slate-200 bg-white pl-9 text-sm shadow-none focus-visible:ring-2 focus-visible:ring-main-200"
-                />
-              </div>
-              <div className="relative">
-                <Lock className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
-                <Input
-                  placeholder="Password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="h-11 rounded-xl border-slate-200 bg-white pl-9 text-sm shadow-none focus-visible:ring-2 focus-visible:ring-main-200"
-                />
-              </div>
+        <CardContent className="px-5 pb-5">
+          <form className="space-y-3" onSubmit={handleSubmit}>
+            <div className="relative">
+              <User className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                placeholder="Full name"
+                className="h-11 rounded-xl border-slate-200 bg-white pl-9 text-sm shadow-none"
+              />
             </div>
-
-            <div className="flex flex-wrap items-center gap-2 text-sm">
-              <span className="text-slate-500">Status:</span>
+            <div className="relative">
+              <Mail className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Email"
+                className="h-11 rounded-xl border-slate-200 bg-white pl-9 text-sm shadow-none"
+              />
+            </div>
+            <div className="relative">
+              <Lock className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Password"
+                className="h-11 rounded-xl border-slate-200 bg-white pl-9 text-sm shadow-none"
+              />
+            </div>
+            <select
+              className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none"
+              value={status}
+              onChange={(e) =>
+                setStatus(e.target.value as "active" | "inactive" | "suspended")
+              }
+            >
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+              <option value="suspended">Suspended</option>
+            </select>
+            {isPlatform ? (
               <select
-                className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-main-200"
-                value={status}
-                onChange={(e) =>
-                  setStatus(e.target.value as "active" | "inactive" | "suspended")
-                }
+                className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none"
+                value={companyId}
+                onChange={(e) => setCompanyId(e.target.value)}
               >
-                <option value="active">active</option>
-                <option value="inactive">inactive</option>
-                <option value="suspended">suspended</option>
+                <option value={PLATFORM_COMPANY}>RukaSente (platform)</option>
+                {(partners.data?.items ?? []).map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                    {p.code ? ` (${p.code})` : ""}
+                  </option>
+                ))}
               </select>
-            </div>
-
-            <div className="space-y-2 rounded-xl border border-slate-200 p-3">
-              <p className="text-sm font-semibold text-slate-900">Assign roles</p>
-              <p className="text-xs text-slate-500">
-                Pick one role for this user.
+            ) : null}
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                Role
               </p>
-              {roles.data && (
-                <div className="grid gap-2 md:grid-cols-2">
-                  {roles.data.map((role) => (
-                    <label
-                      key={role.id}
-                      className="flex items-start gap-2 rounded-lg border border-slate-200 p-2 text-sm"
-                    >
-                      <input
-                        type="radio"
-                        name="new-staff-role"
-                        checked={selectedRoleId === role.id}
-                        onChange={() => setSelectedRoleId(role.id)}
-                      />
-                      <span>
-                        <span className="font-medium text-slate-900">{role.name}</span>
-                        {role.description && (
-                          <span className="block text-xs text-slate-500">
-                            {role.description}
-                          </span>
-                        )}
-                      </span>
-                    </label>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {selectedRoles.length > 0 && (
-              <div className="rounded-xl border border-slate-200 p-3">
-                <p className="mb-2 text-sm font-semibold text-slate-900">Selected role</p>
-                <ul className="list-disc space-y-1 pl-5 text-sm text-slate-700">
-                  {selectedRoles.map((role) => (
-                    <li key={role.id}>
-                      <span className="font-medium">{role.name}</span>
-                      {role.description ? ` - ${role.description}` : ""}
-                    </li>
-                  ))}
-                </ul>
+              <div className="grid max-h-56 gap-2 overflow-y-auto pr-1 md:grid-cols-2">
+                {assignableRoles.map((role) => (
+                  <label
+                    key={role.id}
+                    className={`flex items-start gap-2 rounded-lg border p-2 text-sm ${
+                      selectedRoleId === role.id
+                        ? "border-main-300 bg-main-50"
+                        : "border-slate-200 bg-white"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="add-staff-role"
+                      checked={selectedRoleId === role.id}
+                      onChange={() => setSelectedRoleId(role.id)}
+                    />
+                    <span>
+                      <span className="font-medium text-slate-900">{role.name}</span>
+                      {role.description ? (
+                        <span className="block text-xs text-slate-500">
+                          {role.description}
+                        </span>
+                      ) : null}
+                    </span>
+                  </label>
+                ))}
               </div>
-            )}
-
-            {formError && <p className="text-sm text-destructive">{formError}</p>}
+              {selectedRoles[0] ? (
+                <p className="text-xs text-slate-500">
+                  Selected: {selectedRoles[0].name}
+                </p>
+              ) : null}
+            </div>
+            {formError ? <p className="text-sm text-destructive">{formError}</p> : null}
             <Button
               type="submit"
+              className="bg-main-600 text-white hover:bg-main-700"
               disabled={createStaff.isPending || assignRoles.isPending}
-              className="h-10 rounded-xl bg-main-600 text-white hover:bg-main-700"
             >
-              {createStaff.isPending ? "Creating..." : "Create user"}
+              {createStaff.isPending || assignRoles.isPending
+                ? "Creating..."
+                : "Create user"}
             </Button>
           </form>
         </CardContent>
       </Card>
 
-      {createdStaffId && (
+      {createdStaffId ? (
         <Card className="gap-0 border-slate-200 py-0 shadow-none">
           <CardHeader className="px-5 py-4">
             <CardTitle className="text-lg text-slate-900">Effective permissions</CardTitle>
           </CardHeader>
           <CardContent className="px-5 pb-5">
+            {createdDetail.data?.partner?.name || createdDetail.data?.is_platform ? (
+              <p className="mb-2 text-xs text-slate-500">
+                Company: {createdDetail.data.partner?.name || "RukaSente"}
+              </p>
+            ) : null}
             {createdDetail.data?.permissions?.length ? (
               <ul className="max-h-64 list-disc space-y-1 overflow-y-auto pl-5 text-xs font-mono text-slate-700">
                 {createdDetail.data.permissions.map((perm) => (
@@ -218,7 +252,7 @@ export default function AddStaffPage() {
             )}
           </CardContent>
         </Card>
-      )}
+      ) : null}
     </div>
   );
 }

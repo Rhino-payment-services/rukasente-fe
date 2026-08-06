@@ -180,7 +180,23 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger, session }) {
+      if (trigger === "update" && session) {
+        const s = session as {
+          permissions?: string[];
+          roles?: unknown[];
+          isPlatform?: boolean;
+          partnerId?: string | null;
+          partner?: PartnerSessionSummary | null;
+        };
+        if (s.permissions) token.permissions = s.permissions;
+        if (s.roles) token.roles = s.roles as typeof token.roles;
+        if (typeof s.isPlatform === "boolean") token.isPlatform = s.isPlatform;
+        if ("partnerId" in s) token.partnerId = s.partnerId ?? null;
+        if ("partner" in s) token.partner = s.partner ?? null;
+        return token;
+      }
+
       if (user) {
         const u = user as {
           id: string;

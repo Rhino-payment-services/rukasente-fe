@@ -6,6 +6,8 @@ import { unwrapEnvelope } from "@/lib/api-envelope";
 import type { BorrowerListResponse } from "@/hooks/use-borrowers";
 import type { CreditScoreListResponse } from "@/hooks/use-scoring";
 import type { LoanApplication, Paginated } from "@/types/loan";
+import { usePermissions } from "@/hooks/use-permissions";
+import { Perm } from "@/lib/permissions";
 
 const ACTIVE_LOAN_STATUSES = new Set([
   "approved",
@@ -140,12 +142,19 @@ export type DashboardRiskPoint = {
 
 /**
  * Portfolio overview metrics from admin list endpoints (real backend data).
+ * Each query is enabled only when the caller has the matching view permission.
  */
 export function useDashboardStats() {
+  const { can } = usePermissions();
+  const canBorrowers = can(Perm.BorrowerView);
+  const canApps = can(Perm.LoanApplicationView);
+  const canScoring = can(Perm.ScoringView);
+
   const queries = useQueries({
     queries: [
       {
         queryKey: ["dashboard-stats", "borrowers"],
+        enabled: canBorrowers,
         queryFn: async () => {
           const res = await apiClient.get("/admin/borrowers", {
             params: { page: 1, page_size: 1 },
@@ -156,6 +165,7 @@ export function useDashboardStats() {
       },
       {
         queryKey: ["dashboard-stats", "loan-applications"],
+        enabled: canApps,
         queryFn: async () => {
           const res = await apiClient.get("/admin/loan-applications", {
             params: { page: 1, page_size: 200 },
@@ -166,6 +176,7 @@ export function useDashboardStats() {
       },
       {
         queryKey: ["dashboard-stats", "scoring-results"],
+        enabled: canScoring,
         queryFn: async () => {
           const res = await apiClient.get("/admin/scoring/results", {
             params: { page: 1, page_size: 200 },
@@ -178,11 +189,11 @@ export function useDashboardStats() {
   });
 
   const [borrowersQ, appsQ, scoresQ] = queries;
-  const apps = appsQ.data?.items ?? [];
-  const scores = scoresQ.data?.items ?? [];
+  const apps = canApps ? appsQ.data?.items ?? [] : [];
+  const scores = canScoring ? scoresQ.data?.items ?? [] : [];
 
-  const borrowersTotal = borrowersQ.data?.total ?? null;
-  const appsTotal = appsQ.data?.total ?? null;
+  const borrowersTotal = canBorrowers ? borrowersQ.data?.total ?? null : null;
+  const appsTotal = canApps ? appsQ.data?.total ?? null : null;
 
   const pendingApps = apps.filter((a) => PENDING_STATUSES.has(a.status)).length;
   const approvedToday = apps.filter(
@@ -451,7 +462,10 @@ export function useDashboardStats() {
     repaymentRate,
     portfolioAmount,
     avgScore,
-    scoresTotal: scoresQ.data?.total ?? scores.length,
+    scoresTotal: canScoring ? scoresQ.data?.total ?? scores.length : null,
+    canBorrowers,
+    canApps,
+    canScoring,
     monthKeys,
     disbursementTrend,
     applicationTrend,

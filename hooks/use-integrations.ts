@@ -3,6 +3,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { unwrapEnvelope } from "@/lib/api-envelope";
+import { usePermissions } from "@/hooks/use-permissions";
+import { Perm } from "@/lib/permissions";
 
 export type IntegrationRow = {
   id: string;
@@ -15,8 +17,10 @@ export type IntegrationRow = {
 };
 
 export function useIntegrations() {
+  const { canAny } = usePermissions();
   return useQuery({
     queryKey: ["integrations"],
+    enabled: canAny([Perm.IntegrationView, Perm.PartnerView]),
     queryFn: async () => {
       const res = await apiClient.get("/admin/integrations");
       return unwrapEnvelope<IntegrationRow[]>(res);

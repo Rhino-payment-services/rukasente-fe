@@ -4,6 +4,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { unwrapEnvelope } from "@/lib/api-envelope";
 import type { BorrowerLoans, LoanReminderResult } from "@/types/loan";
+import { usePermissions } from "@/hooks/use-permissions";
+import { Perm } from "@/lib/permissions";
 
 export type BorrowerListResponse = {
   items: BorrowerRow[];
@@ -87,8 +89,10 @@ export function useSendLoanReminder(profileId?: string) {
 }
 
 export function useBorrowersList(page = 1, pageSize = 20) {
+  const { can } = usePermissions();
   return useQuery({
     queryKey: ["borrowers", page, pageSize],
+    enabled: can(Perm.BorrowerView),
     queryFn: async () => {
       const res = await apiClient.get("/admin/borrowers", {
         params: { page, page_size: pageSize },
@@ -100,10 +104,11 @@ export function useBorrowersList(page = 1, pageSize = 20) {
 
 /** Server-side ranked borrower search. Enabled only when q has 2+ characters. */
 export function useBorrowerSearch(q: string, page = 1, pageSize = 10) {
+  const { can } = usePermissions();
   const query = q.trim();
   return useQuery({
     queryKey: ["borrowers-search", query, page, pageSize],
-    enabled: query.length >= 2,
+    enabled: can(Perm.BorrowerView) && query.length >= 2,
     queryFn: async () => {
       const res = await apiClient.get("/admin/borrowers/search", {
         params: { q: query, page, page_size: pageSize },

@@ -32,9 +32,11 @@ export type StaffSummary = {
   }>;
 };
 
-export function useMe() {
+export function useMe(opts?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ["me"],
+    enabled: opts?.enabled ?? true,
+    staleTime: 60_000,
     queryFn: async () => {
       const res = await apiClient.get(`/admin/me`);
       return unwrapEnvelope<StaffSummary>(res);

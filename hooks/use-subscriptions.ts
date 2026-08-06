@@ -3,6 +3,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { unwrapEnvelope } from "@/lib/api-envelope";
+import { usePermissions } from "@/hooks/use-permissions";
+import { Perm } from "@/lib/permissions";
 
 export type SubscriptionRow = {
   id: string;
@@ -30,8 +32,10 @@ export type SubscriptionListResponse = {
 };
 
 export function useSubscriptionsList(page = 1, pageSize = 20) {
+  const { can } = usePermissions();
   return useQuery({
     queryKey: ["subscriptions", page, pageSize],
+    enabled: can(Perm.SubscriptionView),
     queryFn: async () => {
       const res = await apiClient.get("/admin/subscriptions", {
         params: { page, page_size: pageSize },

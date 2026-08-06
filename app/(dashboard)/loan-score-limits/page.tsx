@@ -1,5 +1,9 @@
 "use client";
 
+import { NoAccess } from "@/components/auth/no-access";
+import { usePermissions } from "@/hooks/use-permissions";
+import { Perm } from "@/lib/permissions";
+
 import { FormEvent, useMemo, useState } from "react";
 import {
   Plus,
@@ -80,6 +84,8 @@ function bandTone(min: number, max: number) {
 }
 
 export default function LoanScoreLimitsPage() {
+  const { can } = usePermissions();
+
   const limitsQ = useCreditScoreLoanLimits();
   const create = useCreateCreditScoreLoanLimit();
   const update = useUpdateCreditScoreLoanLimit();
@@ -217,6 +223,10 @@ export default function LoanScoreLimitsPage() {
     previewMin <= previewMax &&
     Number.isFinite(previewAmount) &&
     previewAmount >= 0;
+
+  if (!can(Perm.LoanScoreLimitView)) {
+    return <NoAccess description="You need loan.score_limit.view to open score loan limits." />;
+  }
 
   return (
     <ScoringPageShell
