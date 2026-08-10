@@ -126,6 +126,7 @@ export default function NewPartnerPage() {
     currency: "UGX",
     primary_color: "#4f46e5",
     payment_provider_id: "",
+    rukapay_escrow_wallet_id: "",
     api_base_url: "",
     contact_name: "",
     contact_email: "",
@@ -176,6 +177,8 @@ export default function NewPartnerPage() {
           country: form.country.trim() || undefined,
           currency: form.currency.trim() || undefined,
           payment_provider_id: form.payment_provider_id || null,
+          rukapay_escrow_wallet_id:
+            form.rukapay_escrow_wallet_id.trim() || null,
           contact_name: form.contact_name.trim() || undefined,
           contact_email: form.contact_email.trim() || undefined,
           contact_phone: form.contact_phone.trim() || undefined,
@@ -213,6 +216,8 @@ export default function NewPartnerPage() {
         currency: form.currency.trim() || undefined,
         primary_color: form.primary_color.trim() || undefined,
         payment_provider_id: form.payment_provider_id || null,
+        rukapay_escrow_wallet_id:
+          form.rukapay_escrow_wallet_id.trim() || null,
         allowed_ips,
         ip_whitelist_enabled: form.ip_whitelist_enabled,
       });
@@ -351,27 +356,46 @@ export default function NewPartnerPage() {
               <Section
                 icon={Wallet}
                 title="Payment rail"
-                description="Disbursement provider for this company."
+                description="Disbursement provider and RukaPay escrow wallet for this company."
               >
-                <Field label="Payment provider" optional>
-                  <select
-                    value={form.payment_provider_id}
-                    onChange={(e) =>
-                      setForm((f) => ({
-                        ...f,
-                        payment_provider_id: e.target.value,
-                      }))
-                    }
-                    className={inputClass}
+                <div className="grid gap-4">
+                  <Field label="Payment provider" optional>
+                    <select
+                      value={form.payment_provider_id}
+                      onChange={(e) =>
+                        setForm((f) => ({
+                          ...f,
+                          payment_provider_id: e.target.value,
+                        }))
+                      }
+                      className={inputClass}
+                    >
+                      <option value="">Default / none</option>
+                      {providers.map((pp) => (
+                        <option key={pp.id} value={pp.id}>
+                          {pp.name} ({pp.code})
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field
+                    label="RukaPay escrow wallet ID"
+                    optional
+                    hint="UUID of an ESCROW wallet under the shared RukaSente ApiPartner on RukaPay. Required for non-internal lending companies before disbursement."
                   >
-                    <option value="">Default / none</option>
-                    {providers.map((pp) => (
-                      <option key={pp.id} value={pp.id}>
-                        {pp.name} ({pp.code})
-                      </option>
-                    ))}
-                  </select>
-                </Field>
+                    <Input
+                      value={form.rukapay_escrow_wallet_id}
+                      onChange={(e) =>
+                        setForm((f) => ({
+                          ...f,
+                          rukapay_escrow_wallet_id: e.target.value,
+                        }))
+                      }
+                      placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                      className={cn(inputClass, "font-mono text-xs")}
+                    />
+                  </Field>
+                </div>
               </Section>
 
               <Section
