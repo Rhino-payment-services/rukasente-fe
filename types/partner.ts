@@ -9,6 +9,7 @@ export type Partner = {
   country?: string;
   currency?: string;
   payment_provider_id?: string | null;
+  rukapay_escrow_wallet_id?: string | null;
   api_base_url: string;
   contact_name: string;
   contact_email: string;
@@ -33,6 +34,7 @@ export type PartnerCreatePayload = {
   country?: string;
   currency?: string;
   payment_provider_id?: string | null;
+  rukapay_escrow_wallet_id?: string | null;
   api_base_url?: string;
   contact_name?: string;
   contact_email?: string;
@@ -48,6 +50,7 @@ export type PartnerUpdatePayload = Partial<
   allowed_ips?: string[];
   ip_whitelist_enabled?: boolean;
   payment_provider_id?: string | null;
+  rukapay_escrow_wallet_id?: string | null;
 };
 
 export type RegisterLendingCompanyPayload = {
@@ -58,6 +61,7 @@ export type RegisterLendingCompanyPayload = {
   country?: string;
   currency?: string;
   payment_provider_id?: string | null;
+  rukapay_escrow_wallet_id?: string | null;
   contact_name?: string;
   contact_email?: string;
   contact_phone?: string;
