@@ -81,6 +81,8 @@ export default function PartnerDetailPage({
         currency: String(fd.get("currency") || ""),
         primary_color: String(fd.get("primary_color") || ""),
         payment_provider_id: String(fd.get("payment_provider_id") || "") || null,
+        rukapay_escrow_wallet_id:
+          String(fd.get("rukapay_escrow_wallet_id") || "").trim() || null,
         allowed_ips,
         ip_whitelist_enabled: fd.get("ip_whitelist_enabled") === "on",
       });
@@ -248,6 +250,21 @@ export default function PartnerDetailPage({
                   ))}
                 </select>
               </label>
+              <label className="sm:col-span-2 block space-y-1.5">
+                <span className="text-xs font-medium text-slate-700">
+                  RukaPay escrow wallet ID
+                </span>
+                <Input
+                  name="rukapay_escrow_wallet_id"
+                  defaultValue={p.rukapay_escrow_wallet_id || ""}
+                  placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                  className="font-mono text-xs"
+                />
+                <span className="block text-[11px] text-slate-400">
+                  ESCROW wallet under the shared RukaSente ApiPartner. Required for
+                  non-internal lending companies before disbursement.
+                </span>
+              </label>
               <label className="sm:col-span-2 flex items-center gap-2 text-xs text-slate-700">
                 <input
                   type="checkbox"
@@ -308,6 +325,12 @@ export default function PartnerDetailPage({
               <div>
                 <dt className="text-xs text-slate-400">Payment provider</dt>
                 <dd className="truncate">{providerLabel}</dd>
+              </div>
+              <div className="sm:col-span-2">
+                <dt className="text-xs text-slate-400">RukaPay escrow wallet</dt>
+                <dd className="truncate font-mono text-xs">
+                  {p.rukapay_escrow_wallet_id || "—"}
+                </dd>
               </div>
               <div>
                 <dt className="text-xs text-slate-400">IP whitelist</dt>
