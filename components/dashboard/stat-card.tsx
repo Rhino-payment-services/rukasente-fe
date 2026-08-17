@@ -70,63 +70,60 @@ export function StatCard({
 
   return (
     <motion.div
-      className="group rounded-[14px] border border-slate-200/80 bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-shadow duration-200 hover:shadow-[0_8px_24px_rgba(15,23,42,0.06)] sm:p-5"
-      initial={reduceMotion ? false : { opacity: 0, y: 12 }}
+      className="group rounded-xl border border-slate-200/80 bg-white px-3 py-2.5 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-shadow duration-200 hover:shadow-[0_6px_18px_rgba(15,23,42,0.06)]"
+      initial={reduceMotion ? false : { opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{
-        duration: 0.35,
-        delay: reduceMotion ? 0 : 0.08 + index * 0.03,
+        duration: 0.3,
+        delay: reduceMotion ? 0 : 0.06 + index * 0.025,
         ease: "easeOut",
       }}
     >
-      <div className="flex items-start gap-3">
+      <div className="flex items-center gap-2">
         <span
           className={cn(
-            "flex size-10 shrink-0 items-center justify-center rounded-xl",
+            "flex size-7 shrink-0 items-center justify-center rounded-lg",
             styles.box,
             styles.icon
           )}
         >
-          <Icon className="size-[18px]" aria-hidden />
+          <Icon className="size-[15px]" aria-hidden />
         </span>
-        <div className="min-w-0 flex-1 pt-0.5">
-          <p className="text-[13px] font-medium text-slate-700">{title}</p>
-          {loading ? (
-            <div className="mt-2 h-8 w-24 animate-pulse rounded-md bg-slate-100" />
-          ) : (
-            <p className="mt-1 truncate text-[26px] font-semibold leading-none tracking-tight text-[#08163d] tabular-nums sm:text-[28px]">
-              {value}
-            </p>
-          )}
-        </div>
-      </div>
-
-      <div className="mt-4 flex items-end justify-between gap-2">
-        {subtitle ? (
-          <p className="min-w-0 truncate text-[11px] text-slate-400">{subtitle}</p>
-        ) : (
-          <span />
-        )}
+        <p className="min-w-0 flex-1 truncate text-[11.5px] font-medium text-slate-600">
+          {title}
+        </p>
         {delta ? (
-          <p
+          <span
             className={cn(
-              "inline-flex shrink-0 items-center gap-0.5 text-[11px] font-medium",
+              "inline-flex shrink-0 items-center gap-0.5 text-[10.5px] font-medium",
               up === true && "text-emerald-600",
               up === false && "text-rose-500",
-              (up == null || up === undefined) && "text-slate-400"
+              up == null && "text-slate-400"
             )}
           >
             {up === true ? (
-              <ArrowUpRight className="size-3.5" aria-hidden />
+              <ArrowUpRight className="size-3" aria-hidden />
             ) : up === false ? (
-              <ArrowDownRight className="size-3.5" aria-hidden />
+              <ArrowDownRight className="size-3" aria-hidden />
             ) : (
-              <Minus className="size-3.5" aria-hidden />
+              <Minus className="size-3" aria-hidden />
             )}
             {delta}
-          </p>
+          </span>
         ) : null}
       </div>
+
+      {loading ? (
+        <div className="mt-2 h-5 w-20 animate-pulse rounded bg-slate-100" />
+      ) : (
+        <p className="mt-1.5 truncate text-[19px] font-semibold leading-tight tracking-tight text-[#08163d] tabular-nums">
+          {value}
+        </p>
+      )}
+
+      {subtitle ? (
+        <p className="mt-0.5 truncate text-[10.5px] text-slate-400">{subtitle}</p>
+      ) : null}
     </motion.div>
   );
 }

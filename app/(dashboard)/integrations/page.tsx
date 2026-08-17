@@ -1,16 +1,28 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import { Handshake, Plug } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { DataTable } from "@/components/ui/data-table";
+import { DetailsDrawer } from "@/components/ui/details-drawer";
+import {
+  DetailGrid,
+  DetailSection,
+} from "@/components/dashboard/detail-fields";
+import { TableViewButton } from "@/components/dashboard/table-view-button";
 import { IntegrationRow, useIntegrations } from "@/hooks/use-integrations";
+import { getApiDocsUrl } from "@/lib/config";
 
 export default function IntegrationsPage() {
   const { data, isLoading, error } = useIntegrations();
+  const [viewIntegration, setViewIntegration] = useState<IntegrationRow | null>(
+    null
+  );
+
   const columns = useMemo<ColumnDef<IntegrationRow>[]>(
     () => [
       {
@@ -22,7 +34,7 @@ export default function IntegrationsPage() {
         accessorKey: "base_url",
         header: "Base URL",
         cell: ({ row }) => (
-          <span className="max-w-[260px] truncate font-mono text-xs">
+          <span className="max-w-[260px] truncate font-mono text-[11px]">
             {row.original.base_url}
           </span>
         ),
@@ -31,13 +43,27 @@ export default function IntegrationsPage() {
         accessorKey: "path_template",
         header: "Path",
         cell: ({ row }) => (
-          <span className="font-mono text-xs">{row.original.path_template}</span>
+          <span className="font-mono text-[11px]">{row.original.path_template}</span>
         ),
       },
       {
         accessorKey: "is_active",
         header: "Active",
-        cell: ({ row }) => (row.original.is_active ? "Yes" : "No"),
+        cell: ({ row }) => (
+          <Badge variant={row.original.is_active ? "success" : "default"}>
+            {row.original.is_active ? "Active" : "Inactive"}
+          </Badge>
+        ),
+      },
+      {
+        id: "actions",
+        header: "",
+        cell: ({ row }) => (
+          <TableViewButton
+            onClick={() => setViewIntegration(row.original)}
+            label={`View ${row.original.display_name || row.original.name}`}
+          />
+        ),
       },
     ],
     []
@@ -62,6 +88,11 @@ export default function IntegrationsPage() {
               Manage partners
             </Link>
           </Button>
+          <Button asChild size="sm" variant="outline" className="h-8 rounded-lg">
+            <a href={getApiDocsUrl()} target="_blank" rel="noreferrer">
+              Partner API docs
+            </a>
+          </Button>
         </div>
       </div>
 
@@ -79,6 +110,50 @@ export default function IntegrationsPage() {
           />
         </CardContent>
       </Card>
+
+      <DetailsDrawer
+        open={!!viewIntegration}
+        onClose={() => setViewIntegration(null)}
+        title={viewIntegration?.display_name || viewIntegration?.name || "Integration"}
+        description="Outbound API endpoint configuration"
+      >
+        {viewIntegration ? (
+          <>
+            <DetailSection title="Identity">
+              <DetailGrid
+                fields={[
+                  { label: "Display name", value: viewIntegration.display_name },
+                  { label: "Internal name", value: viewIntegration.name, mono: true },
+                  { label: "Version", value: viewIntegration.version },
+                  {
+                    label: "Status",
+                    value: viewIntegration.is_active ? "Active" : "Inactive",
+                  },
+                ]}
+              />
+            </DetailSection>
+            <DetailSection title="Endpoint">
+              <DetailGrid
+                fields={[
+                  {
+                    label: "Base URL",
+                    value: viewIntegration.base_url,
+                    mono: true,
+                    fullWidth: true,
+                  },
+                  {
+                    label: "Path template",
+                    value: viewIntegration.path_template,
+                    mono: true,
+                    fullWidth: true,
+                  },
+                  { label: "ID", value: viewIntegration.id, mono: true, fullWidth: true },
+                ]}
+              />
+            </DetailSection>
+          </>
+        ) : null}
+      </DetailsDrawer>
     </div>
   );
 }

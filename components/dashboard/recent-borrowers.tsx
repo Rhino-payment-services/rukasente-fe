@@ -68,14 +68,14 @@ export function RecentBorrowersPanel() {
 
       {!isLoading && !error && data && (
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-100 bg-gray-50/80 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
-                <th className="px-4 py-3">Name</th>
-                <th className="px-4 py-3">Phone</th>
-                <th className="px-4 py-3">KYC</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3 hidden lg:table-cell">RukaPay user</th>
+          <table className="w-full text-xs">
+            <thead className="border-b border-slate-100 bg-slate-50/95">
+              <tr>
+                <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">Name</th>
+                <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">Phone</th>
+                <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">KYC</th>
+                <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">Status</th>
+                <th className="hidden px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400 lg:table-cell">RukaPay user</th>
               </tr>
             </thead>
             <tbody>
@@ -83,7 +83,7 @@ export function RecentBorrowersPanel() {
                 <tr>
                   <td
                     colSpan={5}
-                    className="px-4 py-10 text-center text-gray-500"
+                    className="px-3 py-10 text-center text-xs text-slate-500"
                   >
                     No borrowers yet.
                   </td>
@@ -92,21 +92,21 @@ export function RecentBorrowersPanel() {
               {data.items?.map((row) => (
                 <tr
                   key={String(row.id)}
-                  className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors"
+                  className="border-b border-slate-50 transition-colors last:border-0 hover:bg-slate-50/90"
                 >
-                  <td className="px-4 py-3 font-medium text-gray-900">
+                  <td className="px-3 py-2 text-[13px] font-semibold text-slate-900">
                     {String(row.full_name ?? "—")}
                   </td>
-                  <td className="px-4 py-3 text-gray-600 tabular-nums">
+                  <td className="px-3 py-2 tabular-nums text-slate-600">
                     {String(row.phone ?? "—")}
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-3 py-2">
                     {statusBadge(String(row.kyc_status ?? ""))}
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-3 py-2">
                     {statusBadge(String(row.status ?? ""))}
                   </td>
-                  <td className="px-4 py-3 hidden lg:table-cell font-mono text-xs text-gray-500">
+                  <td className="hidden px-3 py-2 font-mono text-[11px] text-slate-500 lg:table-cell">
                     {String(row.rukapay_user_id ?? "—")}
                   </td>
                 </tr>

@@ -16,6 +16,7 @@ export type ScoreResultFeedback =
       decision: string;
       limit?: number;
     }
+  | { kind: "queued"; name: string; jobId?: string }
   | { kind: "error"; name: string; message: string };
 
 type ScoreResultModalProps = {
@@ -57,6 +58,7 @@ export function ScoreResultModal({ feedback, onClose }: ScoreResultModalProps) {
   if (!mounted || !feedback) return null;
 
   const isError = feedback.kind === "error";
+  const isQueued = feedback.kind === "queued";
 
   return createPortal(
     <div
@@ -81,7 +83,9 @@ export function ScoreResultModal({ feedback, onClose }: ScoreResultModalProps) {
           className={
             isError
               ? "border-b border-rose-100 bg-gradient-to-br from-rose-50 to-white px-5 pb-5 pt-6"
-              : "border-b border-emerald-100 bg-gradient-to-br from-emerald-50 to-white px-5 pb-5 pt-6"
+              : isQueued
+                ? "border-b border-blue-100 bg-gradient-to-br from-blue-50 to-white px-5 pb-5 pt-6"
+                : "border-b border-emerald-100 bg-gradient-to-br from-emerald-50 to-white px-5 pb-5 pt-6"
           }
         >
           <div className="flex items-start justify-between gap-3">
@@ -90,7 +94,9 @@ export function ScoreResultModal({ feedback, onClose }: ScoreResultModalProps) {
                 className={
                   isError
                     ? "flex size-11 shrink-0 items-center justify-center rounded-full bg-rose-100 text-rose-600"
-                    : "flex size-11 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-600"
+                    : isQueued
+                      ? "flex size-11 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-600"
+                      : "flex size-11 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-600"
                 }
               >
                 {isError ? (
@@ -104,7 +110,11 @@ export function ScoreResultModal({ feedback, onClose }: ScoreResultModalProps) {
                   id={titleId}
                   className="text-lg font-semibold tracking-tight text-slate-900"
                 >
-                  {isError ? "Scoring failed" : "Score complete"}
+                  {isError
+                    ? "Scoring failed"
+                    : isQueued
+                      ? "Scoring queued"
+                      : "Score complete"}
                 </h2>
                 <p className="mt-0.5 truncate text-sm text-slate-500">
                   {feedback.name}
@@ -132,6 +142,16 @@ export function ScoreResultModal({ feedback, onClose }: ScoreResultModalProps) {
                 {feedback.message}
               </p>
             </div>
+          ) : isQueued ? (
+            <p className="text-sm leading-relaxed text-slate-600">
+              The scoring job was added to the background queue. Results will appear here
+              when processing completes.
+              {feedback.jobId ? (
+                <span className="mt-2 block font-mono text-xs text-slate-400">
+                  Job {feedback.jobId}
+                </span>
+              ) : null}
+            </p>
           ) : (
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-2">

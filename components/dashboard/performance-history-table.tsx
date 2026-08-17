@@ -81,31 +81,31 @@ export function RecentLoanApplicationsTable({
         </Button>
       </header>
       <div className="px-5 py-4">
-        <div className="overflow-x-auto rounded-2xl border border-slate-100">
+        <div className="overflow-x-auto">
           <table className="min-w-full text-left text-xs">
-            <thead>
-              <tr className="border-b border-slate-100 bg-slate-50/80 text-slate-500">
-                <th className="px-3.5 py-3 font-medium">Borrower</th>
-                <th className="px-3.5 py-3 font-medium">Phone</th>
-                <th className="px-3.5 py-3 font-medium">Score</th>
-                <th className="px-3.5 py-3 font-medium">Requested</th>
-                <th className="px-3.5 py-3 font-medium">Disbursed</th>
-                <th className="px-3.5 py-3 font-medium">Risk</th>
-                <th className="px-3.5 py-3 font-medium">Status</th>
-                <th className="px-3.5 py-3 font-medium">Due</th>
-                <th className="px-3.5 py-3 font-medium">Actions</th>
+            <thead className="border-b border-slate-100 bg-slate-50/95">
+              <tr>
+                <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">Borrower</th>
+                <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">Phone</th>
+                <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">Score</th>
+                <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">Requested</th>
+                <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">Disbursed</th>
+                <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">Risk</th>
+                <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">Status</th>
+                <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">Due</th>
+                <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={9} className="px-3.5 py-10 text-center text-slate-400">
+                  <td colSpan={9} className="px-3 py-10 text-center text-slate-400">
                     Loading applications…
                   </td>
                 </tr>
               ) : apps.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-3.5 py-10 text-center text-slate-400">
+                  <td colSpan={9} className="px-3 py-10 text-center text-slate-400">
                     No loan applications yet. Create one from New application.
                   </td>
                 </tr>
@@ -117,9 +117,9 @@ export function RecentLoanApplicationsTable({
                   return (
                     <tr
                       key={row.id}
-                      className="border-b border-slate-50 text-slate-700 transition-colors hover:bg-slate-50/70"
+                      className="border-b border-slate-50 text-slate-700 transition-colors last:border-0 hover:bg-slate-50/90"
                     >
-                      <td className="px-3.5 py-3.5 font-medium text-slate-900">
+                      <td className="px-3 py-2 font-medium text-slate-900">
                         <div className="flex flex-col">
                           <span>{row.borrower_name || "—"}</span>
                           {row.product_name ? (
@@ -129,34 +129,34 @@ export function RecentLoanApplicationsTable({
                           ) : null}
                         </div>
                       </td>
-                      <td className="px-3.5 py-3.5 tabular-nums text-slate-600">
+                      <td className="px-3 py-2 tabular-nums text-slate-600">
                         {row.borrower_phone || "—"}
                       </td>
                       <td
-                        className={`px-3.5 py-3.5 font-semibold tabular-nums ${
+                        className={`px-3 py-2 font-semibold tabular-nums ${
                           totalScore != null ? scoreTone(totalScore) : "text-slate-400"
                         }`}
                       >
                         {totalScore != null ? totalScore : "—"}
                       </td>
-                      <td className="px-3.5 py-3.5 tabular-nums">
+                      <td className="px-3 py-2 tabular-nums">
                         {formatMoney(row.requested_amount, row.currency)}
                       </td>
-                      <td className="px-3.5 py-3.5 tabular-nums">
+                      <td className="px-3 py-2 tabular-nums">
                         {row.disbursed_amount != null
                           ? formatMoney(row.disbursed_amount, row.currency)
                           : "—"}
                       </td>
-                      <td className="px-3.5 py-3.5">
+                      <td className="px-3 py-2">
                         <Badge variant={risk.variant}>{risk.label}</Badge>
                       </td>
-                      <td className="px-3.5 py-3.5">
+                      <td className="px-3 py-2">
                         <LoanStatusBadge status={row.status} />
                       </td>
-                      <td className="px-3.5 py-3.5 tabular-nums text-slate-600">
+                      <td className="px-3 py-2 tabular-nums text-slate-600">
                         {formatDate(row.due_date)}
                       </td>
-                      <td className="px-3.5 py-3.5">
+                      <td className="px-3 py-2">
                         <Button
                           asChild
                           variant="ghost"

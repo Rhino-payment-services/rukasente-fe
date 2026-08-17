@@ -15,11 +15,18 @@ export type BorrowerListResponse = {
   total_pages: number;
 };
 
+export type BorrowerPartnerRef = {
+  id: string;
+  name: string;
+  code: string;
+};
+
 export type BorrowerRow = {
   // Internal identifier — kept off the UI but needed for per-borrower actions
   // (e.g. running a credit score via /internal/scoring/borrowers/{id}/run).
   id?: string;
   partner_id?: string | null;
+  partner?: BorrowerPartnerRef | null;
   rukapay_user_id?: string;
   full_name: string;
   phone: string;
@@ -35,6 +42,7 @@ export type KycStatus = "pending" | "verified" | "rejected";
 export type BorrowerDetail = {
   id: string;
   partner_id?: string | null;
+  partner?: BorrowerPartnerRef | null;
   rukapay_user_id: string;
   full_name: string;
   phone: string;
@@ -47,6 +55,16 @@ export type BorrowerDetail = {
   created_at: string;
   updated_at: string;
 };
+
+export function borrowerSourceLabel(b: {
+  partner?: BorrowerPartnerRef | null;
+  partner_id?: string | null;
+}): string {
+  const name = b.partner?.name?.trim();
+  if (name) return name;
+  if (b.partner_id) return "Partner";
+  return "RukaSente";
+}
 
 export function useBorrower(id: string) {
   return useQuery({

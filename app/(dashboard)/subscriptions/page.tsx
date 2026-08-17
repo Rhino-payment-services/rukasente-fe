@@ -12,7 +12,6 @@ import {
 import {
   ColumnDef,
   SortingState,
-  flexRender,
   getCoreRowModel,
   getSortedRowModel,
   useReactTable,
@@ -28,15 +27,20 @@ import {
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import { CompactTableShell } from "@/components/dashboard/compact-table-shell";
+import {
+  DetailGrid,
+  DetailSection,
+  formatDetailValue,
+} from "@/components/dashboard/detail-fields";
+import { TableViewButton } from "@/components/dashboard/table-view-button";
+import {
+  ACTION_SLOT,
+  ActionSlot,
+  RowActions,
+} from "@/components/dashboard/row-actions";
+import { DetailsDrawer } from "@/components/ui/details-drawer";
 import {
   ScoreResultFeedback,
   ScoreResultModal,
@@ -130,6 +134,7 @@ export default function SubscriptionsPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilterValue>("all");
   const [kycFilter, setKycFilter] = useState<KycFilterValue>("all");
+  const [viewRow, setViewRow] = useState<SubscriptionRow | null>(null);
 
   const { mutateAsync } = useRunScoring();
   const mutateAsyncRef = useRef(mutateAsync);
@@ -153,14 +158,10 @@ export default function SubscriptionsPage() {
     });
     try {
       const result = await mutateAsyncRef.current({ rukapay_user_id: id });
-      const score = result.credit_score_result;
       setFeedback({
-        kind: "success",
+        kind: "queued",
         name,
-        score: score.total_score,
-        band: score.risk_band,
-        decision: String(score.suggested_decision || "").replace(/_/g, " "),
-        limit: score.recommended_limit,
+        jobId: result.job_id,
       });
     } catch (err) {
       const message = scoringErrorMessage(err);
@@ -198,12 +199,12 @@ export default function SubscriptionsPage() {
             row.original.rukapay_user_id ||
             "—";
           return (
-            <div className="flex items-center gap-3">
-              <div className="flex size-8 items-center justify-center rounded-full bg-slate-100 text-xs font-semibold text-slate-600">
+            <div className="flex items-center gap-2">
+              <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[10px] font-semibold text-slate-600">
                 {initials(row.original.full_name)}
               </div>
               <div className="min-w-0">
-                <p className="truncate text-sm font-medium text-slate-900">
+                <p className="truncate text-[13px] font-semibold text-slate-900">
                   {name}
                 </p>
                 {row.original.email ? (
@@ -220,7 +221,7 @@ export default function SubscriptionsPage() {
         accessorKey: "phone",
         header: "Phone",
         cell: ({ row }) => (
-          <span className="text-sm text-slate-700">
+          <span className="text-xs tabular-nums text-slate-700">
             {row.original.phone || "—"}
           </span>
         ),
@@ -258,7 +259,7 @@ export default function SubscriptionsPage() {
           </button>
         ),
         cell: ({ row }) => (
-          <span className="text-sm text-slate-700">
+          <span className="text-xs text-slate-700">
             {formatDate(row.original.subscribed_at)}
           </span>
         ),
@@ -267,7 +268,7 @@ export default function SubscriptionsPage() {
         accessorKey: "last_eligibility_check_at",
         header: "Last check",
         cell: ({ row }) => (
-          <span className="text-sm text-slate-700">
+          <span className="text-xs text-slate-700">
             {formatDate(row.original.last_eligibility_check_at)}
           </span>
         ),
@@ -275,7 +276,12 @@ export default function SubscriptionsPage() {
       {
         id: "actions",
         header: () => <span className="sr-only">Actions</span>,
-        cell: ({ row }) => <RunScoreAction row={row.original} />,
+        cell: ({ row }) => (
+          <RunScoreAction
+            row={row.original}
+            onView={() => setViewRow(row.original)}
+          />
+        ),
       },
     ],
     []
@@ -363,147 +369,213 @@ export default function SubscriptionsPage() {
       </div>
 
       <Card className="gap-0 border-slate-200 py-0 shadow-none">
-        <CardContent className="space-y-3 px-4 py-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="relative min-w-[220px] flex-1">
-              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search by name, phone, email, or RukaPay user id"
-                className="h-9 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-700 outline-none focus:border-main-200"
-              />
-            </div>
-            <select
-              className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700"
-              value={statusFilter}
-              onChange={(e) =>
-                setStatusFilter(e.target.value as StatusFilterValue)
-              }
-            >
-              <option value="all">All statuses</option>
-              <option value="pending_consent">Pending consent</option>
-              <option value="pending_eligibility">Pending eligibility</option>
-              <option value="eligible">Eligible</option>
-              <option value="not_eligible">Not eligible</option>
-              <option value="under_review">Under review</option>
-              <option value="suspended">Suspended</option>
-              <option value="unsubscribed">Unsubscribed</option>
-            </select>
-            <select
-              className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700"
-              value={kycFilter}
-              onChange={(e) => setKycFilter(e.target.value as KycFilterValue)}
-            >
-              <option value="all">All KYC</option>
-              <option value="verified">Verified</option>
-              <option value="pending">Pending</option>
-              <option value="rejected">Rejected</option>
-            </select>
-            <button
-              type="button"
-              className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-500 hover:bg-slate-50"
-              title="Date filter is coming soon"
-              disabled
-            >
-              <Calendar className="size-4" />
-              Date
-            </button>
-          </div>
-
-          {isLoading ? (
-            <div className="space-y-2">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <div
-                  key={i}
-                  className="h-12 w-full animate-pulse rounded-lg bg-slate-100"
-                />
-              ))}
-            </div>
-          ) : error ? (
-            <p className="text-sm text-destructive">
-              {(error as Error).message}
-            </p>
-          ) : (
-            <div className="overflow-hidden rounded-xl border border-slate-200">
-              <Table>
-                <TableHeader className="sticky top-0 z-10 bg-white">
-                  {table.getHeaderGroups().map((hg) => (
-                    <TableRow key={hg.id}>
-                      {hg.headers.map((header) => (
-                        <TableHead key={header.id}>
-                          {header.isPlaceholder
-                            ? null
-                            : flexRender(
-                                header.column.columnDef.header,
-                                header.getContext()
-                              )}
-                        </TableHead>
-                      ))}
-                    </TableRow>
-                  ))}
-                </TableHeader>
-                <TableBody>
-                  {table.getRowModel().rows.length ? (
-                    table.getRowModel().rows.map((row) => (
-                      <TableRow key={row.id}>
-                        {row.getVisibleCells().map((cell) => (
-                          <TableCell key={cell.id}>
-                            {flexRender(
-                              cell.column.columnDef.cell,
-                              cell.getContext()
-                            )}
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                    ))
-                  ) : (
-                    <TableRow>
-                      <TableCell
-                        colSpan={columns.length}
-                        className="py-10 text-center text-sm text-slate-500"
-                      >
-                        No subscriptions match your filters.
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-
-          <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-            <p className="text-xs text-slate-500">
-              Total: {data?.total ?? 0} · Page {data?.page ?? page} of{" "}
-              {data?.total_pages ?? 1} · Showing {filtered.length}
-            </p>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 rounded-lg"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page <= 1}
-              >
-                <ChevronLeft className="size-4" />
-                Prev
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 rounded-lg"
-                onClick={() => setPage((p) => p + 1)}
-                disabled={
-                  !!data?.total_pages && page >= data.total_pages
-                }
-              >
-                Next
-                <ChevronRight className="size-4" />
-              </Button>
-            </div>
-          </div>
+        <CardContent className="px-4 py-4">
+          <CompactTableShell
+            table={table}
+            columns={columns}
+            isLoading={isLoading}
+            error={error ? (error as Error).message : null}
+            emptyMessage="No subscriptions match your filters."
+            minWidth="900px"
+            toolbar={
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="relative min-w-[220px] flex-1">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+                  <input
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Search by name, phone, email, or RukaPay user id"
+                    className="h-9 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-700 outline-none focus:border-main-200"
+                  />
+                </div>
+                <select
+                  className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700"
+                  value={statusFilter}
+                  onChange={(e) =>
+                    setStatusFilter(e.target.value as StatusFilterValue)
+                  }
+                >
+                  <option value="all">All statuses</option>
+                  <option value="pending_consent">Pending consent</option>
+                  <option value="pending_eligibility">Pending eligibility</option>
+                  <option value="eligible">Eligible</option>
+                  <option value="not_eligible">Not eligible</option>
+                  <option value="under_review">Under review</option>
+                  <option value="suspended">Suspended</option>
+                  <option value="unsubscribed">Unsubscribed</option>
+                </select>
+                <select
+                  className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700"
+                  value={kycFilter}
+                  onChange={(e) =>
+                    setKycFilter(e.target.value as KycFilterValue)
+                  }
+                >
+                  <option value="all">All KYC</option>
+                  <option value="verified">Verified</option>
+                  <option value="pending">Pending</option>
+                  <option value="rejected">Rejected</option>
+                </select>
+                <button
+                  type="button"
+                  className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-500 hover:bg-slate-50"
+                  title="Date filter is coming soon"
+                  disabled
+                >
+                  <Calendar className="size-4" />
+                  Date
+                </button>
+              </div>
+            }
+            footer={
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                <p className="text-xs text-slate-500">
+                  Total: {data?.total ?? 0} · Page {data?.page ?? page} of{" "}
+                  {data?.total_pages ?? 1} · Showing {filtered.length}
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 rounded-lg"
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={page <= 1}
+                  >
+                    <ChevronLeft className="size-4" />
+                    Prev
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 rounded-lg"
+                    onClick={() => setPage((p) => p + 1)}
+                    disabled={
+                      !!data?.total_pages && page >= data.total_pages
+                    }
+                  >
+                    Next
+                    <ChevronRight className="size-4" />
+                  </Button>
+                </div>
+              </div>
+            }
+          />
         </CardContent>
       </Card>
+
+      <DetailsDrawer
+        open={!!viewRow}
+        onClose={() => setViewRow(null)}
+        title={
+          viewRow?.full_name?.trim() ||
+          viewRow?.rukapay_user_id ||
+          "Subscription"
+        }
+        description={viewRow?.phone ?? undefined}
+        widthClassName="max-w-lg"
+      >
+        {viewRow ? (
+          <>
+            <DetailSection title="Borrower">
+              <DetailGrid
+                fields={[
+                  {
+                    label: "Full name",
+                    value: formatDetailValue(viewRow.full_name),
+                  },
+                  {
+                    label: "Phone",
+                    value: formatDetailValue(viewRow.phone),
+                    mono: true,
+                  },
+                  {
+                    label: "Email",
+                    value: formatDetailValue(viewRow.email),
+                    fullWidth: true,
+                  },
+                  {
+                    label: "KYC status",
+                    value: (
+                      <Badge variant={kycVariant(viewRow.kyc_status)}>
+                        {viewRow.kyc_status || "—"}
+                      </Badge>
+                    ),
+                  },
+                ]}
+              />
+            </DetailSection>
+            <DetailSection title="Subscription">
+              <DetailGrid
+                fields={[
+                  {
+                    label: "Status",
+                    value: (
+                      <Badge variant={statusVariant(viewRow.status)}>
+                        {viewRow.status.replace(/_/g, " ")}
+                      </Badge>
+                    ),
+                    fullWidth: true,
+                  },
+                  {
+                    label: "Subscribed at",
+                    value: formatDate(viewRow.subscribed_at),
+                  },
+                  {
+                    label: "Unsubscribed at",
+                    value: formatDate(viewRow.unsubscribed_at),
+                  },
+                ]}
+              />
+            </DetailSection>
+            <DetailSection title="Eligibility">
+              <DetailGrid
+                fields={[
+                  {
+                    label: "Last check",
+                    value: formatDate(viewRow.last_eligibility_check_at),
+                  },
+                  {
+                    label: "Next check",
+                    value: formatDate(viewRow.next_eligibility_check_at),
+                  },
+                ]}
+              />
+            </DetailSection>
+            <DetailSection title="System">
+              <DetailGrid
+                fields={[
+                  {
+                    label: "Subscription ID",
+                    value: viewRow.id,
+                    mono: true,
+                    fullWidth: true,
+                  },
+                  {
+                    label: "Borrower profile ID",
+                    value: viewRow.borrower_profile_id,
+                    mono: true,
+                    fullWidth: true,
+                  },
+                  {
+                    label: "RukaPay user ID",
+                    value: viewRow.rukapay_user_id,
+                    mono: true,
+                    fullWidth: true,
+                  },
+                  {
+                    label: "Created at",
+                    value: formatDate(viewRow.created_at),
+                  },
+                  {
+                    label: "Updated at",
+                    value: formatDate(viewRow.updated_at),
+                  },
+                ]}
+              />
+            </DetailSection>
+          </>
+        ) : null}
+      </DetailsDrawer>
 
       <ScoreResultModal
         feedback={feedback}
@@ -514,30 +586,42 @@ export default function SubscriptionsPage() {
   );
 }
 
-function RunScoreAction({ row }: { row: SubscriptionRow }) {
+function RunScoreAction({
+  row,
+  onView,
+}: {
+  row: SubscriptionRow;
+  onView: () => void;
+}) {
   const { runningUserId, runScore } = useScoreRun();
   const id = row.rukapay_user_id;
-  if (!id) return null;
-  const busy = runningUserId === id;
+  const busy = !!id && runningUserId === id;
   const anyBusy = !!runningUserId;
 
   return (
-    <div className="flex justify-end">
-      <Button
-        size="sm"
-        variant="outline"
-        className="h-8 rounded-lg"
-        disabled={anyBusy}
-        onClick={() => void runScore(row)}
-      >
-        {busy ? (
-          <Loader2 className="size-3.5 animate-spin" />
-        ) : (
-          <Play className="size-3.5" />
-        )}
-        {busy ? "Running…" : "Run score"}
-      </Button>
-    </div>
+    <RowActions slots={[ACTION_SLOT.sm, ACTION_SLOT.md]}>
+      <ActionSlot>
+        <TableViewButton onClick={onView} />
+      </ActionSlot>
+      <ActionSlot>
+        {id ? (
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 gap-1 rounded-md px-2 text-[11px]"
+            disabled={anyBusy}
+            onClick={() => void runScore(row)}
+          >
+            {busy ? (
+              <Loader2 className="size-3 animate-spin" />
+            ) : (
+              <Play className="size-3" />
+            )}
+            {busy ? "…" : "Score"}
+          </Button>
+        ) : null}
+      </ActionSlot>
+    </RowActions>
   );
 }
 

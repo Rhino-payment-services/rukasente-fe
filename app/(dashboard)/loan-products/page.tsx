@@ -15,13 +15,19 @@ import {
   Pencil,
   ListChecks,
   Power,
-  Eye,
   Trash2,
   type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { CompactLoading } from "@/components/ui/loading";
+import { DetailsDrawer } from "@/components/ui/details-drawer";
+import {
+  DetailGrid,
+  DetailSection,
+  formatDetailValue,
+} from "@/components/dashboard/detail-fields";
+import { TableViewButton } from "@/components/dashboard/table-view-button";
 import { useLoanProducts, useSetLoanProductStatus, useDeleteLoanProduct } from "@/hooks/use-loan";
 import type { LoanProduct } from "@/types/loan";
 import { cn } from "@/lib/utils";
@@ -29,6 +35,19 @@ import { toast } from "sonner";
 import { NoAccess } from "@/components/auth/no-access";
 import { usePermissions } from "@/hooks/use-permissions";
 import { Perm } from "@/lib/permissions";
+
+function formatDate(iso?: string) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
 
 function formatMoney(n: number, currency = "UGX") {
   return `${currency} ${n.toLocaleString()}`;
@@ -71,6 +90,7 @@ export default function LoanProductsPage() {
   const [interestFilter, setInterestFilter] = useState("all");
   const [reviewFilter, setReviewFilter] = useState("all");
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [viewProduct, setViewProduct] = useState<LoanProduct | null>(null);
 
   const productsQ = useLoanProducts({
     page: 1,
@@ -314,19 +334,27 @@ export default function LoanProductsPage() {
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[780px] text-left text-xs">
-                <thead className="border-b border-slate-100 bg-slate-50/90">
-                  <tr className="text-[11px] uppercase tracking-wide text-slate-400">
-                    <th className="sticky left-0 z-[1] min-w-[200px] bg-slate-50/95 px-3 py-2.5 font-medium">
+                <thead className="sticky top-0 z-10 border-b border-slate-100 bg-slate-50/95 backdrop-blur">
+                  <tr>
+                    <th className="sticky left-0 z-[1] min-w-[200px] bg-slate-50/95 px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400 backdrop-blur">
                       Product
                     </th>
-                    <th className="min-w-[140px] px-3 py-2.5 font-medium">Amount</th>
-                    <th className="min-w-[100px] px-3 py-2.5 font-medium">Tenor</th>
-                    <th className="min-w-[100px] px-3 py-2.5 font-medium">Interest</th>
-                    <th className="min-w-[90px] px-3 py-2.5 font-medium">Status</th>
-                    <th className="hidden min-w-[100px] px-3 py-2.5 font-medium lg:table-cell">
+                    <th className="min-w-[140px] px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                      Amount
+                    </th>
+                    <th className="min-w-[100px] px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                      Tenor
+                    </th>
+                    <th className="min-w-[100px] px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                      Interest
+                    </th>
+                    <th className="min-w-[90px] px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                      Status
+                    </th>
+                    <th className="hidden min-w-[100px] px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400 lg:table-cell">
                       Review
                     </th>
-                    <th className="sticky right-0 z-[1] w-12 bg-slate-50/95 px-2 py-2.5 text-center font-medium">
+                    <th className="sticky right-0 z-[1] w-24 bg-slate-50/95 px-2 py-2 text-center text-[10px] font-medium uppercase tracking-wide text-slate-400 backdrop-blur">
                       <span className="sr-only">Actions</span>
                     </th>
                   </tr>
@@ -335,9 +363,9 @@ export default function LoanProductsPage() {
                   {filtered.map((product) => (
                     <tr
                       key={product.id}
-                      className="group border-b border-slate-50 transition-colors hover:bg-slate-50/90"
+                      className="group border-b border-slate-50 transition-colors last:border-0 hover:bg-slate-50/90"
                     >
-                      <td className="sticky left-0 z-[1] bg-white px-3 py-2.5 group-hover:bg-slate-50/90">
+                      <td className="sticky left-0 z-[1] bg-white px-3 py-2 align-middle group-hover:bg-slate-50/90">
                         <div className="flex min-w-0 items-center gap-2.5">
                           <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-[rgba(8,22,61,0.06)] text-[#08163d]">
                             <WalletCards className="size-3.5" />
@@ -354,7 +382,7 @@ export default function LoanProductsPage() {
                           </div>
                         </div>
                       </td>
-                      <td className="px-3 py-2.5">
+                      <td className="px-3 py-2 align-middle text-slate-700">
                         <p className="whitespace-nowrap text-[12px] font-medium text-slate-800">
                           {formatMoney(product.min_amount, product.currency)}
                         </p>
@@ -362,12 +390,12 @@ export default function LoanProductsPage() {
                           to {formatMoney(product.max_amount, product.currency)}
                         </p>
                       </td>
-                      <td className="px-3 py-2.5">
+                      <td className="px-3 py-2 align-middle text-slate-700">
                         <p className="whitespace-nowrap text-[12px] text-slate-700">
                           {product.min_tenor_days}–{product.max_tenor_days} days
                         </p>
                       </td>
-                      <td className="px-3 py-2.5">
+                      <td className="px-3 py-2 align-middle text-slate-700">
                         <p className="text-[12px] font-semibold tabular-nums text-slate-900">
                           {product.interest_rate}%
                         </p>
@@ -379,28 +407,34 @@ export default function LoanProductsPage() {
                             : ` · ${product.interest_type}`}
                         </p>
                       </td>
-                      <td className="px-3 py-2.5">
+                      <td className="px-3 py-2 align-middle text-slate-700">
                         <StatusPill active={product.is_active} />
                       </td>
-                      <td className="hidden px-3 py-2.5 lg:table-cell">
+                      <td className="hidden px-3 py-2 align-middle lg:table-cell">
                         <ReviewPill required={product.requires_manual_review} />
                       </td>
-                      <td className="sticky right-0 z-[1] bg-white px-2 py-2.5 text-center group-hover:bg-slate-50/90">
-                        <ProductActions
-                          open={openMenuId === product.id}
-                          onOpenChange={(o) =>
-                            setOpenMenuId(o ? product.id : null)
-                          }
-                          product={product}
-                          onToggleStatus={() => {
-                            setOpenMenuId(null);
-                            void toggleStatus(product);
-                          }}
-                          onDelete={() => {
-                            setOpenMenuId(null);
-                            void removeProduct(product);
-                          }}
-                        />
+                      <td className="sticky right-0 z-[1] bg-white px-2 py-2 text-center align-middle group-hover:bg-slate-50/90">
+                        <div className="flex items-center justify-center gap-1">
+                          <TableViewButton
+                            onClick={() => setViewProduct(product)}
+                            label={`View ${product.name}`}
+                          />
+                          <ProductActions
+                            open={openMenuId === product.id}
+                            onOpenChange={(o) =>
+                              setOpenMenuId(o ? product.id : null)
+                            }
+                            product={product}
+                            onToggleStatus={() => {
+                              setOpenMenuId(null);
+                              void toggleStatus(product);
+                            }}
+                            onDelete={() => {
+                              setOpenMenuId(null);
+                              void removeProduct(product);
+                            }}
+                          />
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -415,6 +449,101 @@ export default function LoanProductsPage() {
           ) : null}
         </CardContent>
       </Card>
+
+      <DetailsDrawer
+        open={!!viewProduct}
+        onClose={() => setViewProduct(null)}
+        title={viewProduct?.name ?? "Loan product"}
+        description={viewProduct?.code}
+        widthClassName="max-w-lg"
+        footer={
+          viewProduct ? (
+            <>
+              <Button asChild variant="outline" className="flex-1 rounded-lg text-xs">
+                <Link href={`/loan-products/${viewProduct.id}/edit`}>Edit product</Link>
+              </Button>
+              <Button asChild className="flex-1 rounded-lg bg-[#08163d] text-xs text-white hover:bg-[#06102a]">
+                <Link href={`/loan-products/${viewProduct.id}/rules`}>Eligibility rules</Link>
+              </Button>
+            </>
+          ) : null
+        }
+      >
+        {viewProduct ? (
+          <>
+            <DetailSection title="Product">
+              <DetailGrid
+                fields={[
+                  { label: "Name", value: viewProduct.name },
+                  { label: "Code", value: viewProduct.code, mono: true },
+                  { label: "Currency", value: viewProduct.currency },
+                  { label: "Status", value: viewProduct.is_active ? "Active" : "Inactive" },
+                  {
+                    label: "Manual review",
+                    value: formatDetailValue(viewProduct.requires_manual_review),
+                  },
+                  {
+                    label: "Description",
+                    value: viewProduct.description || "—",
+                    fullWidth: true,
+                  },
+                ]}
+              />
+            </DetailSection>
+            <DetailSection title="Amount & tenor">
+              <DetailGrid
+                fields={[
+                  {
+                    label: "Min amount",
+                    value: formatMoney(viewProduct.min_amount, viewProduct.currency),
+                  },
+                  {
+                    label: "Max amount",
+                    value: formatMoney(viewProduct.max_amount, viewProduct.currency),
+                  },
+                  { label: "Min tenor", value: `${viewProduct.min_tenor_days} days` },
+                  { label: "Max tenor", value: `${viewProduct.max_tenor_days} days` },
+                ]}
+              />
+            </DetailSection>
+            <DetailSection title="Interest & fees">
+              <DetailGrid
+                fields={[
+                  { label: "Interest rate", value: `${viewProduct.interest_rate}%` },
+                  { label: "Interest type", value: viewProduct.interest_type },
+                  {
+                    label: "Calculation",
+                    value: viewProduct.interest_calculation_method,
+                  },
+                  {
+                    label: "Compounding",
+                    value: viewProduct.compounding_frequency || "—",
+                  },
+                  {
+                    label: "Processing fee",
+                    value: `${viewProduct.processing_fee_value} (${viewProduct.processing_fee_type})`,
+                  },
+                  { label: "Fee mode", value: viewProduct.processing_fee_mode },
+                  {
+                    label: "Late fee",
+                    value: `${viewProduct.late_fee_value} (${viewProduct.late_fee_type})`,
+                  },
+                  { label: "Grace period", value: `${viewProduct.grace_period_days} days` },
+                ]}
+              />
+            </DetailSection>
+            <DetailSection title="Timestamps">
+              <DetailGrid
+                fields={[
+                  { label: "Created", value: formatDate(viewProduct.created_at) },
+                  { label: "Updated", value: formatDate(viewProduct.updated_at) },
+                  { label: "ID", value: viewProduct.id, mono: true, fullWidth: true },
+                ]}
+              />
+            </DetailSection>
+          </>
+        ) : null}
+      </DetailsDrawer>
     </div>
   );
 }
@@ -533,11 +662,6 @@ function ProductActions({
       label: "Eligibility rules",
       icon: ListChecks,
       href: `/loan-products/${product.id}/rules`,
-    },
-    {
-      label: "Preview details",
-      icon: Eye,
-      href: `/loan-products/${product.id}/edit`,
     },
     {
       label: product.is_active ? "Deactivate" : "Activate",

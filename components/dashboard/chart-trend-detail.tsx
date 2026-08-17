@@ -260,22 +260,22 @@ export function ChartTrendDetail({
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 text-slate-500">
+              <thead className="border-b border-slate-100 bg-slate-50/95">
                 <tr>
-                  <th className="px-4 py-2.5 font-medium">Application</th>
-                  <th className="px-4 py-2.5 font-medium">Borrower</th>
-                  <th className="px-4 py-2.5 font-medium">Status</th>
-                  <th className="px-4 py-2.5 font-medium text-right">Amount</th>
-                  <th className="px-4 py-2.5 font-medium text-right">When</th>
+                  <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">Application</th>
+                  <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">Borrower</th>
+                  <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">Status</th>
+                  <th className="px-3 py-2 text-right text-[10px] font-medium uppercase tracking-wide text-slate-400">Amount</th>
+                  <th className="px-3 py-2 text-right text-[10px] font-medium uppercase tracking-wide text-slate-400">When</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredRows.map((r) => (
                   <tr
                     key={`${r.id}-${r.when}`}
-                    className="border-t border-slate-100 hover:bg-slate-50/80"
+                    className="border-b border-slate-50 last:border-0 hover:bg-slate-50/90"
                   >
-                    <td className="px-4 py-2.5">
+                    <td className="px-3 py-2">
                       <Link
                         href={`/loan-applications/${r.id}`}
                         className="font-medium text-[#08163d] hover:underline"
@@ -283,16 +283,16 @@ export function ChartTrendDetail({
                         {r.applicationNumber}
                       </Link>
                     </td>
-                    <td className="max-w-[160px] truncate px-4 py-2.5 text-slate-600">
+                    <td className="max-w-[160px] truncate px-3 py-2 text-slate-600">
                       {r.borrowerName}
                     </td>
-                    <td className="px-4 py-2.5 capitalize text-slate-600">
+                    <td className="px-3 py-2 capitalize text-slate-600">
                       {r.status.replace(/_/g, " ")}
                     </td>
-                    <td className="px-4 py-2.5 text-right text-slate-900">
+                    <td className="px-3 py-2 text-right text-slate-900">
                       {formatUgx(r.amount)}
                     </td>
-                    <td className="whitespace-nowrap px-4 py-2.5 text-right text-slate-500">
+                    <td className="whitespace-nowrap px-3 py-2 text-right text-slate-500">
                       {formatWhen(r.when)}
                     </td>
                   </tr>

@@ -13,7 +13,6 @@ import {
 import {
   ColumnDef,
   SortingState,
-  flexRender,
   getCoreRowModel,
   getSortedRowModel,
   useReactTable,
@@ -31,21 +30,27 @@ import {
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import { CompactTableShell } from "@/components/dashboard/compact-table-shell";
+import {
+  DetailGrid,
+  DetailSection,
+  formatDetailValue,
+} from "@/components/dashboard/detail-fields";
+import { TableViewButton } from "@/components/dashboard/table-view-button";
+import {
+  ACTION_SLOT,
+  ActionSlot,
+  RowActions,
+} from "@/components/dashboard/row-actions";
+import { DetailsDrawer } from "@/components/ui/details-drawer";
 import {
   ScoreResultFeedback,
   ScoreResultModal,
 } from "@/components/dashboard/score-result-modal";
 import {
   BorrowerRow,
+  borrowerSourceLabel,
   useBorrowersList,
   useUpdateBorrowerKYC,
 } from "@/hooks/use-borrowers";
@@ -69,7 +74,7 @@ function useScoreRun() {
 }
 
 export default function BorrowersPage() {
-  const { can } = usePermissions();
+  const { can, isPlatform } = usePermissions();
   const canUpdateKyc = can(Perm.BorrowerUpdate);
 
   const [page, setPage] = useState(1);
@@ -83,6 +88,7 @@ export default function BorrowersPage() {
   const [kycFilter, setKycFilter] = useState<
     "all" | "verified" | "pending" | "rejected"
   >("all");
+  const [viewRow, setViewRow] = useState<BorrowerRow | null>(null);
 
   const { mutateAsync } = useRunScoring();
   const mutateAsyncRef = useRef(mutateAsync);
@@ -109,18 +115,13 @@ export default function BorrowersPage() {
     });
 
     try {
-      // Omit wallet_id so the backend merges activity across all linked wallets.
       const result = await mutateAsyncRef.current({
         rukapay_user_id: id,
       });
-      const score = result.credit_score_result;
       setFeedback({
-        kind: "success",
+        kind: "queued",
         name,
-        score: score.total_score,
-        band: score.risk_band,
-        decision: String(score.suggested_decision || "").replace(/_/g, " "),
-        limit: score.recommended_limit,
+        jobId: result.job_id,
       });
     } catch (err) {
       const message = scoringErrorMessage(err);
@@ -154,12 +155,12 @@ export default function BorrowersPage() {
           row.original.id ? (
             <Link
               href={`/borrowers/${row.original.id}`}
-              className="font-medium text-slate-900 whitespace-nowrap hover:text-main-600 hover:underline"
+              className="whitespace-nowrap text-[13px] font-semibold text-slate-900 hover:text-main-600 hover:underline"
             >
               {row.original.full_name}
             </Link>
           ) : (
-            <p className="font-medium text-slate-900 whitespace-nowrap">
+            <p className="whitespace-nowrap text-[13px] font-semibold text-slate-900">
               {row.original.full_name}
             </p>
           ),
@@ -168,7 +169,7 @@ export default function BorrowersPage() {
         accessorKey: "phone",
         header: "Phone",
         cell: ({ row }) => (
-          <span className="whitespace-nowrap text-sm tabular-nums">
+          <span className="whitespace-nowrap text-xs tabular-nums text-slate-700">
             {row.original.phone}
           </span>
         ),
@@ -177,11 +178,31 @@ export default function BorrowersPage() {
         accessorKey: "email",
         header: "Email",
         cell: ({ row }) => (
-          <span className="block max-w-[180px] truncate text-sm text-slate-700">
+          <span className="block max-w-[180px] truncate text-xs text-slate-600">
             {row.original.email ?? "—"}
           </span>
         ),
       },
+      ...(isPlatform
+        ? [
+            {
+              id: "source",
+              header: "Source",
+              cell: ({ row }: { row: { original: BorrowerRow } }) => {
+                const label = borrowerSourceLabel(row.original);
+                const code = row.original.partner?.code;
+                return (
+                  <Badge
+                    variant={row.original.partner_id ? "default" : "info"}
+                    title={code ? `${label} (${code})` : label}
+                  >
+                    {label}
+                  </Badge>
+                );
+              },
+            } satisfies ColumnDef<BorrowerRow>,
+          ]
+        : []),
       {
         accessorKey: "kyc_status",
         header: "KYC",
@@ -208,13 +229,17 @@ export default function BorrowersPage() {
       },
       {
         id: "actions",
-        header: "Actions",
+        header: () => <span className="block text-right">Actions</span>,
         cell: ({ row }) => (
-          <BorrowerActions borrower={row.original} canUpdateKyc={canUpdateKyc} />
+          <BorrowerActions
+            borrower={row.original}
+            canUpdateKyc={canUpdateKyc}
+            onView={() => setViewRow(row.original)}
+          />
         ),
       },
     ],
-    [canUpdateKyc]
+    [canUpdateKyc, isPlatform]
   );
 
   const raw = data?.items ?? [];
@@ -263,142 +288,207 @@ export default function BorrowersPage() {
         />
 
         <Card className="gap-0 border-slate-200 py-0 shadow-none">
-          <CardContent className="space-y-3 px-4 py-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="relative min-w-[220px] flex-1">
-                <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
-                <input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search by name, phone, or email"
-                  className="h-9 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-700 outline-none focus:border-main-200"
-                />
-              </div>
-              <select
-                className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700"
-                value={statusFilter}
-                onChange={(e) =>
-                  setStatusFilter(
-                    e.target.value as "all" | "active" | "inactive" | "suspended"
-                  )
-                }
-              >
-                <option value="all">All status</option>
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-                <option value="suspended">Suspended</option>
-              </select>
-              <select
-                className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700"
-                value={kycFilter}
-                onChange={(e) =>
-                  setKycFilter(
-                    e.target.value as
-                      | "all"
-                      | "verified"
-                      | "pending"
-                      | "rejected"
-                  )
-                }
-              >
-                <option value="all">All KYC</option>
-                <option value="verified">Verified</option>
-                <option value="pending">Pending</option>
-                <option value="rejected">Rejected</option>
-              </select>
-            </div>
-
-            {isLoading ? (
-              <div className="space-y-2">
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <div
-                    key={i}
-                    className="h-10 w-full animate-pulse rounded-lg bg-slate-100"
-                  />
-                ))}
-              </div>
-            ) : error ? (
-              <p className="text-sm text-destructive">
-                {(error as Error).message}
-              </p>
-            ) : (
-              <div className="overflow-x-auto rounded-xl border border-slate-200">
-                <Table className="min-w-[720px]">
-                  <TableHeader className="sticky top-0 z-10 bg-white">
-                    {table.getHeaderGroups().map((hg) => (
-                      <TableRow key={hg.id}>
-                        {hg.headers.map((header) => (
-                          <TableHead key={header.id}>
-                            {header.isPlaceholder
-                              ? null
-                              : flexRender(
-                                  header.column.columnDef.header,
-                                  header.getContext()
-                                )}
-                          </TableHead>
-                        ))}
-                      </TableRow>
-                    ))}
-                  </TableHeader>
-                  <TableBody>
-                    {table.getRowModel().rows.length ? (
-                      table.getRowModel().rows.map((row) => (
-                        <TableRow key={row.id}>
-                          {row.getVisibleCells().map((cell) => (
-                            <TableCell key={cell.id}>
-                              {flexRender(
-                                cell.column.columnDef.cell,
-                                cell.getContext()
-                              )}
-                            </TableCell>
-                          ))}
-                        </TableRow>
-                      ))
-                    ) : (
-                      <TableRow>
-                        <TableCell
-                          colSpan={columns.length}
-                          className="py-10 text-center text-sm text-slate-500"
-                        >
-                          No borrowers found.
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-
-            <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-              <p className="text-xs text-slate-500">
-                Total: {data?.total ?? 0} · Page {data?.page ?? page} · Showing{" "}
-                {filtered.length}
-              </p>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 rounded-lg"
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={page <= 1}
-                >
-                  <ChevronLeft className="size-4" />
-                  Prev
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 rounded-lg"
-                  onClick={() => setPage((p) => p + 1)}
-                  disabled={!!data?.total_pages && page >= data.total_pages}
-                >
-                  Next
-                  <ChevronRight className="size-4" />
-                </Button>
-              </div>
-            </div>
+          <CardContent className="px-4 py-4">
+            <CompactTableShell
+              table={table}
+              columns={columns}
+              isLoading={isLoading}
+              error={error ? (error as Error).message : null}
+              emptyMessage="No borrowers found."
+              minWidth={isPlatform ? "860px" : "720px"}
+              toolbar={
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="relative min-w-[220px] flex-1">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+                    <input
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      placeholder="Search by name, phone, or email"
+                      className="h-9 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-700 outline-none focus:border-main-200"
+                    />
+                  </div>
+                  <select
+                    className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700"
+                    value={statusFilter}
+                    onChange={(e) =>
+                      setStatusFilter(
+                        e.target.value as
+                          | "all"
+                          | "active"
+                          | "inactive"
+                          | "suspended"
+                      )
+                    }
+                  >
+                    <option value="all">All status</option>
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                    <option value="suspended">Suspended</option>
+                  </select>
+                  <select
+                    className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700"
+                    value={kycFilter}
+                    onChange={(e) =>
+                      setKycFilter(
+                        e.target.value as
+                          | "all"
+                          | "verified"
+                          | "pending"
+                          | "rejected"
+                      )
+                    }
+                  >
+                    <option value="all">All KYC</option>
+                    <option value="verified">Verified</option>
+                    <option value="pending">Pending</option>
+                    <option value="rejected">Rejected</option>
+                  </select>
+                </div>
+              }
+              footer={
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                  <p className="text-xs text-slate-500">
+                    Total: {data?.total ?? 0} · Page {data?.page ?? page} ·
+                    Showing {filtered.length}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 rounded-lg"
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      disabled={page <= 1}
+                    >
+                      <ChevronLeft className="size-4" />
+                      Prev
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 rounded-lg"
+                      onClick={() => setPage((p) => p + 1)}
+                      disabled={!!data?.total_pages && page >= data.total_pages}
+                    >
+                      Next
+                      <ChevronRight className="size-4" />
+                    </Button>
+                  </div>
+                </div>
+              }
+            />
           </CardContent>
         </Card>
+
+        <DetailsDrawer
+          open={!!viewRow}
+          onClose={() => setViewRow(null)}
+          title={viewRow?.full_name ?? "Borrower"}
+          description={viewRow?.phone}
+        >
+          {viewRow ? (
+            <>
+              <DetailSection title="Identity">
+                <DetailGrid
+                  fields={[
+                    { label: "Full name", value: viewRow.full_name },
+                    { label: "Phone", value: viewRow.phone, mono: true },
+                    {
+                      label: "Email",
+                      value: formatDetailValue(viewRow.email),
+                      fullWidth: true,
+                    },
+                    {
+                      label: "National ID",
+                      value: formatDetailValue(viewRow.national_id),
+                      mono: true,
+                    },
+                  ]}
+                />
+              </DetailSection>
+              <DetailSection title="Account">
+                <DetailGrid
+                  fields={[
+                    {
+                      label: "RukaPay user ID",
+                      value: formatDetailValue(viewRow.rukapay_user_id),
+                      mono: true,
+                      fullWidth: true,
+                    },
+                    {
+                      label: "Profile ID",
+                      value: formatDetailValue(viewRow.id),
+                      mono: true,
+                    },
+                    {
+                      label: "Source platform",
+                      value: (
+                        <Badge
+                          variant={viewRow.partner_id ? "default" : "info"}
+                          title={
+                            viewRow.partner?.code
+                              ? `${borrowerSourceLabel(viewRow)} (${viewRow.partner.code})`
+                              : borrowerSourceLabel(viewRow)
+                          }
+                        >
+                          {borrowerSourceLabel(viewRow)}
+                        </Badge>
+                      ),
+                    },
+                    {
+                      label: "Scoring wallet ID",
+                      value: formatDetailValue(viewRow.scoring_wallet_id),
+                      mono: true,
+                      fullWidth: true,
+                    },
+                  ]}
+                />
+              </DetailSection>
+              <DetailSection title="Status">
+                <DetailGrid
+                  fields={[
+                    {
+                      label: "KYC status",
+                      value: (
+                        <Badge
+                          variant={
+                            String(viewRow.kyc_status || "").toLowerCase() ===
+                            "verified"
+                              ? "success"
+                              : String(
+                                    viewRow.kyc_status || ""
+                                  ).toLowerCase() === "pending"
+                                ? "warning"
+                                : "danger"
+                          }
+                        >
+                          {viewRow.kyc_status || "—"}
+                        </Badge>
+                      ),
+                    },
+                    {
+                      label: "Account status",
+                      value: (
+                        <Badge
+                          variant={
+                            String(viewRow.status || "").toLowerCase() ===
+                            "active"
+                              ? "info"
+                              : String(viewRow.status || "").toLowerCase() ===
+                                  "inactive"
+                                ? "warning"
+                                : "danger"
+                          }
+                        >
+                          {viewRow.status || "—"}
+                        </Badge>
+                      ),
+                    },
+                  ]}
+                />
+              </DetailSection>
+            </>
+          ) : null}
+        </DetailsDrawer>
       </div>
     </ScoreRunContext.Provider>
   );
@@ -407,9 +497,11 @@ export default function BorrowersPage() {
 function BorrowerActions({
   borrower,
   canUpdateKyc,
+  onView,
 }: {
   borrower: BorrowerRow;
   canUpdateKyc: boolean;
+  onView: () => void;
 }) {
   const { runningUserId, runScore } = useScoreRun();
   const updateKyc = useUpdateBorrowerKYC();
@@ -439,58 +531,72 @@ function BorrowerActions({
     }
   }
 
+  const showKyc = canUpdateKyc && !!profileId;
+  const slots = showKyc
+    ? [ACTION_SLOT.sm, ACTION_SLOT.lg, ACTION_SLOT.icon, ACTION_SLOT.md]
+    : [ACTION_SLOT.sm, ACTION_SLOT.md];
+
   return (
-    <div className="flex items-center justify-end gap-1 whitespace-nowrap">
-      {canUpdateKyc && profileId ? (
+    <RowActions slots={slots}>
+      <ActionSlot>
+        <TableViewButton onClick={onView} />
+      </ActionSlot>
+      {showKyc ? (
         <>
-          {kyc !== "verified" ? (
-            <Button
-              size="sm"
-              title="Approve KYC"
-              aria-label="Approve KYC"
-              className="h-7 gap-1 rounded-md bg-emerald-600 px-2 text-xs text-white hover:bg-emerald-700"
-              disabled={kycBusy || anyBusy}
-              onClick={() => void setKyc("verified")}
-            >
-              {kycBusy ? (
-                <Loader2 className="size-3 animate-spin" />
-              ) : (
-                <Check className="size-3" />
-              )}
-              Approve
-            </Button>
-          ) : null}
-          {kyc !== "rejected" ? (
-            <Button
-              size="sm"
-              variant="outline"
-              title="Reject KYC"
-              aria-label="Reject KYC"
-              className="size-7 rounded-md border-rose-200 p-0 text-rose-700 hover:bg-rose-50"
-              disabled={kycBusy || anyBusy}
-              onClick={() => void setKyc("rejected")}
-            >
-              <X className="size-3.5" />
-            </Button>
-          ) : null}
+          <ActionSlot>
+            {kyc !== "verified" ? (
+              <Button
+                size="sm"
+                title="Approve KYC"
+                aria-label="Approve KYC"
+                className="h-7 gap-1 rounded-md bg-emerald-600 px-2 text-xs text-white hover:bg-emerald-700"
+                disabled={kycBusy || anyBusy}
+                onClick={() => void setKyc("verified")}
+              >
+                {kycBusy ? (
+                  <Loader2 className="size-3 animate-spin" />
+                ) : (
+                  <Check className="size-3" />
+                )}
+                Approve
+              </Button>
+            ) : null}
+          </ActionSlot>
+          <ActionSlot>
+            {kyc !== "rejected" ? (
+              <Button
+                size="sm"
+                variant="outline"
+                title="Reject KYC"
+                aria-label="Reject KYC"
+                className="size-7 rounded-md border-rose-200 p-0 text-rose-700 hover:bg-rose-50"
+                disabled={kycBusy || anyBusy}
+                onClick={() => void setKyc("rejected")}
+              >
+                <X className="size-3.5" />
+              </Button>
+            ) : null}
+          </ActionSlot>
         </>
       ) : null}
-      <Button
-        size="sm"
-        variant="outline"
-        title="Run credit score"
-        aria-label={busy ? "Running score" : "Run score"}
-        className="h-7 gap-1 rounded-md px-2 text-xs"
-        disabled={anyBusy || kycBusy}
-        onClick={() => void runScore(borrower)}
-      >
-        {busy ? (
-          <Loader2 className="size-3 animate-spin" />
-        ) : (
-          <Play className="size-3" />
-        )}
-        {busy ? "…" : "Score"}
-      </Button>
-    </div>
+      <ActionSlot>
+        <Button
+          size="sm"
+          variant="outline"
+          title="Run credit score"
+          aria-label={busy ? "Running score" : "Run score"}
+          className="h-7 gap-1 rounded-md px-2 text-xs"
+          disabled={anyBusy || kycBusy}
+          onClick={() => void runScore(borrower)}
+        >
+          {busy ? (
+            <Loader2 className="size-3 animate-spin" />
+          ) : (
+            <Play className="size-3" />
+          )}
+          {busy ? "…" : "Score"}
+        </Button>
+      </ActionSlot>
+    </RowActions>
   );
 }

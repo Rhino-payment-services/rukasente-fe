@@ -6,9 +6,8 @@ import { toast } from "sonner";
 import { AlertCircle, Loader2, Play, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import {
-  RunScoringResponse,
+  EnqueueScoringResponse,
   useRunScoring,
 } from "@/hooks/use-scoring";
 import { scoringErrorMessage } from "@/lib/scoring-errors";
@@ -35,7 +34,7 @@ export function RunScoreDialog({
   const [mounted, setMounted] = useState(false);
   const [rukapayUserId, setRukapayUserId] = useState(initialRukapayUserId);
   const [walletId, setWalletId] = useState(initialWalletId);
-  const [result, setResult] = useState<RunScoringResponse | null>(null);
+  const [result, setResult] = useState<EnqueueScoringResponse | null>(null);
   const [errorMsg, setErrorMsg] = useState("");
   // Local pending flag — always cleared in finally so the button never sticks.
   const [isRunning, setIsRunning] = useState(false);
@@ -120,14 +119,9 @@ export function RunScoreDialog({
       });
       if (controller.signal.aborted) return;
       setResult(data);
-      toast.success(
-        `Score ${data.credit_score_result.total_score} · band ${data.credit_score_result.risk_band}`,
-        {
-          description: `Decision: ${String(
-            data.credit_score_result.suggested_decision || ""
-          ).replace(/_/g, " ")}`,
-        }
-      );
+      toast.success("Scoring queued", {
+        description: data.message || "The job will run in the background.",
+      });
     } catch (err) {
       const message = scoringErrorMessage(err);
       if (!message) return; // canceled
@@ -141,7 +135,7 @@ export function RunScoreDialog({
     }
   }
 
-  const score = result?.credit_score_result;
+  const queued = result;
 
   if (!mounted || !open) return null;
 
@@ -238,49 +232,11 @@ export function RunScoreDialog({
             </div>
           ) : null}
 
-          {score ? (
-            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-slate-600">
-                  Latest run
-                </span>
-                <Badge
-                  variant={
-                    score.suggested_decision === "eligible"
-                      ? "success"
-                      : score.suggested_decision === "under_review"
-                        ? "warning"
-                        : "danger"
-                  }
-                >
-                  {String(score.suggested_decision || "").replace(/_/g, " ")}
-                </Badge>
-              </div>
-              <div className="mt-2 grid grid-cols-3 gap-3 text-sm">
-                <div>
-                  <p className="text-xs text-slate-500">Score</p>
-                  <p className="font-semibold text-slate-900">
-                    {score.total_score}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-500">Band</p>
-                  <p className="font-semibold text-slate-900">
-                    {score.risk_band}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-500">Limit</p>
-                  <p className="font-semibold text-slate-900">
-                    {score.recommended_limit?.toLocaleString() ?? "—"}
-                  </p>
-                </div>
-              </div>
-              {score.reason_codes?.length ? (
-                <p className="mt-2 text-xs text-slate-500">
-                  Reasons: {score.reason_codes.join(", ")}
-                </p>
-              ) : null}
+          {queued ? (
+            <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">
+              <p className="font-medium">Job queued</p>
+              <p className="mt-1 text-blue-800">{queued.message}</p>
+              <p className="mt-2 font-mono text-xs text-blue-600">{queued.job_id}</p>
             </div>
           ) : null}
         </div>
@@ -297,12 +253,12 @@ export function RunScoreDialog({
             {isRunning ? (
               <>
                 <Loader2 className="size-4 animate-spin" />
-                Running…
+                Queueing…
               </>
             ) : (
               <>
                 <Play className="size-4" />
-                {errorMsg || score ? "Run again" : "Run score"}
+                {errorMsg || queued ? "Queue again" : "Queue score"}
               </>
             )}
           </Button>

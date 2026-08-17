@@ -19,6 +19,18 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DetailsDrawer } from "@/components/ui/details-drawer";
+import {
+  DetailGrid,
+  DetailSection,
+  formatDetailValue,
+} from "@/components/dashboard/detail-fields";
+import { TableViewButton } from "@/components/dashboard/table-view-button";
+import {
+  ACTION_SLOT,
+  ActionSlot,
+  RowActions,
+} from "@/components/dashboard/row-actions";
 import {
   Dialog,
   DialogContent,
@@ -83,6 +95,19 @@ function bandTone(min: number, max: number) {
   return "bg-rose-500";
 }
 
+function formatDate(iso?: string) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export default function LoanScoreLimitsPage() {
   const { can } = usePermissions();
 
@@ -98,6 +123,7 @@ export default function LoanScoreLimitsPage() {
   const [form, setForm] = useState<FormState>(emptyForm);
   const [formError, setFormError] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [viewLimit, setViewLimit] = useState<CreditScoreLoanLimit | null>(null);
 
   const items = useMemo(
     () =>
@@ -399,13 +425,19 @@ export default function LoanScoreLimitsPage() {
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                  <thead className="border-b border-slate-100 bg-slate-50/80 text-[11px] uppercase tracking-wide text-slate-500">
+                <table className="w-full min-w-[560px] text-left text-xs">
+                  <thead className="sticky top-0 z-10 border-b border-slate-100 bg-slate-50/95 backdrop-blur">
                     <tr>
-                      <th className="px-4 py-3 font-medium">Score band</th>
-                      <th className="px-4 py-3 font-medium">Max loan</th>
-                      <th className="px-4 py-3 font-medium">Status</th>
-                      <th className="px-4 py-3 font-medium text-right">
+                      <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                        Score band
+                      </th>
+                      <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                        Max loan
+                      </th>
+                      <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                        Status
+                      </th>
+                      <th className="px-3 py-2 text-right text-[10px] font-medium uppercase tracking-wide text-slate-400">
                         Actions
                       </th>
                     </tr>
@@ -414,9 +446,9 @@ export default function LoanScoreLimitsPage() {
                     {filtered.map((row) => (
                       <tr
                         key={row.id}
-                        className="border-t border-slate-100 hover:bg-slate-50/70"
+                        className="border-b border-slate-50 transition-colors last:border-0 hover:bg-slate-50/90"
                       >
-                        <td className="px-4 py-3">
+                        <td className="px-3 py-2 align-middle text-slate-700">
                           <div className="flex items-center gap-2.5">
                             <span
                               className={`size-2.5 shrink-0 rounded-full ${bandTone(row.min_score, row.max_score)}`}
@@ -431,7 +463,7 @@ export default function LoanScoreLimitsPage() {
                             </div>
                           </div>
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-3 py-2 align-middle text-slate-700">
                           <p className="font-medium text-slate-900">
                             {formatMoney(row.maximum_loan_amount)}
                           </p>
@@ -439,39 +471,48 @@ export default function LoanScoreLimitsPage() {
                             Cap for this score range
                           </p>
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-3 py-2 align-middle">
                           <Badge
                             variant={row.is_active ? "success" : "default"}
                           >
                             {row.is_active ? "Active" : "Inactive"}
                           </Badge>
                         </td>
-                        <td className="px-4 py-3">
-                          <div className="flex justify-end gap-1.5">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-8"
-                              onClick={() => openEdit(row)}
-                            >
-                              <Pencil className="size-3.5" />
-                              Edit
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-8 border-rose-200 text-rose-700 hover:bg-rose-50"
-                              disabled={deletingId === row.id}
-                              onClick={() => void onDelete(row)}
-                            >
-                              {deletingId === row.id ? (
-                                <Loader2 className="size-3.5 animate-spin" />
-                              ) : (
-                                <Trash2 className="size-3.5" />
-                              )}
-                              Delete
-                            </Button>
-                          </div>
+                        <td className="px-3 py-2 align-middle">
+                          <RowActions
+                            slots={[ACTION_SLOT.sm, ACTION_SLOT.md, ACTION_SLOT.md]}
+                          >
+                            <ActionSlot>
+                              <TableViewButton onClick={() => setViewLimit(row)} />
+                            </ActionSlot>
+                            <ActionSlot>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-[11px]"
+                                onClick={() => openEdit(row)}
+                              >
+                                <Pencil className="size-3.5" />
+                                Edit
+                              </Button>
+                            </ActionSlot>
+                            <ActionSlot>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 border-rose-200 text-[11px] text-rose-700 hover:bg-rose-50"
+                                disabled={deletingId === row.id}
+                                onClick={() => void onDelete(row)}
+                              >
+                                {deletingId === row.id ? (
+                                  <Loader2 className="size-3.5 animate-spin" />
+                                ) : (
+                                  <Trash2 className="size-3.5" />
+                                )}
+                                Delete
+                              </Button>
+                            </ActionSlot>
+                          </RowActions>
                         </td>
                       </tr>
                     ))}
@@ -597,6 +638,76 @@ export default function LoanScoreLimitsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <DetailsDrawer
+        open={!!viewLimit}
+        onClose={() => setViewLimit(null)}
+        title={
+          viewLimit
+            ? `${viewLimit.min_score} – ${viewLimit.max_score}`
+            : "Score limit"
+        }
+        description={
+          viewLimit
+            ? `${bandLabel(viewLimit.min_score, viewLimit.max_score)} band`
+            : undefined
+        }
+        footer={
+          viewLimit ? (
+            <Button
+              type="button"
+              className="flex-1 rounded-lg text-xs"
+              onClick={() => {
+                setViewLimit(null);
+                openEdit(viewLimit);
+              }}
+            >
+              Edit band
+            </Button>
+          ) : null
+        }
+      >
+        {viewLimit ? (
+          <>
+            <DetailSection title="Score band">
+              <DetailGrid
+                fields={[
+                  { label: "Min score", value: viewLimit.min_score },
+                  { label: "Max score", value: viewLimit.max_score },
+                  {
+                    label: "Band label",
+                    value: bandLabel(viewLimit.min_score, viewLimit.max_score),
+                  },
+                  {
+                    label: "Active",
+                    value: formatDetailValue(viewLimit.is_active),
+                  },
+                ]}
+              />
+            </DetailSection>
+            <DetailSection title="Loan cap">
+              <DetailGrid
+                fields={[
+                  {
+                    label: "Maximum loan amount",
+                    value: formatMoney(viewLimit.maximum_loan_amount),
+                    fullWidth: true,
+                  },
+                ]}
+              />
+            </DetailSection>
+            <DetailSection title="Timestamps">
+              <DetailGrid
+                fields={[
+                  { label: "Created", value: formatDate(viewLimit.created_at) },
+                  { label: "Updated", value: formatDate(viewLimit.updated_at) },
+                  { label: "ID", value: viewLimit.id, mono: true, fullWidth: true },
+                ]}
+              />
+            </DetailSection>
+          </>
+        ) : null}
+      </DetailsDrawer>
     </ScoringPageShell>
   );
 }

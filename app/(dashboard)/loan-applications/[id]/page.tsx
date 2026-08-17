@@ -223,6 +223,45 @@ export default function LoanApplicationDetailPage({
               />
               <Detail label="Tenor" value={`${app.requested_tenor_days} days`} />
               <Detail label="Purpose" value={app.purpose || "—"} />
+              {app.loan_kind === "product" ? (
+                <>
+                  <Detail
+                    label="Loan kind"
+                    value="Product loan"
+                    hint="Disbursed to the partner merchant after USSD approval"
+                  />
+                  <Detail
+                    label="Partner product"
+                    value={app.product_label || "—"}
+                    hint={app.partner_product_ref || undefined}
+                  />
+                  <Detail
+                    label="Merchant destination"
+                    value={app.disbursement_merchant_code || app.disbursement_merchant_id || "—"}
+                  />
+                  <Detail
+                    label="Down payment"
+                    value={
+                      app.down_payment_amount != null
+                        ? formatMoney(app.down_payment_amount, app.currency || "UGX")
+                        : "—"
+                    }
+                  />
+                  <Detail
+                    label="Customer approval"
+                    value={
+                      app.customer_approved_at
+                        ? formatDate(app.customer_approved_at)
+                        : app.customer_declined_at
+                          ? `Declined ${formatDate(app.customer_declined_at)}`
+                          : app.status === "pending_customer_approval"
+                            ? "Waiting for USSD PIN"
+                            : "—"
+                    }
+                    hint={app.customer_approval_channel || undefined}
+                  />
+                </>
+              ) : null}
               <div>
                 <p className="text-[11px] font-medium text-slate-500">Status</p>
                 <div className="mt-1">
@@ -251,8 +290,10 @@ export default function LoanApplicationDetailPage({
             <CompactLoading message="Loading loan account…" />
           ) : !account ? (
             <p className="text-sm text-slate-500">
-              No loan account yet. It appears after the loan is disbursed to the borrower&apos;s
-              RukaPay wallet.
+              No loan account yet. It appears after disbursement
+              {app?.loan_kind === "product"
+                ? " to the partner merchant."
+                : " to the borrower's RukaPay wallet."}
             </p>
           ) : (
             <div className="space-y-4">
@@ -334,38 +375,38 @@ export default function LoanApplicationDetailPage({
             <CompactLoading message="Loading repayments…" />
           ) : repaymentsQ.data?.length ? (
             <div className="overflow-x-auto">
-              <table className="min-w-full text-left text-sm">
-                <thead>
-                  <tr className="border-b border-slate-100 text-[11px] font-medium uppercase tracking-wide text-slate-500">
-                    <th className="px-2 py-2">#</th>
-                    <th className="px-2 py-2">Amount</th>
-                    <th className="px-2 py-2">Principal</th>
-                    <th className="px-2 py-2">Interest</th>
-                    <th className="px-2 py-2">Outstanding after</th>
-                    <th className="px-2 py-2">Posted</th>
-                    <th className="px-2 py-2">Ref</th>
+              <table className="min-w-full text-left text-xs">
+                <thead className="border-b border-slate-100 bg-slate-50/95">
+                  <tr>
+                    <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">#</th>
+                    <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">Amount</th>
+                    <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">Principal</th>
+                    <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">Interest</th>
+                    <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">Outstanding after</th>
+                    <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">Posted</th>
+                    <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">Ref</th>
                   </tr>
                 </thead>
                 <tbody>
                   {repaymentsQ.data.map((row) => (
-                    <tr key={row.id} className="border-b border-slate-50 text-slate-800">
-                      <td className="px-2 py-2.5">{row.repayment_number}</td>
-                      <td className="px-2 py-2.5 font-medium">
+                    <tr key={row.id} className="border-b border-slate-50 text-slate-700 last:border-0 hover:bg-slate-50/90">
+                      <td className="px-3 py-2">{row.repayment_number}</td>
+                      <td className="px-3 py-2 font-medium">
                         {formatMoney(row.amount, currency)}
                       </td>
-                      <td className="px-2 py-2.5">
+                      <td className="px-3 py-2">
                         {formatMoney(row.principal_paid, currency)}
                       </td>
-                      <td className="px-2 py-2.5">
+                      <td className="px-3 py-2">
                         {formatMoney(row.interest_paid, currency)}
                       </td>
-                      <td className="px-2 py-2.5">
+                      <td className="px-3 py-2">
                         {formatMoney(row.outstanding_after, currency)}
                       </td>
-                      <td className="px-2 py-2.5 text-xs text-slate-500">
+                      <td className="px-3 py-2 text-slate-500">
                         {formatDate(row.posted_at)}
                       </td>
-                      <td className="px-2 py-2.5 text-xs text-slate-500">
+                      <td className="px-3 py-2 text-slate-500">
                         {row.partner_ref || row.partner_txn_id || "—"}
                       </td>
                     </tr>
@@ -406,34 +447,34 @@ export default function LoanApplicationDetailPage({
             <CompactLoading message="Loading ledger…" />
           ) : ledgerQ.data?.length ? (
             <div className="overflow-x-auto">
-              <table className="min-w-full text-left text-sm">
-                <thead>
-                  <tr className="border-b border-slate-100 text-[11px] font-medium uppercase tracking-wide text-slate-500">
-                    <th className="px-2 py-2">#</th>
-                    <th className="px-2 py-2">Type</th>
-                    <th className="px-2 py-2">Description</th>
-                    <th className="px-2 py-2">Amount</th>
-                    <th className="px-2 py-2">Outstanding after</th>
-                    <th className="px-2 py-2">Posted</th>
+              <table className="min-w-full text-left text-xs">
+                <thead className="border-b border-slate-100 bg-slate-50/95">
+                  <tr>
+                    <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">#</th>
+                    <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">Type</th>
+                    <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">Description</th>
+                    <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">Amount</th>
+                    <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">Outstanding after</th>
+                    <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">Posted</th>
                   </tr>
                 </thead>
                 <tbody>
                   {ledgerQ.data.map((row) => (
-                    <tr key={row.id} className="border-b border-slate-50 text-slate-800">
-                      <td className="px-2 py-2.5">{row.entry_number}</td>
-                      <td className="px-2 py-2.5 capitalize">
+                    <tr key={row.id} className="border-b border-slate-50 text-slate-700 last:border-0 hover:bg-slate-50/90">
+                      <td className="px-3 py-2">{row.entry_number}</td>
+                      <td className="px-3 py-2 capitalize">
                         {String(row.entry_type || "").replace(/_/g, " ")}
                       </td>
-                      <td className="max-w-[240px] truncate px-2 py-2.5 text-xs text-slate-600">
+                      <td className="max-w-[240px] truncate px-3 py-2 text-slate-600">
                         {row.description || "—"}
                       </td>
-                      <td className="px-2 py-2.5 font-medium">
+                      <td className="px-3 py-2 font-medium">
                         {formatMoney(row.amount, currency)}
                       </td>
-                      <td className="px-2 py-2.5">
+                      <td className="px-3 py-2">
                         {formatMoney(row.outstanding_balance_after, currency)}
                       </td>
-                      <td className="px-2 py-2.5 text-xs text-slate-500">
+                      <td className="px-3 py-2 text-slate-500">
                         {formatDate(row.posted_at)}
                       </td>
                     </tr>

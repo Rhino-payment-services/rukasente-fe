@@ -12,11 +12,14 @@ export function LoanStatusBadge({ status }: { status: string }) {
       ? "bg-sky-100 text-sky-800"
       : normalized === "declined" ||
           normalized === "defaulted" ||
-          normalized === "written_off"
+          normalized === "written_off" ||
+          normalized === "customer_declined"
         ? "bg-rose-100 text-rose-800"
-        : normalized === "under_review" || normalized === "overdue"
+        : normalized === "under_review" ||
+            normalized === "overdue" ||
+            normalized === "pending_customer_approval"
           ? "bg-amber-100 text-amber-800"
-          : normalized === "submitted"
+          : normalized === "customer_approved" || normalized === "submitted"
             ? "bg-blue-100 text-blue-800"
             : "bg-zinc-100 text-zinc-700";
   return (

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { FormEvent, use, useState } from "react";
 import { useSession } from "next-auth/react";
-import { ArrowLeft, Copy, KeyRound, RefreshCw, ShieldOff } from "lucide-react";
+import { ArrowLeft, BookOpen, Copy, KeyRound, RefreshCw, ShieldOff } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,12 +13,15 @@ import { Input } from "@/components/ui/input";
 import {
   useGeneratePartnerCredential,
   usePartner,
+  usePartnerAPIGrants,
   usePartnerAPILogs,
+  usePartnerAPIPermissionCatalog,
   usePartnerBorrowers,
   usePartnerCredentials,
   usePartnerStats,
   usePaymentProviders,
   useRegeneratePartnerCredential,
+  useReplacePartnerAPIGrants,
   useRevokePartnerCredential,
   useUpdatePartner,
 } from "@/hooks/use-partners";
@@ -39,10 +42,17 @@ export default function PartnerDetailPage({
   const { data: session } = useSession();
   const canUpdate = hasPermission(session?.user?.permissions, Perm.PartnerUpdate);
   const canLogs = hasPermission(session?.user?.permissions, Perm.PartnerViewLogs);
+  const canManageCreds = hasPermission(
+    session?.user?.permissions,
+    Perm.PartnerManageCredentials
+  );
 
   const partnerQ = usePartner(id);
   const statsQ = usePartnerStats(id);
   const credsQ = usePartnerCredentials(id);
+  const grantsQ = usePartnerAPIGrants(id);
+  const catalogQ = usePartnerAPIPermissionCatalog();
+  const saveGrants = useReplacePartnerAPIGrants(id);
   const borrowersQ = usePartnerBorrowers(id, 1, 20);
   const logsQ = usePartnerAPILogs(id, 1, 20);
   const providersQ = usePaymentProviders();
@@ -83,6 +93,13 @@ export default function PartnerDetailPage({
         payment_provider_id: String(fd.get("payment_provider_id") || "") || null,
         rukapay_escrow_wallet_id:
           String(fd.get("rukapay_escrow_wallet_id") || "").trim() || null,
+        product_loan_enabled: fd.get("product_loan_enabled") === "on",
+        rukapay_merchant_code:
+          String(fd.get("rukapay_merchant_code") || "").trim() || null,
+        rukapay_merchant_id:
+          String(fd.get("rukapay_merchant_id") || "").trim() || null,
+        rukapay_merchant_wallet_id:
+          String(fd.get("rukapay_merchant_wallet_id") || "").trim() || null,
         allowed_ips,
         ip_whitelist_enabled: fd.get("ip_whitelist_enabled") === "on",
       });
@@ -130,15 +147,23 @@ export default function PartnerDetailPage({
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
-          <Button
-            size="sm"
-            className="h-8 gap-1.5 rounded-lg bg-[#08163d] px-3 text-xs text-white hover:bg-[#06102a]"
-            disabled={generate.isPending}
-            onClick={() => void onGenerate()}
-          >
-            <KeyRound className="size-3.5" />
-            {generate.isPending ? "Generating…" : "Generate API key"}
+          <Button asChild variant="outline" size="sm" className="h-8 rounded-lg">
+            <Link href={`/partners/${id}/developer`}>
+              <BookOpen className="size-3.5" />
+              Developer settings
+            </Link>
           </Button>
+          {canManageCreds ? (
+            <Button
+              size="sm"
+              className="h-8 gap-1.5 rounded-lg bg-[#08163d] px-3 text-xs text-white hover:bg-[#06102a]"
+              disabled={generate.isPending}
+              onClick={() => void onGenerate()}
+            >
+              <KeyRound className="size-3.5" />
+              {generate.isPending ? "Generating…" : "Generate API key"}
+            </Button>
+          ) : null}
           <Button asChild variant="outline" size="sm" className="h-8 rounded-lg">
             <Link href="/partners">
               <ArrowLeft className="size-3.5" />
@@ -268,6 +293,52 @@ export default function PartnerDetailPage({
               <label className="sm:col-span-2 flex items-center gap-2 text-xs text-slate-700">
                 <input
                   type="checkbox"
+                  name="product_loan_enabled"
+                  defaultChecked={!!p.product_loan_enabled}
+                  className="rounded border-slate-300"
+                />
+                Product loan partner (disburse to a RukaPay merchant after USSD approval)
+              </label>
+              <label className="block space-y-1.5">
+                <span className="text-xs font-medium text-slate-700">
+                  RukaPay merchant code
+                </span>
+                <Input
+                  name="rukapay_merchant_code"
+                  defaultValue={p.rukapay_merchant_code || ""}
+                  placeholder="e.g. 2891"
+                  className="font-mono text-xs"
+                />
+              </label>
+              <label className="block space-y-1.5">
+                <span className="text-xs font-medium text-slate-700">
+                  RukaPay merchant ID
+                </span>
+                <Input
+                  name="rukapay_merchant_id"
+                  defaultValue={p.rukapay_merchant_id || ""}
+                  placeholder="Merchant UUID (optional if code is set)"
+                  className="font-mono text-xs"
+                />
+              </label>
+              <label className="sm:col-span-2 block space-y-1.5">
+                <span className="text-xs font-medium text-slate-700">
+                  Merchant collection wallet ID
+                </span>
+                <Input
+                  name="rukapay_merchant_wallet_id"
+                  defaultValue={p.rukapay_merchant_wallet_id || ""}
+                  placeholder="Filled automatically when RukaPay lookup succeeds"
+                  className="font-mono text-xs"
+                />
+                <span className="block text-[11px] text-slate-400">
+                  Destination for product-loan disbursements. Resolved from the merchant
+                  when RukaPay is reachable.
+                </span>
+              </label>
+              <label className="sm:col-span-2 flex items-center gap-2 text-xs text-slate-700">
+                <input
+                  type="checkbox"
                   name="ip_whitelist_enabled"
                   defaultChecked={p.ip_whitelist_enabled}
                   className="rounded border-slate-300"
@@ -333,6 +404,16 @@ export default function PartnerDetailPage({
                 </dd>
               </div>
               <div>
+                <dt className="text-xs text-slate-400">Product loans</dt>
+                <dd>{p.product_loan_enabled ? "Enabled" : "Off"}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-slate-400">RukaPay merchant</dt>
+                <dd className="truncate">
+                  {p.rukapay_merchant_code || p.rukapay_merchant_id || "—"}
+                </dd>
+              </div>
+              <div>
                 <dt className="text-xs text-slate-400">IP whitelist</dt>
                 <dd>
                   {p.ip_whitelist_enabled ? "Required" : "Optional"} ·{" "}
@@ -354,15 +435,21 @@ export default function PartnerDetailPage({
               Generate a key + secret for this partner. The secret is shown once.
             </p>
           </div>
-          <Button
-            size="sm"
-            className="h-8 shrink-0 gap-1.5 rounded-lg bg-[#08163d] px-3 text-xs text-white hover:bg-[#06102a]"
-            disabled={generate.isPending}
-            onClick={() => void onGenerate()}
-          >
-            <KeyRound className="size-3.5" />
-            {generate.isPending ? "Generating…" : "Generate API key"}
-          </Button>
+            {canManageCreds ? (
+              <Button
+                size="sm"
+                className="h-8 shrink-0 gap-1.5 rounded-lg bg-[#08163d] px-3 text-xs text-white hover:bg-[#06102a]"
+                disabled={generate.isPending}
+                onClick={() => void onGenerate()}
+              >
+                <KeyRound className="size-3.5" />
+                {generate.isPending ? "Generating…" : "Generate API key"}
+              </Button>
+            ) : (
+              <Button asChild variant="outline" size="sm" className="h-8 rounded-lg">
+                <Link href={`/partners/${id}/developer`}>Developer settings</Link>
+              </Button>
+            )}
         </CardHeader>
         <CardContent className="space-y-3 px-4 pb-4">
           {secretReveal ? (
@@ -416,7 +503,7 @@ export default function PartnerDetailPage({
               <Button
                 size="sm"
                 className="h-8 gap-1.5 rounded-lg bg-[#08163d] text-xs text-white hover:bg-[#06102a]"
-                disabled={generate.isPending}
+                disabled={generate.isPending || !canManageCreds}
                 onClick={() => void onGenerate()}
               >
                 <KeyRound className="size-3.5" />
@@ -424,21 +511,21 @@ export default function PartnerDetailPage({
               </Button>
             </div>
           ) : (
-            <div className="overflow-x-auto rounded-xl border border-slate-100">
+            <div className="overflow-x-auto">
               <table className="min-w-full text-left text-xs">
-                <thead className="bg-slate-50 text-slate-500">
+                <thead className="border-b border-slate-100 bg-slate-50/95">
                   <tr>
-                    <th className="px-3 py-2">Name</th>
-                    <th className="px-3 py-2">API Key</th>
-                    <th className="px-3 py-2">Status</th>
-                    <th className="px-3 py-2">Last used</th>
-                    <th className="px-3 py-2">Created</th>
-                    <th className="px-3 py-2">Actions</th>
+                    <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">Name</th>
+                    <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">API Key</th>
+                    <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">Status</th>
+                    <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">Last used</th>
+                    <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">Created</th>
+                    <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {(credsQ.data?.items ?? []).map((c) => (
-                    <tr key={c.id} className="border-t border-slate-50">
+                    <tr key={c.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/90">
                       <td className="px-3 py-2">{c.name}</td>
                       <td className="px-3 py-2 font-mono">{c.api_key_hint || c.api_key}</td>
                       <td className="px-3 py-2">
@@ -457,7 +544,7 @@ export default function PartnerDetailPage({
                         {new Date(c.created_at).toLocaleDateString()}
                       </td>
                       <td className="px-3 py-2">
-                        {c.status === "active" ? (
+                        {canManageCreds && c.status === "active" ? (
                           <div className="flex gap-1">
                             <Button
                               size="sm"
@@ -510,11 +597,91 @@ export default function PartnerDetailPage({
             </div>
           )}
           <p className="text-[11px] text-slate-400">
-            Partner calls use headers{" "}
-            <code className="rounded bg-slate-100 px-1">X-API-Key</code> and{" "}
-            <code className="rounded bg-slate-100 px-1">X-API-Secret</code> on{" "}
+            Partner calls use <code className="rounded bg-slate-100 px-1">X-API-Key</code>{" "}
+            plus <code className="rounded bg-slate-100 px-1">Authorization: Bearer</code>{" "}
+            (or legacy <code className="rounded bg-slate-100 px-1">X-API-Secret</code>) on{" "}
             <code className="rounded bg-slate-100 px-1">/api/v1/partner/*</code>.
           </p>
+        </CardContent>
+      </Card>
+
+      <Card className="border-slate-200 shadow-sm">
+        <CardHeader className="flex flex-row items-center justify-between gap-3 px-4 py-3">
+          <div>
+            <CardTitle className="text-sm">API permissions</CardTitle>
+            <p className="mt-0.5 text-[11px] text-slate-500">
+              Choose which Partner API operations this lending company may call.
+            </p>
+          </div>
+          {canManageCreds ? (
+            <Button
+              size="sm"
+              className="h-8 rounded-lg bg-[#08163d] px-3 text-xs text-white hover:bg-[#06102a]"
+              disabled={saveGrants.isPending}
+              onClick={async () => {
+                const form = document.getElementById(
+                  "partner-api-grants"
+                ) as HTMLFormElement | null;
+                if (!form) return;
+                const selected = Array.from(
+                  form.querySelectorAll<HTMLInputElement>("input[name='perm']:checked")
+                ).map((el) => el.value);
+                try {
+                  await saveGrants.mutateAsync(selected);
+                  toast.success("API permissions saved");
+                } catch (err) {
+                  toast.error(err instanceof Error ? err.message : "Failed");
+                }
+              }}
+            >
+              {saveGrants.isPending ? "Saving…" : "Save permissions"}
+            </Button>
+          ) : null}
+        </CardHeader>
+        <CardContent className="px-4 pb-4">
+          <form id="partner-api-grants" key={(grantsQ.data?.keys ?? []).join(",")} className="space-y-3">
+            {(catalogQ.data?.items ?? []).length === 0 ? (
+              <p className="text-sm text-slate-500">No permission catalog loaded.</p>
+            ) : (
+              ["customers", "loans", "scoring"].map((category) => {
+                const items = (catalogQ.data?.items ?? []).filter(
+                  (i) => i.category === category
+                );
+                if (items.length === 0) return null;
+                const granted = new Set(grantsQ.data?.keys ?? []);
+                return (
+                  <div key={category}>
+                    <p className="mb-1.5 text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                      {category}
+                    </p>
+                    <div className="grid gap-1.5 sm:grid-cols-2">
+                      {items.map((item) => (
+                        <label
+                          key={item.key}
+                          className="flex items-start gap-2 rounded-lg border border-slate-100 px-2.5 py-2 text-xs"
+                        >
+                          <input
+                            type="checkbox"
+                            name="perm"
+                            value={item.key}
+                            defaultChecked={granted.has(item.key)}
+                            disabled={!canManageCreds}
+                            className="mt-0.5"
+                          />
+                          <span>
+                            <span className="font-medium text-slate-800">{item.name}</span>
+                            <span className="mt-0.5 block text-[11px] text-slate-500">
+                              {item.description}
+                            </span>
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </form>
         </CardContent>
       </Card>
 
@@ -548,27 +715,27 @@ export default function PartnerDetailPage({
               {(logsQ.data?.items ?? []).length === 0 ? (
                 <p className="text-sm text-slate-500">No API calls logged yet.</p>
               ) : (
-                <div className="max-h-72 overflow-auto text-xs">
-                  <table className="min-w-full text-left">
-                    <thead className="sticky top-0 bg-white text-slate-500">
+                <div className="max-h-72 overflow-auto">
+                  <table className="min-w-full text-left text-xs">
+                    <thead className="sticky top-0 border-b border-slate-100 bg-slate-50/95">
                       <tr>
-                        <th className="px-2 py-1">When</th>
-                        <th className="px-2 py-1">Method</th>
-                        <th className="px-2 py-1">Path</th>
-                        <th className="px-2 py-1">Status</th>
-                        <th className="px-2 py-1">ms</th>
+                        <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">When</th>
+                        <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">Method</th>
+                        <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">Path</th>
+                        <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">Status</th>
+                        <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">ms</th>
                       </tr>
                     </thead>
                     <tbody>
                       {(logsQ.data?.items ?? []).map((l) => (
-                        <tr key={l.id} className="border-t border-slate-50">
-                          <td className="px-2 py-1 whitespace-nowrap">
+                        <tr key={l.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/90">
+                          <td className="px-3 py-2 whitespace-nowrap text-slate-600">
                             {new Date(l.created_at).toLocaleString()}
                           </td>
-                          <td className="px-2 py-1">{l.method}</td>
-                          <td className="px-2 py-1 font-mono">{l.path}</td>
-                          <td className="px-2 py-1">{l.status_code}</td>
-                          <td className="px-2 py-1">{l.duration_ms}</td>
+                          <td className="px-3 py-2">{l.method}</td>
+                          <td className="px-3 py-2 font-mono">{l.path}</td>
+                          <td className="px-3 py-2">{l.status_code}</td>
+                          <td className="px-3 py-2">{l.duration_ms}</td>
                         </tr>
                       ))}
                     </tbody>

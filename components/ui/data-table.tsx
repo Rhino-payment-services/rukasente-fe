@@ -16,6 +16,7 @@ type DataTableProps<TData> = {
   error?: string | null;
   emptyMessage?: string;
   className?: string;
+  minWidth?: string;
 };
 
 export function DataTable<TData>({
@@ -25,6 +26,7 @@ export function DataTable<TData>({
   error,
   emptyMessage = "No records found.",
   className,
+  minWidth = "640px",
 }: DataTableProps<TData>) {
   const table = useReactTable({
     data,
@@ -37,19 +39,19 @@ export function DataTable<TData>({
   }
 
   if (error) {
-    return <p className="text-destructive text-sm">{error}</p>;
+    return <p className="text-xs text-rose-600">{error}</p>;
   }
 
   return (
     <div className={cn("relative w-full overflow-x-auto", className)}>
-      <table className="w-full caption-bottom text-sm">
-        <thead>
+      <table className="w-full text-left text-xs" style={{ minWidth }}>
+        <thead className="sticky top-0 z-10 border-b border-slate-100 bg-slate-50/95 backdrop-blur">
           {table.getHeaderGroups().map((headerGroup) => (
-            <tr key={headerGroup.id} className="border-b text-left">
+            <tr key={headerGroup.id}>
               {headerGroup.headers.map((header) => (
                 <th
                   key={header.id}
-                  className="text-foreground h-10 px-2 text-left align-middle font-medium whitespace-nowrap"
+                  className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400 whitespace-nowrap"
                 >
                   {header.isPlaceholder
                     ? null
@@ -67,10 +69,13 @@ export function DataTable<TData>({
             table.getRowModel().rows.map((row) => (
               <tr
                 key={row.id}
-                className="hover:bg-muted/50 border-b transition-colors last:border-0"
+                className="border-b border-slate-50 transition-colors last:border-0 hover:bg-slate-50/90"
               >
                 {row.getVisibleCells().map((cell) => (
-                  <td key={cell.id} className="p-2 align-middle whitespace-nowrap">
+                  <td
+                    key={cell.id}
+                    className="px-3 py-2 align-middle text-slate-700 whitespace-nowrap"
+                  >
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
                   </td>
                 ))}
@@ -79,7 +84,7 @@ export function DataTable<TData>({
           ) : (
             <tr>
               <td
-                className="px-3 py-8 text-center text-sm text-muted-foreground"
+                className="px-3 py-10 text-center text-xs text-slate-500"
                 colSpan={columns.length}
               >
                 {emptyMessage}

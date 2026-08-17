@@ -8,3 +8,10 @@ export function getApiBaseUrl(): string {
   }
   return url;
 }
+
+/** Origin of rukasente-be (no /api/v1) for Swagger/ReDoc. */
+export function getApiDocsUrl(): string {
+  return (
+    getApiBaseUrl().replace(/\/api\/v1$/i, "") + "/partner/documentation"
+  );
+}
