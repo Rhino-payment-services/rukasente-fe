@@ -7,6 +7,11 @@ import { Perm } from "@/lib/permissions";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import {
+  ColumnDef,
+  getCoreRowModel,
+  useReactTable,
+} from "@tanstack/react-table";
+import {
   Search,
   UserRound,
   ShieldCheck,
@@ -16,7 +21,14 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { CompactLoading } from "@/components/ui/loading";
+import { CompactTableShell } from "@/components/dashboard/compact-table-shell";
+import {
+  DetailGrid,
+  DetailSection,
+  formatDetailValue,
+} from "@/components/dashboard/detail-fields";
+import { TableViewButton } from "@/components/dashboard/table-view-button";
+import { DetailsDrawer } from "@/components/ui/details-drawer";
 import { formatDate } from "@/components/dashboard/scoring-shared";
 import {
   ScoringExplainCard,
@@ -80,6 +92,7 @@ export default function ScoringEligibilityPage() {
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [viewRow, setViewRow] = useState<EligibilityRow | null>(null);
 
   const borrowerNameById = useMemo(() => {
     const map = new Map<string, string>();
@@ -130,6 +143,129 @@ export default function ScoringEligibilityPage() {
       );
   }, [items, search, statusFilter, borrowerNameById]);
 
+  const columns = useMemo<ColumnDef<EligibilityRow>[]>(
+    () => [
+      {
+        id: "borrower",
+        header: "Borrower",
+        cell: ({ row }) => {
+          const item = row.original;
+          const name =
+            borrowerNameById.get(item.borrower_profile_id) ||
+            "Unknown borrower";
+          return (
+            <div className="flex items-center gap-2.5">
+              <span className="inline-flex size-7 items-center justify-center rounded-full bg-[#08163d]/10 text-[#08163d]">
+                <UserRound className="size-3.5" />
+              </span>
+              <div className="min-w-0">
+                <Link
+                  href={`/borrowers/${item.borrower_profile_id}`}
+                  className="block truncate font-medium text-slate-900 hover:text-[#08163d] hover:underline"
+                >
+                  {name}
+                </Link>
+                <p className="flex items-center gap-1 truncate text-[10px] text-slate-400">
+                  <Wallet className="size-3 shrink-0" />
+                  {item.wallet_id ? shortId(item.wallet_id, 12) : "No wallet"}
+                </p>
+              </div>
+            </div>
+          );
+        },
+      },
+      {
+        id: "decision",
+        header: "Decision",
+        cell: ({ row }) => {
+          const item = row.original;
+          return (
+            <div>
+              <Badge variant={statusVariant(item.status)}>
+                {item.status.replaceAll("_", " ")}
+              </Badge>
+              <p className="mt-1 max-w-[180px] text-[10px] leading-snug text-slate-400">
+                {explainEligibilityStatus(item.status)}
+              </p>
+            </div>
+          );
+        },
+      },
+      {
+        id: "why",
+        header: "Why",
+        cell: ({ row }) => {
+          const item = row.original;
+          return (
+            <div>
+              <code className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-700">
+                {item.reason_code || "—"}
+              </code>
+              <p className="mt-1 max-w-[200px] text-[10px] leading-snug text-slate-500">
+                {explainReasonCode(item.reason_code)}
+              </p>
+            </div>
+          );
+        },
+      },
+      {
+        id: "source",
+        header: "Source",
+        cell: ({ row }) => {
+          const item = row.original;
+          return (
+            <div>
+              <Badge variant={sourceVariant(item.decision_source)}>
+                {(item.decision_source || "—").replaceAll("_", " ")}
+              </Badge>
+              <p className="mt-1 max-w-[160px] text-[10px] leading-snug text-slate-400">
+                {explainDecisionSource(item.decision_source)}
+              </p>
+            </div>
+          );
+        },
+      },
+      {
+        id: "checked",
+        header: "Checked",
+        cell: ({ row }) => {
+          const item = row.original;
+          return (
+            <div className="text-slate-600">
+              <span className="whitespace-nowrap">
+                {formatDate(item.checked_at)}
+              </span>
+              {item.status === "under_review" ? (
+                <Link
+                  href="/scoring/manual-review"
+                  className="mt-1 block text-[10px] font-medium text-amber-700 hover:underline"
+                >
+                  Open review queue →
+                </Link>
+              ) : null}
+            </div>
+          );
+        },
+      },
+      {
+        id: "actions",
+        header: () => <span className="sr-only">Actions</span>,
+        cell: ({ row }) => (
+          <div className="flex justify-end">
+            <TableViewButton onClick={() => setViewRow(row.original)} />
+          </div>
+        ),
+      },
+    ],
+    [borrowerNameById]
+  );
+
+  const table = useReactTable({
+    data: filtered,
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+  });
+
   if (!canAny([Perm.EligibilityDecisionView, Perm.EligibilityView])) {
     return <NoAccess description="You need eligibility decision view access." />;
   }
@@ -169,149 +305,53 @@ export default function ScoringEligibilityPage() {
       <div className="grid gap-4 lg:grid-cols-12">
         <div className="space-y-4 lg:col-span-8">
           <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="relative min-w-[220px] flex-1">
-                <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-slate-400" />
-                <Input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search borrower, wallet, reason, or status…"
-                  className="h-9 pl-9"
-                />
-              </div>
-              {(
-                [
-                  ["all", "All"],
-                  ["eligible", "Eligible"],
-                  ["not_eligible", "Not eligible"],
-                  ["under_review", "Under review"],
-                  ["pending", "Pending"],
-                ] as const
-              ).map(([value, label]) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => setStatusFilter(value)}
-                  className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${
-                    statusFilter === value
-                      ? "bg-[#08163d] text-white"
-                      : "border border-slate-200 text-slate-600 hover:bg-slate-50"
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-            {eligQ.isLoading ? (
-              <div className="flex min-h-[240px] items-center justify-center">
-                <CompactLoading message="Loading eligibility decisions…" />
-              </div>
-            ) : eligQ.error ? (
-              <p className="px-4 py-10 text-center text-sm text-rose-600">
-                {(eligQ.error as Error).message || "Failed to load decisions"}
-              </p>
-            ) : filtered.length === 0 ? (
-              <div className="px-4 py-14 text-center">
-                <ShieldQuestion className="mx-auto size-8 text-slate-300" />
-                <p className="mt-3 text-sm font-medium text-slate-700">
-                  No decisions match this view
-                </p>
-                <p className="mt-1 text-xs text-slate-500">
-                  Run scoring from Borrowers or Score results to create
-                  decisions.
-                </p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                  <thead className="border-b border-slate-100 bg-slate-50/80 text-[11px] uppercase tracking-wide text-slate-500">
-                    <tr>
-                      <th className="px-4 py-3 font-medium">Borrower</th>
-                      <th className="px-4 py-3 font-medium">Decision</th>
-                      <th className="px-4 py-3 font-medium">Why</th>
-                      <th className="px-4 py-3 font-medium">Source</th>
-                      <th className="px-4 py-3 font-medium">Checked</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filtered.map((item: EligibilityRow) => {
-                      const name =
-                        borrowerNameById.get(item.borrower_profile_id) ||
-                        "Unknown borrower";
-                      return (
-                        <tr
-                          key={item.id}
-                          className="border-t border-slate-100 hover:bg-slate-50/70"
-                        >
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-2.5">
-                              <span className="inline-flex size-8 items-center justify-center rounded-full bg-[#08163d]/10 text-[#08163d]">
-                                <UserRound className="size-3.5" />
-                              </span>
-                              <div className="min-w-0">
-                                <Link
-                                  href={`/borrowers/${item.borrower_profile_id}`}
-                                  className="block truncate font-medium text-slate-900 hover:text-[#08163d] hover:underline"
-                                >
-                                  {name}
-                                </Link>
-                                <p className="flex items-center gap-1 truncate text-[11px] text-slate-400">
-                                  <Wallet className="size-3 shrink-0" />
-                                  {item.wallet_id
-                                    ? shortId(item.wallet_id, 12)
-                                    : "No wallet"}
-                                </p>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3">
-                            <Badge variant={statusVariant(item.status)}>
-                              {item.status.replaceAll("_", " ")}
-                            </Badge>
-                            <p className="mt-1 max-w-[180px] text-[10px] leading-snug text-slate-400">
-                              {explainEligibilityStatus(item.status)}
-                            </p>
-                          </td>
-                          <td className="px-4 py-3">
-                            <code className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-700">
-                              {item.reason_code || "—"}
-                            </code>
-                            <p className="mt-1 max-w-[200px] text-[10px] leading-snug text-slate-500">
-                              {explainReasonCode(item.reason_code)}
-                            </p>
-                          </td>
-                          <td className="px-4 py-3">
-                            <Badge variant={sourceVariant(item.decision_source)}>
-                              {(item.decision_source || "—").replaceAll(
-                                "_",
-                                " "
-                              )}
-                            </Badge>
-                            <p className="mt-1 max-w-[160px] text-[10px] leading-snug text-slate-400">
-                              {explainDecisionSource(item.decision_source)}
-                            </p>
-                          </td>
-                          <td className="px-4 py-3 text-xs text-slate-600">
-                            {formatDate(item.checked_at)}
-                            {item.status === "under_review" ? (
-                              <Link
-                                href="/scoring/manual-review"
-                                className="mt-1 block text-[11px] font-medium text-amber-700 hover:underline"
-                              >
-                                Open review queue →
-                              </Link>
-                            ) : null}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
+            <CompactTableShell
+              table={table}
+              columns={columns}
+              isLoading={eligQ.isLoading}
+              error={
+                eligQ.error
+                  ? (eligQ.error as Error).message || "Failed to load decisions"
+                  : null
+              }
+              emptyMessage="No decisions match this view"
+              minWidth="720px"
+              toolbar={
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="relative min-w-[220px] flex-1">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-slate-400" />
+                    <Input
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      placeholder="Search borrower, wallet, reason, or status…"
+                      className="h-9 pl-9"
+                    />
+                  </div>
+                  {(
+                    [
+                      ["all", "All"],
+                      ["eligible", "Eligible"],
+                      ["not_eligible", "Not eligible"],
+                      ["under_review", "Under review"],
+                      ["pending", "Pending"],
+                    ] as const
+                  ).map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setStatusFilter(value)}
+                      className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+                        statusFilter === value
+                          ? "bg-[#08163d] text-white"
+                          : "border border-slate-200 text-slate-600 hover:bg-slate-50"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              }
+            />
           </div>
         </div>
 
@@ -373,6 +413,137 @@ export default function ScoringEligibilityPage() {
           </div>
         </div>
       </div>
+
+      <EligibilityDetailsDrawer
+        row={viewRow}
+        borrowerName={
+          viewRow
+            ? borrowerNameById.get(viewRow.borrower_profile_id) ||
+              "Unknown borrower"
+            : ""
+        }
+        onClose={() => setViewRow(null)}
+      />
     </ScoringPageShell>
+  );
+}
+
+function EligibilityDetailsDrawer({
+  row,
+  borrowerName,
+  onClose,
+}: {
+  row: EligibilityRow | null;
+  borrowerName: string;
+  onClose: () => void;
+}) {
+  if (!row) return null;
+
+  return (
+    <DetailsDrawer
+      open={!!row}
+      onClose={onClose}
+      title="Eligibility decision"
+      description={borrowerName}
+      widthClassName="max-w-lg"
+    >
+      <DetailSection title="Borrower">
+        <DetailGrid
+          fields={[
+            { label: "Name", value: borrowerName },
+            {
+              label: "Profile ID",
+              value: formatDetailValue(row.borrower_profile_id),
+              mono: true,
+              fullWidth: true,
+            },
+            {
+              label: "Wallet ID",
+              value: formatDetailValue(row.wallet_id),
+              mono: true,
+              fullWidth: true,
+            },
+          ]}
+        />
+      </DetailSection>
+
+      <DetailSection title="Decision">
+        <DetailGrid
+          fields={[
+            {
+              label: "Status",
+              value: (
+                <Badge variant={statusVariant(row.status)}>
+                  {row.status.replaceAll("_", " ")}
+                </Badge>
+              ),
+            },
+            {
+              label: "Meaning",
+              value: explainEligibilityStatus(row.status),
+              fullWidth: true,
+            },
+            {
+              label: "Reason code",
+              value: formatDetailValue(row.reason_code),
+              mono: true,
+            },
+            {
+              label: "Reason detail",
+              value: explainReasonCode(row.reason_code),
+              fullWidth: true,
+            },
+            {
+              label: "Source",
+              value: (
+                <Badge variant={sourceVariant(row.decision_source)}>
+                  {(row.decision_source || "—").replaceAll("_", " ")}
+                </Badge>
+              ),
+            },
+            {
+              label: "Source detail",
+              value: explainDecisionSource(row.decision_source),
+              fullWidth: true,
+            },
+            { label: "Checked at", value: formatDate(row.checked_at) },
+          ]}
+        />
+      </DetailSection>
+
+      <DetailSection title="References">
+        <DetailGrid
+          fields={[
+            {
+              label: "Decision ID",
+              value: formatDetailValue(row.id),
+              mono: true,
+              fullWidth: true,
+            },
+            {
+              label: "Subscription ID",
+              value: formatDetailValue(row.subscription_id),
+              mono: true,
+              fullWidth: true,
+            },
+            {
+              label: "Score result ID",
+              value: formatDetailValue(row.credit_score_result_id),
+              mono: true,
+              fullWidth: true,
+            },
+          ]}
+        />
+      </DetailSection>
+
+      {row.status === "under_review" ? (
+        <Link
+          href="/scoring/manual-review"
+          className="inline-flex text-xs font-medium text-amber-700 hover:underline"
+        >
+          Open manual review queue →
+        </Link>
+      ) : null}
+    </DetailsDrawer>
   );
 }

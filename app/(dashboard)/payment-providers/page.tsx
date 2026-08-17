@@ -9,6 +9,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CompactLoading } from "@/components/ui/loading";
 import { Input } from "@/components/ui/input";
+import { DetailsDrawer } from "@/components/ui/details-drawer";
+import {
+  DetailGrid,
+  DetailSection,
+  formatDetailValue,
+} from "@/components/dashboard/detail-fields";
+import { TableViewButton } from "@/components/dashboard/table-view-button";
 import {
   Dialog,
   DialogContent,
@@ -23,6 +30,20 @@ import {
   useTestPaymentProvider,
 } from "@/hooks/use-partners";
 import { hasPermission, Perm } from "@/lib/permissions";
+import type { PaymentProvider } from "@/types/partner";
+
+function formatDate(iso?: string) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
 
 export default function PaymentProvidersPage() {
   const { data: session } = useSession();
@@ -36,6 +57,7 @@ export default function PaymentProvidersPage() {
   const test = useTestPaymentProvider();
   const [open, setOpen] = useState(false);
   const [testingId, setTestingId] = useState<string | null>(null);
+  const [viewProvider, setViewProvider] = useState<PaymentProvider | null>(null);
   const [form, setForm] = useState({
     code: "",
     name: "",
@@ -118,49 +140,71 @@ export default function PaymentProvidersPage() {
               No payment providers yet.
             </p>
           ) : (
-            <div className="overflow-x-auto rounded-xl border border-slate-100">
-              <table className="min-w-full text-left text-xs">
-                <thead className="bg-slate-50 text-slate-500">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[680px] text-left text-xs">
+                <thead className="sticky top-0 z-10 border-b border-slate-100 bg-slate-50/95 backdrop-blur">
                   <tr>
-                    <th className="px-3 py-2">Name</th>
-                    <th className="px-3 py-2">Code</th>
-                    <th className="px-3 py-2">Adapter</th>
-                    <th className="px-3 py-2">Base URL</th>
-                    <th className="px-3 py-2">Status</th>
-                    <th className="px-3 py-2">Actions</th>
+                    <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                      Name
+                    </th>
+                    <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                      Code
+                    </th>
+                    <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                      Adapter
+                    </th>
+                    <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                      Base URL
+                    </th>
+                    <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                      Status
+                    </th>
+                    <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {items.map((pp) => (
-                    <tr key={pp.id} className="border-t border-slate-50">
-                      <td className="px-3 py-2 font-medium text-slate-900">
+                    <tr
+                      key={pp.id}
+                      className="border-b border-slate-50 transition-colors last:border-0 hover:bg-slate-50/90"
+                    >
+                      <td className="px-3 py-2 align-middle font-medium text-slate-900">
                         {pp.name}
                       </td>
-                      <td className="px-3 py-2 font-mono">{pp.code}</td>
-                      <td className="px-3 py-2 font-mono">{pp.adapter_key}</td>
-                      <td className="max-w-[220px] truncate px-3 py-2 font-mono text-[11px]">
+                      <td className="px-3 py-2 align-middle font-mono text-[11px] text-slate-700">
+                        {pp.code}
+                      </td>
+                      <td className="px-3 py-2 align-middle font-mono text-[11px] text-slate-700">
+                        {pp.adapter_key}
+                      </td>
+                      <td className="max-w-[220px] truncate px-3 py-2 align-middle font-mono text-[11px] text-slate-700">
                         {pp.base_url || "—"}
                       </td>
-                      <td className="px-3 py-2">
+                      <td className="px-3 py-2 align-middle">
                         <Badge
                           variant={pp.status === "active" ? "success" : "warning"}
                         >
                           {pp.status}
                         </Badge>
                       </td>
-                      <td className="px-3 py-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 gap-1 text-xs"
-                          disabled={testingId === pp.id || test.isPending}
-                          onClick={() => void onTest(pp.id)}
-                        >
-                          <RefreshCw
-                            className={`size-3 ${testingId === pp.id ? "animate-spin" : ""}`}
-                          />
-                          {testingId === pp.id ? "Testing…" : "Test connection"}
-                        </Button>
+                      <td className="px-3 py-2 align-middle">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <TableViewButton onClick={() => setViewProvider(pp)} />
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 gap-1 text-[11px]"
+                            disabled={testingId === pp.id || test.isPending}
+                            onClick={() => void onTest(pp.id)}
+                          >
+                            <RefreshCw
+                              className={`size-3 ${testingId === pp.id ? "animate-spin" : ""}`}
+                            />
+                            {testingId === pp.id ? "Testing…" : "Test"}
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -247,6 +291,77 @@ export default function PaymentProvidersPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <DetailsDrawer
+        open={!!viewProvider}
+        onClose={() => setViewProvider(null)}
+        title={viewProvider?.name ?? "Payment provider"}
+        description={viewProvider?.code}
+        footer={
+          viewProvider ? (
+            <Button
+              type="button"
+              variant="outline"
+              className="flex-1 rounded-lg text-xs"
+              disabled={testingId === viewProvider.id || test.isPending}
+              onClick={() => void onTest(viewProvider.id)}
+            >
+              <RefreshCw
+                className={`size-3 ${testingId === viewProvider.id ? "animate-spin" : ""}`}
+              />
+              {testingId === viewProvider.id ? "Testing…" : "Test connection"}
+            </Button>
+          ) : null
+        }
+      >
+        {viewProvider ? (
+          <>
+            <DetailSection title="Provider">
+              <DetailGrid
+                fields={[
+                  { label: "Name", value: viewProvider.name },
+                  { label: "Code", value: viewProvider.code, mono: true },
+                  { label: "Adapter key", value: viewProvider.adapter_key, mono: true },
+                  { label: "Status", value: viewProvider.status },
+                  {
+                    label: "Has credentials",
+                    value: formatDetailValue(viewProvider.has_credentials),
+                  },
+                ]}
+              />
+            </DetailSection>
+            <DetailSection title="Connection">
+              <DetailGrid
+                fields={[
+                  {
+                    label: "Base URL",
+                    value: viewProvider.base_url,
+                    mono: true,
+                    fullWidth: true,
+                  },
+                  {
+                    label: "Config JSON",
+                    value: viewProvider.config_json ? "Configured" : "—",
+                  },
+                  {
+                    label: "Capabilities",
+                    value: viewProvider.capabilities_json ? "Configured" : "—",
+                  },
+                ]}
+              />
+            </DetailSection>
+            <DetailSection title="Timestamps">
+              <DetailGrid
+                fields={[
+                  { label: "Created", value: formatDate(viewProvider.created_at) },
+                  { label: "Updated", value: formatDate(viewProvider.updated_at) },
+                  { label: "ID", value: viewProvider.id, mono: true, fullWidth: true },
+                ]}
+              />
+            </DetailSection>
+          </>
+        ) : null}
+      </DetailsDrawer>
     </div>
   );
 }

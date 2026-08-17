@@ -114,13 +114,13 @@ export function ActivityFeed({ apps, loading }: ActivityFeedProps) {
             No recent activity yet
           </p>
         ) : (
-          <table className="min-w-full text-left">
-            <thead>
-              <tr className="text-[11px] font-medium text-slate-400">
-                <th className="px-3 py-2 font-medium">Activity</th>
-                <th className="px-3 py-2 font-medium">User</th>
-                <th className="px-3 py-2 font-medium">Details</th>
-                <th className="px-3 py-2 text-right font-medium">Time</th>
+          <table className="min-w-full text-left text-xs">
+            <thead className="border-b border-slate-100 bg-slate-50/95">
+              <tr>
+                <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">Activity</th>
+                <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">User</th>
+                <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">Details</th>
+                <th className="px-3 py-2 text-right text-[10px] font-medium uppercase tracking-wide text-slate-400">Time</th>
               </tr>
             </thead>
             <tbody>
@@ -130,9 +130,9 @@ export function ActivityFeed({ apps, loading }: ActivityFeedProps) {
                 return (
                   <tr
                     key={app.id}
-                    className="border-t border-slate-50 text-xs transition-colors hover:bg-slate-50/70"
+                    className="border-b border-slate-50 text-xs transition-colors last:border-0 hover:bg-slate-50/90"
                   >
-                    <td className="px-3 py-3">
+                    <td className="px-3 py-2">
                       <Link href={`/loan-applications/${app.id}`}>
                         <span
                           className={cn(
@@ -144,10 +144,10 @@ export function ActivityFeed({ apps, loading }: ActivityFeedProps) {
                         </span>
                       </Link>
                     </td>
-                    <td className="px-3 py-3 whitespace-nowrap text-slate-600">
+                    <td className="px-3 py-2 whitespace-nowrap text-slate-600">
                       {actorLabel(app)}
                     </td>
-                    <td className="max-w-[220px] truncate px-3 py-3 text-slate-500">
+                    <td className="max-w-[220px] truncate px-3 py-2 text-slate-500">
                       <Link
                         href={`/loan-applications/${app.id}`}
                         className="hover:text-slate-800"
@@ -157,7 +157,7 @@ export function ActivityFeed({ apps, loading }: ActivityFeedProps) {
                           : `Loan application #${app.application_number} ${meta.detailVerb}`}
                       </Link>
                     </td>
-                    <td className="px-3 py-3 text-right whitespace-nowrap text-slate-400">
+                    <td className="px-3 py-2 text-right whitespace-nowrap text-slate-400">
                       {relativeTime(when)}
                     </td>
                   </tr>

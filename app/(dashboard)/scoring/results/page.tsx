@@ -18,7 +18,6 @@ import { createPortal } from "react-dom";
 import {
   ColumnDef,
   SortingState,
-  flexRender,
   getCoreRowModel,
   getSortedRowModel,
   useReactTable,
@@ -35,14 +34,19 @@ import {
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { CompactTableShell } from "@/components/dashboard/compact-table-shell";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+  DetailGrid,
+  DetailSection,
+  formatDetailValue,
+} from "@/components/dashboard/detail-fields";
+import { TableViewButton } from "@/components/dashboard/table-view-button";
+import {
+  ACTION_SLOT,
+  ActionSlot,
+  RowActions,
+} from "@/components/dashboard/row-actions";
+import { DetailsDrawer } from "@/components/ui/details-drawer";
 import { useClientMounted } from "@/lib/use-client-mounted";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -58,6 +62,7 @@ import {
 } from "@/hooks/use-scoring";
 import { scoringErrorMessage } from "@/lib/scoring-errors";
 import { ScoringPageShell } from "@/components/dashboard/scoring-page-shell";
+import { BulkScoringPanel } from "@/components/dashboard/bulk-scoring-panel";
 
 type BadgeVariant = "default" | "success" | "warning" | "danger" | "info";
 type DecisionFilterValue =
@@ -130,6 +135,7 @@ function initials(name?: string) {
 
 export default function ScoringResultsPage() {
   const { can } = usePermissions();
+  const canRunScoring = can(Perm.ScoringRun);
 
   const [page, setPage] = useState(1);
   const [pageSize] = useState(20);
@@ -143,6 +149,7 @@ export default function ScoringResultsPage() {
 
   const [manualOpen, setManualOpen] = useState(false);
   const [feedback, setFeedback] = useState<ScoreResultFeedback | null>(null);
+  const [viewRow, setViewRow] = useState<CreditScoreResultSummary | null>(null);
 
   const { mutateAsync } = useRunScoring();
   const mutateAsyncRef = useRef(mutateAsync);
@@ -176,18 +183,10 @@ export default function ScoringResultsPage() {
           rukapay_user_id: id,
           wallet_id: opts.walletId?.trim() || undefined,
         });
-        const score = result.credit_score_result;
-        const decision = String(score.suggested_decision || "").replace(
-          /_/g,
-          " "
-        );
         setFeedback({
-          kind: "success",
+          kind: "queued",
           name,
-          score: score.total_score,
-          band: score.risk_band,
-          decision,
-          limit: score.recommended_limit,
+          jobId: result.job_id,
         });
       } catch (err) {
         const message = scoringErrorMessage(err);
@@ -232,11 +231,11 @@ export default function ScoringResultsPage() {
                 {initials(row.original.full_name)}
               </div>
               <div className="min-w-0">
-                <p className="truncate text-sm font-medium text-slate-900">
+                <p className="truncate text-xs font-medium text-slate-900">
                   {name}
                 </p>
                 {row.original.email ? (
-                  <p className="truncate text-xs text-slate-500">
+                  <p className="truncate text-[11px] text-slate-500">
                     {row.original.email}
                   </p>
                 ) : null}
@@ -249,7 +248,7 @@ export default function ScoringResultsPage() {
         accessorKey: "phone",
         header: "Phone",
         cell: ({ row }) => (
-          <span className="text-sm text-slate-700">
+          <span className="whitespace-nowrap text-slate-700">
             {row.original.phone || "—"}
           </span>
         ),
@@ -305,7 +304,7 @@ export default function ScoringResultsPage() {
         accessorKey: "recommended_limit",
         header: "Limit",
         cell: ({ row }) => (
-          <span className="text-sm text-slate-700">
+          <span className="whitespace-nowrap text-slate-700">
             {formatCurrency(row.original.recommended_limit)}
           </span>
         ),
@@ -314,7 +313,7 @@ export default function ScoringResultsPage() {
         accessorKey: "max_tenor_days",
         header: "Tenor",
         cell: ({ row }) => (
-          <span className="text-sm text-slate-700">
+          <span className="whitespace-nowrap text-slate-700">
             {row.original.max_tenor_days}d
           </span>
         ),
@@ -334,7 +333,7 @@ export default function ScoringResultsPage() {
           </button>
         ),
         cell: ({ row }) => (
-          <span className="text-sm text-slate-700">
+          <span className="whitespace-nowrap text-slate-700">
             {formatDate(row.original.scored_at)}
           </span>
         ),
@@ -342,7 +341,16 @@ export default function ScoringResultsPage() {
       {
         id: "actions",
         header: () => <span className="sr-only">Actions</span>,
-        cell: ({ row }) => <RerunAction row={row.original} />,
+        cell: ({ row }) => (
+          <RowActions slots={[ACTION_SLOT.sm, ACTION_SLOT.lg]}>
+            <ActionSlot>
+              <TableViewButton onClick={() => setViewRow(row.original)} />
+            </ActionSlot>
+            <ActionSlot>
+              <RerunAction row={row.original} />
+            </ActionSlot>
+          </RowActions>
+        ),
       },
     ],
     []
@@ -433,145 +441,99 @@ export default function ScoringResultsPage() {
           <StatCard label="Avg score" value={stats.avg_score} variant="info" />
         </div>
 
+        <BulkScoringPanel canRun={canRunScoring} />
+
         <Card className="gap-0 border-slate-200 py-0 shadow-none">
-          <CardContent className="space-y-3 px-4 py-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="relative min-w-[220px] flex-1">
-                <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
-                <input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search by name, phone, email, RukaPay user id, or reason code"
-                  className="h-9 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-700 outline-none focus:border-main-200"
-                />
-              </div>
-              <select
-                className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700"
-                value={decisionFilter}
-                onChange={(e) =>
-                  setDecisionFilter(e.target.value as DecisionFilterValue)
-                }
-              >
-                <option value="all">All decisions</option>
-                <option value="eligible">Eligible</option>
-                <option value="under_review">Under review</option>
-                <option value="not_eligible">Not eligible</option>
-              </select>
-              <select
-                className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700"
-                value={bandFilter}
-                onChange={(e) =>
-                  setBandFilter(e.target.value as BandFilterValue)
-                }
-              >
-                <option value="all">All bands</option>
-                <option value="A">Band A</option>
-                <option value="B">Band B</option>
-                <option value="C">Band C</option>
-                <option value="D">Band D</option>
-                <option value="E">Band E</option>
-              </select>
-              <select
-                className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700"
-                value={kycFilter}
-                onChange={(e) => setKycFilter(e.target.value as KycFilterValue)}
-              >
-                <option value="all">All KYC</option>
-                <option value="verified">Verified</option>
-                <option value="pending">Pending</option>
-                <option value="rejected">Rejected</option>
-              </select>
-            </div>
-
-            {isLoading ? (
-              <div className="space-y-2">
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <div
-                    key={i}
-                    className="h-12 w-full animate-pulse rounded-lg bg-slate-100"
-                  />
-                ))}
-              </div>
-            ) : error ? (
-              <p className="text-sm text-destructive">
-                {(error as Error).message}
-              </p>
-            ) : (
-              <div className="overflow-hidden rounded-xl border border-slate-200">
-                <Table>
-                  <TableHeader className="sticky top-0 z-10 bg-white">
-                    {table.getHeaderGroups().map((hg) => (
-                      <TableRow key={hg.id}>
-                        {hg.headers.map((header) => (
-                          <TableHead key={header.id}>
-                            {header.isPlaceholder
-                              ? null
-                              : flexRender(
-                                  header.column.columnDef.header,
-                                  header.getContext()
-                                )}
-                          </TableHead>
-                        ))}
-                      </TableRow>
-                    ))}
-                  </TableHeader>
-                  <TableBody>
-                    {table.getRowModel().rows.length ? (
-                      table.getRowModel().rows.map((row) => (
-                        <TableRow key={row.id}>
-                          {row.getVisibleCells().map((cell) => (
-                            <TableCell key={cell.id}>
-                              {flexRender(
-                                cell.column.columnDef.cell,
-                                cell.getContext()
-                              )}
-                            </TableCell>
-                          ))}
-                        </TableRow>
-                      ))
-                    ) : (
-                      <TableRow>
-                        <TableCell
-                          colSpan={columns.length}
-                          className="py-10 text-center text-sm text-slate-500"
-                        >
-                          No score results match your filters.
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-
-            <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-              <p className="text-xs text-slate-500">
-                Total: {data?.total ?? 0} · Page {data?.page ?? page} of{" "}
-                {data?.total_pages ?? 1} · Showing {filtered.length}
-              </p>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 rounded-lg"
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={page <= 1}
-                >
-                  <ChevronLeft className="size-4" />
-                  Prev
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 rounded-lg"
-                  onClick={() => setPage((p) => p + 1)}
-                  disabled={!!data?.total_pages && page >= data.total_pages}
-                >
-                  Next
-                  <ChevronRight className="size-4" />
-                </Button>
-              </div>
-            </div>
+          <CardContent className="px-4 py-4">
+            <CompactTableShell
+              table={table}
+              columns={columns}
+              isLoading={isLoading}
+              error={error ? (error as Error).message : null}
+              emptyMessage="No score results match your filters."
+              minWidth="960px"
+              toolbar={
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="relative min-w-[220px] flex-1">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+                    <input
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      placeholder="Search by name, phone, email, RukaPay user id, or reason code"
+                      className="h-9 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-700 outline-none focus:border-main-200"
+                    />
+                  </div>
+                  <select
+                    className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700"
+                    value={decisionFilter}
+                    onChange={(e) =>
+                      setDecisionFilter(e.target.value as DecisionFilterValue)
+                    }
+                  >
+                    <option value="all">All decisions</option>
+                    <option value="eligible">Eligible</option>
+                    <option value="under_review">Under review</option>
+                    <option value="not_eligible">Not eligible</option>
+                  </select>
+                  <select
+                    className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700"
+                    value={bandFilter}
+                    onChange={(e) =>
+                      setBandFilter(e.target.value as BandFilterValue)
+                    }
+                  >
+                    <option value="all">All bands</option>
+                    <option value="A">Band A</option>
+                    <option value="B">Band B</option>
+                    <option value="C">Band C</option>
+                    <option value="D">Band D</option>
+                    <option value="E">Band E</option>
+                  </select>
+                  <select
+                    className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700"
+                    value={kycFilter}
+                    onChange={(e) =>
+                      setKycFilter(e.target.value as KycFilterValue)
+                    }
+                  >
+                    <option value="all">All KYC</option>
+                    <option value="verified">Verified</option>
+                    <option value="pending">Pending</option>
+                    <option value="rejected">Rejected</option>
+                  </select>
+                </div>
+              }
+              footer={
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                  <p className="text-xs text-slate-500">
+                    Total: {data?.total ?? 0} · Page {data?.page ?? page} of{" "}
+                    {data?.total_pages ?? 1} · Showing {filtered.length}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 rounded-lg"
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      disabled={page <= 1}
+                    >
+                      <ChevronLeft className="size-4" />
+                      Prev
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 rounded-lg"
+                      onClick={() => setPage((p) => p + 1)}
+                      disabled={!!data?.total_pages && page >= data.total_pages}
+                    >
+                      Next
+                      <ChevronRight className="size-4" />
+                    </Button>
+                  </div>
+                </div>
+              }
+            />
           </CardContent>
         </Card>
 
@@ -589,8 +551,134 @@ export default function ScoringResultsPage() {
           feedback={feedback}
           onClose={() => setFeedback(null)}
         />
+
+        <ScoreResultDetailsDrawer
+          row={viewRow}
+          onClose={() => setViewRow(null)}
+        />
       </ScoringPageShell>
     </ScoreRunContext.Provider>
+  );
+}
+
+function ScoreResultDetailsDrawer({
+  row,
+  onClose,
+}: {
+  row: CreditScoreResultSummary | null;
+  onClose: () => void;
+}) {
+  if (!row) return null;
+
+  const name = row.full_name?.trim() || row.rukapay_user_id || "Borrower";
+
+  return (
+    <DetailsDrawer
+      open={!!row}
+      onClose={onClose}
+      title="Score result"
+      description={name}
+      widthClassName="max-w-lg"
+    >
+      <DetailSection title="Borrower">
+        <DetailGrid
+          fields={[
+            { label: "Name", value: formatDetailValue(row.full_name) },
+            { label: "Phone", value: formatDetailValue(row.phone) },
+            { label: "Email", value: formatDetailValue(row.email) },
+            {
+              label: "KYC status",
+              value: (
+                <Badge variant={kycVariant(row.kyc_status)}>
+                  {row.kyc_status || "—"}
+                </Badge>
+              ),
+            },
+            {
+              label: "RukaPay user ID",
+              value: formatDetailValue(row.rukapay_user_id),
+              mono: true,
+              fullWidth: true,
+            },
+            {
+              label: "Borrower profile ID",
+              value: formatDetailValue(row.borrower_profile_id),
+              mono: true,
+              fullWidth: true,
+            },
+          ]}
+        />
+      </DetailSection>
+
+      <DetailSection title="Score outcome">
+        <DetailGrid
+          fields={[
+            { label: "Total score", value: formatDetailValue(row.total_score) },
+            {
+              label: "Risk band",
+              value: (
+                <Badge variant={bandVariant(row.risk_band)}>
+                  {row.risk_band}
+                </Badge>
+              ),
+            },
+            {
+              label: "Decision",
+              value: (
+                <Badge variant={decisionVariant(row.suggested_decision)}>
+                  {row.suggested_decision.replace(/_/g, " ")}
+                </Badge>
+              ),
+            },
+            {
+              label: "Recommended limit",
+              value: formatCurrency(row.recommended_limit),
+            },
+            {
+              label: "Max tenor",
+              value: `${row.max_tenor_days} days`,
+            },
+            { label: "Scored at", value: formatDate(row.scored_at) },
+          ]}
+        />
+      </DetailSection>
+
+      <DetailSection title="Reason codes">
+        {row.reason_codes.length ? (
+          <div className="flex flex-wrap gap-1.5">
+            {row.reason_codes.map((code) => (
+              <code
+                key={code}
+                className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-700"
+              >
+                {code}
+              </code>
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs text-slate-500">No reason codes recorded.</p>
+        )}
+      </DetailSection>
+
+      <DetailSection title="References">
+        <DetailGrid
+          fields={[
+            {
+              label: "Result ID",
+              value: formatDetailValue(row.id),
+              mono: true,
+              fullWidth: true,
+            },
+            {
+              label: "Input snapshot ID",
+              value: formatDetailValue(row.scoring_input_snapshot_id),
+              mono: true,
+              fullWidth: true,
+            },
+          ]}
+        />
+      </DetailSection>
+    </DetailsDrawer>
   );
 }
 
@@ -602,27 +690,25 @@ function RerunAction({ row }: { row: CreditScoreResultSummary }) {
   const anyBusy = !!runningUserId;
 
   return (
-    <div className="flex justify-end">
-      <Button
-        size="sm"
-        variant="outline"
-        className="h-8 rounded-lg"
-        disabled={anyBusy}
-        onClick={() =>
-          void runScore({
-            rukapayUserId: id,
-            label: row.full_name || id,
-          })
-        }
-      >
-        {busy ? (
-          <Loader2 className="size-3.5 animate-spin" />
-        ) : (
-          <RotateCw className="size-3.5" />
-        )}
-        {busy ? "Running…" : "Re-run"}
-      </Button>
-    </div>
+    <Button
+      size="sm"
+      variant="outline"
+      className="h-7 gap-1 rounded-md px-2 text-[11px]"
+      disabled={anyBusy}
+      onClick={() =>
+        void runScore({
+          rukapayUserId: id,
+          label: row.full_name || id,
+        })
+      }
+    >
+      {busy ? (
+        <Loader2 className="size-3.5 animate-spin" />
+      ) : (
+        <RotateCw className="size-3.5" />
+      )}
+      {busy ? "Running…" : "Re-run"}
+    </Button>
   );
 }
 

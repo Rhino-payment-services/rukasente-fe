@@ -10,6 +10,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { CompactLoading } from "@/components/ui/loading";
+import { DetailsDrawer } from "@/components/ui/details-drawer";
+import {
+  DetailGrid,
+  DetailSection,
+  formatDetailValue,
+} from "@/components/dashboard/detail-fields";
+import { TableViewButton } from "@/components/dashboard/table-view-button";
+import {
+  ACTION_SLOT,
+  ActionSlot,
+  RowActions,
+} from "@/components/dashboard/row-actions";
 import {
   Dialog,
   DialogContent,
@@ -99,6 +111,19 @@ function conditionLabel(rule: CreditScoreRuleResponse) {
   return rule.condition;
 }
 
+function formatDate(iso?: string) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export default function CreditScoreRulesPage() {
   const { can } = usePermissions();
 
@@ -125,6 +150,7 @@ export default function CreditScoreRulesPage() {
   const [form, setForm] = useState<FormState>(emptyForm);
   const [formError, setFormError] = useState("");
   const [actionError, setActionError] = useState("");
+  const [viewRule, setViewRule] = useState<CreditScoreRuleResponse | null>(null);
 
   const stats = statsQ.data ?? {
     total: 0,
@@ -414,15 +440,27 @@ export default function CreditScoreRulesPage() {
           </p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="border-b border-slate-100 bg-slate-50/80 text-[11px] uppercase tracking-wide text-slate-500">
+            <table className="w-full min-w-[720px] text-left text-xs">
+              <thead className="sticky top-0 z-10 border-b border-slate-100 bg-slate-50/95 backdrop-blur">
                 <tr>
-                  <th className="px-4 py-3 font-medium">Rule</th>
-                  <th className="px-4 py-3 font-medium">Category</th>
-                  <th className="px-4 py-3 font-medium">Condition</th>
-                  <th className="px-4 py-3 font-medium">Score</th>
-                  <th className="px-4 py-3 font-medium">Status</th>
-                  <th className="px-4 py-3 font-medium text-right">Actions</th>
+                  <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                    Rule
+                  </th>
+                  <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                    Category
+                  </th>
+                  <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                    Condition
+                  </th>
+                  <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                    Score
+                  </th>
+                  <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                    Status
+                  </th>
+                  <th className="px-3 py-2 text-right text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -431,9 +469,9 @@ export default function CreditScoreRulesPage() {
                   return (
                     <tr
                       key={rule.id}
-                      className="border-t border-slate-100 hover:bg-slate-50/70"
+                      className="border-b border-slate-50 transition-colors last:border-0 hover:bg-slate-50/90"
                     >
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-2 align-middle text-slate-700">
                         <p className="font-medium text-slate-900">{rule.name}</p>
                         {rule.description ? (
                           <p className="mt-0.5 line-clamp-1 text-[11px] text-slate-400">
@@ -441,15 +479,15 @@ export default function CreditScoreRulesPage() {
                           </p>
                         ) : null}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-2 align-middle">
                         <Badge variant="default">{rule.category}</Badge>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-2 align-middle">
                         <code className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-700">
                           {conditionLabel(rule)}
                         </code>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-2 align-middle">
                         <span
                           className={`text-sm font-semibold tabular-nums ${
                             positive ? "text-emerald-700" : "text-rose-700"
@@ -463,38 +501,54 @@ export default function CreditScoreRulesPage() {
                           {rule.type === "POSITIVE" ? "Adds" : "Subtracts"}
                         </p>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-2 align-middle">
                         <Badge variant={rule.is_active ? "success" : "default"}>
                           {rule.is_active ? "Active" : "Inactive"}
                         </Badge>
                       </td>
-                      <td className="px-4 py-3">
-                        <div className="flex justify-end gap-1.5">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-8"
-                            onClick={() => openEdit(rule)}
-                          >
-                            Edit
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-8"
-                            onClick={() => void onToggle(rule)}
-                          >
-                            {rule.is_active ? "Off" : "On"}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-8 border-rose-200 text-rose-700 hover:bg-rose-50"
-                            onClick={() => void onDelete(rule)}
-                          >
-                            Delete
-                          </Button>
-                        </div>
+                      <td className="px-3 py-2 align-middle">
+                        <RowActions
+                          slots={[
+                            ACTION_SLOT.sm,
+                            ACTION_SLOT.md,
+                            "48px",
+                            ACTION_SLOT.md,
+                          ]}
+                        >
+                          <ActionSlot>
+                            <TableViewButton onClick={() => setViewRule(rule)} />
+                          </ActionSlot>
+                          <ActionSlot>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-[11px]"
+                              onClick={() => openEdit(rule)}
+                            >
+                              Edit
+                            </Button>
+                          </ActionSlot>
+                          <ActionSlot>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-[11px]"
+                              onClick={() => void onToggle(rule)}
+                            >
+                              {rule.is_active ? "Off" : "On"}
+                            </Button>
+                          </ActionSlot>
+                          <ActionSlot>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 border-rose-200 text-[11px] text-rose-700 hover:bg-rose-50"
+                              onClick={() => void onDelete(rule)}
+                            >
+                              Delete
+                            </Button>
+                          </ActionSlot>
+                        </RowActions>
                       </td>
                     </tr>
                   );
@@ -657,6 +711,96 @@ export default function CreditScoreRulesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <DetailsDrawer
+        open={!!viewRule}
+        onClose={() => setViewRule(null)}
+        title={viewRule?.name ?? "Credit score rule"}
+        description={viewRule?.category}
+        footer={
+          viewRule ? (
+            <Button
+              type="button"
+              className="flex-1 rounded-lg text-xs"
+              onClick={() => {
+                setViewRule(null);
+                openEdit(viewRule);
+              }}
+            >
+              Edit rule
+            </Button>
+          ) : null
+        }
+      >
+        {viewRule ? (
+          <>
+            <DetailSection title="Rule">
+              <DetailGrid
+                fields={[
+                  { label: "Name", value: viewRule.name },
+                  { label: "Category", value: viewRule.category },
+                  { label: "Type", value: viewRule.type },
+                  { label: "Priority", value: viewRule.priority },
+                  {
+                    label: "Active",
+                    value: formatDetailValue(viewRule.is_active),
+                  },
+                  {
+                    label: "Description",
+                    value: viewRule.description || "—",
+                    fullWidth: true,
+                  },
+                ]}
+              />
+            </DetailSection>
+            <DetailSection title="Condition">
+              <DetailGrid
+                fields={[
+                  { label: "Condition", value: viewRule.condition, mono: true },
+                  { label: "Operator", value: viewRule.operator || "—", mono: true },
+                  {
+                    label: "Threshold",
+                    value:
+                      viewRule.threshold != null ? viewRule.threshold : "—",
+                  },
+                  {
+                    label: "Full expression",
+                    value: conditionLabel(viewRule),
+                    mono: true,
+                    fullWidth: true,
+                  },
+                ]}
+              />
+            </DetailSection>
+            <DetailSection title="Scoring impact">
+              <DetailGrid
+                fields={[
+                  {
+                    label: "Score value",
+                    value:
+                      viewRule.score_value > 0
+                        ? `+${viewRule.score_value}`
+                        : viewRule.score_value,
+                  },
+                  {
+                    label: "Effect",
+                    value: viewRule.type === "POSITIVE" ? "Adds points" : "Subtracts points",
+                  },
+                ]}
+              />
+            </DetailSection>
+            <DetailSection title="Timestamps">
+              <DetailGrid
+                fields={[
+                  { label: "Created", value: formatDate(viewRule.created_at) },
+                  { label: "Updated", value: formatDate(viewRule.updated_at) },
+                  { label: "ID", value: viewRule.id, mono: true, fullWidth: true },
+                ]}
+              />
+            </DetailSection>
+          </>
+        ) : null}
+      </DetailsDrawer>
     </ScoringPageShell>
   );
 }

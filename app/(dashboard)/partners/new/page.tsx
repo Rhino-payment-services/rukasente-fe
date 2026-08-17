@@ -127,6 +127,10 @@ export default function NewPartnerPage() {
     primary_color: "#4f46e5",
     payment_provider_id: "",
     rukapay_escrow_wallet_id: "",
+    product_loan_enabled: false,
+    rukapay_merchant_code: "",
+    rukapay_merchant_id: "",
+    rukapay_merchant_wallet_id: "",
     api_base_url: "",
     contact_name: "",
     contact_email: "",
@@ -179,6 +183,11 @@ export default function NewPartnerPage() {
           payment_provider_id: form.payment_provider_id || null,
           rukapay_escrow_wallet_id:
             form.rukapay_escrow_wallet_id.trim() || null,
+          product_loan_enabled: form.product_loan_enabled,
+          rukapay_merchant_code: form.rukapay_merchant_code.trim() || null,
+          rukapay_merchant_id: form.rukapay_merchant_id.trim() || null,
+          rukapay_merchant_wallet_id:
+            form.rukapay_merchant_wallet_id.trim() || null,
           contact_name: form.contact_name.trim() || undefined,
           contact_email: form.contact_email.trim() || undefined,
           contact_phone: form.contact_phone.trim() || undefined,
@@ -218,6 +227,11 @@ export default function NewPartnerPage() {
         payment_provider_id: form.payment_provider_id || null,
         rukapay_escrow_wallet_id:
           form.rukapay_escrow_wallet_id.trim() || null,
+        product_loan_enabled: form.product_loan_enabled,
+        rukapay_merchant_code: form.rukapay_merchant_code.trim() || null,
+        rukapay_merchant_id: form.rukapay_merchant_id.trim() || null,
+        rukapay_merchant_wallet_id:
+          form.rukapay_merchant_wallet_id.trim() || null,
         allowed_ips,
         ip_whitelist_enabled: form.ip_whitelist_enabled,
       });
@@ -392,6 +406,37 @@ export default function NewPartnerPage() {
                         }))
                       }
                       placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                      className={cn(inputClass, "font-mono text-xs")}
+                    />
+                  </Field>
+                  <label className="flex items-center gap-2 text-sm text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={form.product_loan_enabled}
+                      onChange={(e) =>
+                        setForm((f) => ({
+                          ...f,
+                          product_loan_enabled: e.target.checked,
+                        }))
+                      }
+                      className="rounded border-slate-300"
+                    />
+                    Product loan partner
+                  </label>
+                  <Field
+                    label="RukaPay merchant code"
+                    optional
+                    hint="Required when product loans are enabled. Money is paid to this merchant after customer USSD approval."
+                  >
+                    <Input
+                      value={form.rukapay_merchant_code}
+                      onChange={(e) =>
+                        setForm((f) => ({
+                          ...f,
+                          rukapay_merchant_code: e.target.value,
+                        }))
+                      }
+                      placeholder="e.g. 2891"
                       className={cn(inputClass, "font-mono text-xs")}
                     />
                   </Field>

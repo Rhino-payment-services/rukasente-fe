@@ -10,6 +10,10 @@ export type Partner = {
   currency?: string;
   payment_provider_id?: string | null;
   rukapay_escrow_wallet_id?: string | null;
+  product_loan_enabled?: boolean;
+  rukapay_merchant_id?: string | null;
+  rukapay_merchant_code?: string | null;
+  rukapay_merchant_wallet_id?: string | null;
   api_base_url: string;
   contact_name: string;
   contact_email: string;
@@ -35,6 +39,10 @@ export type PartnerCreatePayload = {
   currency?: string;
   payment_provider_id?: string | null;
   rukapay_escrow_wallet_id?: string | null;
+  product_loan_enabled?: boolean;
+  rukapay_merchant_id?: string | null;
+  rukapay_merchant_code?: string | null;
+  rukapay_merchant_wallet_id?: string | null;
   api_base_url?: string;
   contact_name?: string;
   contact_email?: string;
@@ -62,6 +70,10 @@ export type RegisterLendingCompanyPayload = {
   currency?: string;
   payment_provider_id?: string | null;
   rukapay_escrow_wallet_id?: string | null;
+  product_loan_enabled?: boolean;
+  rukapay_merchant_id?: string | null;
+  rukapay_merchant_code?: string | null;
+  rukapay_merchant_wallet_id?: string | null;
   contact_name?: string;
   contact_email?: string;
   contact_phone?: string;
@@ -152,6 +164,26 @@ export type PartnerStats = {
   approved_loans: number;
   active_loans: number;
   api_calls_last_7_days: number;
+};
+
+export type PartnerAPIPermission = {
+  key: string;
+  name: string;
+  description: string;
+  category: string;
+};
+
+export type PartnerAPIGrants = {
+  partner_id: string;
+  keys: string[];
+};
+
+export type PartnerAccessTokenCreated = {
+  access_token: string;
+  token_type: string;
+  expires_in: number;
+  expires_at: string;
+  warning?: string;
 };
 
 export type PaginatedPartners = {

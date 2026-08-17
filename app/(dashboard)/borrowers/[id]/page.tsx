@@ -13,6 +13,7 @@ import {
   useBorrower,
   useBorrowerLoans,
   useSendLoanReminder,
+  borrowerSourceLabel,
 } from "@/hooks/use-borrowers";
 import { hasPermission, Perm } from "@/lib/permissions";
 import type { BorrowerLoan } from "@/types/loan";
@@ -81,6 +82,16 @@ export default function BorrowerDetailPage({
         <div className="flex flex-wrap items-center gap-2">
           {borrower ? (
             <>
+              <span
+                className="inline-flex rounded px-2 py-1 text-xs font-medium bg-slate-100 text-slate-700"
+                title={
+                  borrower.partner?.code
+                    ? `${borrowerSourceLabel(borrower)} (${borrower.partner.code})`
+                    : borrowerSourceLabel(borrower)
+                }
+              >
+                {borrowerSourceLabel(borrower)}
+              </span>
               <span className="inline-flex rounded px-2 py-1 text-xs font-medium capitalize bg-slate-100 text-slate-700">
                 KYC: {borrower.kyc_status || "—"}
               </span>
@@ -242,34 +253,34 @@ function LoanCard({
               Repayment schedule
             </p>
             {loan.schedule && loan.schedule.length > 0 ? (
-              <div className="overflow-x-auto rounded-lg border border-slate-100">
-                <table className="min-w-full text-left text-sm">
-                  <thead className="bg-slate-50 text-[11px] font-medium uppercase tracking-wide text-slate-500">
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-left text-xs">
+                  <thead className="border-b border-slate-100 bg-slate-50/95">
                     <tr>
-                      <th className="px-2 py-2">#</th>
-                      <th className="px-2 py-2">Due</th>
-                      <th className="px-2 py-2">Amount due</th>
-                      <th className="px-2 py-2">Paid</th>
-                      <th className="px-2 py-2">Status</th>
+                      <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">#</th>
+                      <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">Due</th>
+                      <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">Amount due</th>
+                      <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">Paid</th>
+                      <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">Status</th>
                     </tr>
                   </thead>
                   <tbody>
                     {loan.schedule.map((s) => (
                       <tr
                         key={s.installment}
-                        className="border-t border-slate-50 text-slate-800"
+                        className="border-b border-slate-50 text-slate-700 last:border-0 hover:bg-slate-50/90"
                       >
-                        <td className="px-2 py-2">{s.installment}</td>
-                        <td className="px-2 py-2 text-xs text-slate-500">
+                        <td className="px-3 py-2">{s.installment}</td>
+                        <td className="px-3 py-2 text-slate-500">
                           {formatDate(s.due_date)}
                         </td>
-                        <td className="px-2 py-2">
+                        <td className="px-3 py-2">
                           {formatMoney(s.amount_due ?? 0, currency)}
                         </td>
-                        <td className="px-2 py-2">
+                        <td className="px-3 py-2">
                           {formatMoney(s.amount_paid ?? 0, currency)}
                         </td>
-                        <td className="px-2 py-2 capitalize">
+                        <td className="px-3 py-2 capitalize">
                           {(s.status || "—").replace(/_/g, " ")}
                         </td>
                       </tr>
@@ -287,38 +298,38 @@ function LoanCard({
               Payment history
             </p>
             {loan.repayments && loan.repayments.length > 0 ? (
-              <div className="overflow-x-auto rounded-lg border border-slate-100">
-                <table className="min-w-full text-left text-sm">
-                  <thead className="bg-slate-50 text-[11px] font-medium uppercase tracking-wide text-slate-500">
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-left text-xs">
+                  <thead className="border-b border-slate-100 bg-slate-50/95">
                     <tr>
-                      <th className="px-2 py-2">#</th>
-                      <th className="px-2 py-2">Amount</th>
-                      <th className="px-2 py-2">Principal</th>
-                      <th className="px-2 py-2">Interest</th>
-                      <th className="px-2 py-2">Outstanding after</th>
-                      <th className="px-2 py-2">Posted</th>
+                      <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">#</th>
+                      <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">Amount</th>
+                      <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">Principal</th>
+                      <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">Interest</th>
+                      <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">Outstanding after</th>
+                      <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">Posted</th>
                     </tr>
                   </thead>
                   <tbody>
                     {loan.repayments.map((r) => (
                       <tr
                         key={r.id}
-                        className="border-t border-slate-50 text-slate-800"
+                        className="border-b border-slate-50 text-slate-700 last:border-0 hover:bg-slate-50/90"
                       >
-                        <td className="px-2 py-2">{r.repayment_number}</td>
-                        <td className="px-2 py-2 font-medium">
+                        <td className="px-3 py-2">{r.repayment_number}</td>
+                        <td className="px-3 py-2 font-medium">
                           {formatMoney(r.amount, currency)}
                         </td>
-                        <td className="px-2 py-2">
+                        <td className="px-3 py-2">
                           {formatMoney(r.principal_paid, currency)}
                         </td>
-                        <td className="px-2 py-2">
+                        <td className="px-3 py-2">
                           {formatMoney(r.interest_paid, currency)}
                         </td>
-                        <td className="px-2 py-2">
+                        <td className="px-3 py-2">
                           {formatMoney(r.outstanding_after, currency)}
                         </td>
-                        <td className="px-2 py-2 text-xs text-slate-500">
+                        <td className="px-3 py-2 text-slate-500">
                           {formatDate(r.posted_at)}
                         </td>
                       </tr>

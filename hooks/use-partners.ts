@@ -14,6 +14,9 @@ import type {
   PartnerUpdatePayload,
   PaymentProvider,
   PaymentProviderCreatePayload,
+  PartnerAPIGrants,
+  PartnerAPIPermission,
+  PartnerAccessTokenCreated,
   RegisterLendingCompanyPayload,
   RegisterLendingCompanyResult,
 } from "@/types/partner";
@@ -237,6 +240,54 @@ export function useRegeneratePartnerCredential(partnerId: string) {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["partner-credentials", partnerId] });
       void qc.invalidateQueries({ queryKey: ["partner-stats", partnerId] });
+    },
+  });
+}
+
+export function usePartnerAPIPermissionCatalog() {
+  return useQuery({
+    queryKey: ["partner-api-permission-catalog"],
+    queryFn: async () => {
+      const res = await apiClient.get("/admin/partner-api-permissions");
+      return unwrapEnvelope<{ items: PartnerAPIPermission[] }>(res);
+    },
+  });
+}
+
+export function usePartnerAPIGrants(id?: string) {
+  return useQuery({
+    queryKey: ["partner-api-grants", id],
+    enabled: !!id,
+    queryFn: async () => {
+      const res = await apiClient.get(`/admin/partners/${id}/api-permissions`);
+      return unwrapEnvelope<PartnerAPIGrants>(res);
+    },
+  });
+}
+
+export function useReplacePartnerAPIGrants(partnerId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (keys: string[]) => {
+      const res = await apiClient.put(
+        `/admin/partners/${partnerId}/api-permissions`,
+        { keys }
+      );
+      return unwrapEnvelope<PartnerAPIGrants>(res);
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["partner-api-grants", partnerId] });
+    },
+  });
+}
+
+export function useIssuePartnerAccessToken(partnerId: string) {
+  return useMutation({
+    mutationFn: async (credentialId: string) => {
+      const res = await apiClient.post(
+        `/admin/partners/${partnerId}/credentials/${credentialId}/tokens`
+      );
+      return unwrapEnvelope<PartnerAccessTokenCreated>(res);
     },
   });
 }

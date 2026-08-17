@@ -98,6 +98,16 @@ export type LoanApplication = {
   requested_tenor_days: number;
   currency: string;
   purpose: string;
+  loan_kind?: "cash" | "product" | string;
+  partner_product_ref?: string;
+  product_label?: string;
+  down_payment_amount?: number;
+  disbursement_merchant_id?: string;
+  disbursement_merchant_code?: string;
+  disbursement_merchant_wallet_id?: string;
+  customer_approved_at?: string;
+  customer_declined_at?: string;
+  customer_approval_channel?: string;
   status: "draft" | "submitted" | "under_review" | "approved" | "declined" | "cancelled" | string;
   submission_channel: "web" | "internal_admin" | "api" | string;
   decisioned_by_staff_user_id?: string;

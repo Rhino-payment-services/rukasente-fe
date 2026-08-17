@@ -1,6 +1,5 @@
 "use client";
 
-import axios from "axios";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { unwrapEnvelope } from "@/lib/api-envelope";
@@ -303,8 +302,53 @@ export type RunScoringResponse = {
   manual_review_case_id?: string;
 };
 
-/** Scoring can call RukaPay + the Python scorer; bound wait so the UI never hangs forever. */
-const SCORING_TIMEOUT_MS = 45_000;
+export type EnqueueScoringResponse = {
+  message: string;
+  job_id: string;
+  status: string;
+};
+
+export type BulkRunResponse = {
+  id: string;
+  status: string;
+  total: number;
+  pending: number;
+  processing: number;
+  completed: number;
+  failed: number;
+  progress_percent: number;
+  started_at?: string | null;
+  finished_at?: string | null;
+  error_summary?: string;
+  requested_by: string;
+};
+
+export type RunAllScoringResponse = {
+  message: string;
+  bulk_run_id: string;
+  total_jobs: number;
+};
+
+export type BulkRunFailureItem = {
+  job_id: string;
+  borrower_profile_id: string;
+  rukapay_user_id: string;
+  full_name?: string;
+  attempts: number;
+  last_error: string;
+  finished_at?: string | null;
+};
+
+export type BulkRunFailuresResponse = {
+  items: BulkRunFailureItem[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+};
+
+/** Async admin scoring — job is processed in the background worker pool. */
+const SCORING_TIMEOUT_MS = 15_000;
 
 export function useRunScoring() {
   const queryClient = useQueryClient();
@@ -314,11 +358,15 @@ export function useRunScoring() {
       const qs = payload.wallet_id
         ? `?wallet_id=${encodeURIComponent(payload.wallet_id)}`
         : "";
-      const res = await axios.post(`/api/internal/scoring/${id}/run${qs}`, null, {
-        timeout: SCORING_TIMEOUT_MS,
-        signal: payload.signal,
-      });
-      return unwrapEnvelope<RunScoringResponse>(res);
+      const res = await apiClient.post(
+        `/admin/scoring/borrowers/${id}/run${qs}`,
+        null,
+        {
+          timeout: SCORING_TIMEOUT_MS,
+          signal: payload.signal,
+        }
+      );
+      return unwrapEnvelope<EnqueueScoringResponse>(res);
     },
     onSuccess: () => {
       // Defer invalidation so the borrowers UI can settle first. Sync
@@ -330,6 +378,84 @@ export function useRunScoring() {
         });
         void queryClient.invalidateQueries({ queryKey: ["subscriptions"] });
       }, 0);
+    },
+  });
+}
+
+export function useActiveBulkScoringRun(enabled = true) {
+  return useQuery({
+    queryKey: ["scoring-bulk-run-active"],
+    queryFn: async () => {
+      const res = await apiClient.get("/admin/scoring/bulk-runs/active");
+      const body = res.data as {
+        success?: boolean;
+        data?: BulkRunResponse | null;
+        error?: { code?: string; message?: string };
+      };
+      if (!body?.success) {
+        throw new Error(body?.error?.message ?? "Request failed");
+      }
+      // Backend omits `data` when no run is active (`omitempty` + nil).
+      return body.data ?? null;
+    },
+    enabled,
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
+    refetchInterval: (query) => {
+      const run = query.state.data;
+      if (!run) return false;
+      if (
+        run.status === "completed" ||
+        run.status === "failed" ||
+        run.status === "cancelled"
+      ) {
+        return false;
+      }
+      return 2500;
+    },
+  });
+}
+
+export function useBulkScoringFailures(bulkRunId: string | null, page = 1) {
+  return useQuery({
+    queryKey: ["scoring-bulk-failures", bulkRunId, page],
+    queryFn: async () => {
+      const res = await apiClient.get(
+        `/admin/scoring/bulk-runs/${bulkRunId}/failures`,
+        { params: { page, page_size: 10 } }
+      );
+      return unwrapEnvelope<BulkRunFailuresResponse>(res);
+    },
+    enabled: !!bulkRunId,
+  });
+}
+
+export function useRunAllScoring() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const res = await apiClient.post("/admin/scoring/run-all");
+      return unwrapEnvelope<RunAllScoringResponse>(res);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["scoring-bulk-run-active"] });
+    },
+  });
+}
+
+export function useRetryBulkScoringFailures() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (bulkRunId: string) => {
+      const res = await apiClient.post(
+        `/admin/scoring/bulk-runs/${bulkRunId}/retry-failed`
+      );
+      return unwrapEnvelope<{ message: string; retried_count: number }>(res);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["scoring-bulk-run-active"] });
+      void queryClient.invalidateQueries({ queryKey: ["scoring-bulk-failures"] });
     },
   });
 }

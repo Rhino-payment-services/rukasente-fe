@@ -9,8 +9,29 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { CompactLoading } from "@/components/ui/loading";
+import { DetailsDrawer } from "@/components/ui/details-drawer";
+import {
+  DetailGrid,
+  DetailSection,
+  formatDetailValue,
+} from "@/components/dashboard/detail-fields";
+import { TableViewButton } from "@/components/dashboard/table-view-button";
 import { useDeletePartner, usePartners } from "@/hooks/use-partners";
 import { hasPermission, Perm } from "@/lib/permissions";
+import type { Partner } from "@/types/partner";
+
+function formatDate(iso?: string) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
 
 export default function PartnersPage() {
   const { data: session } = useSession();
@@ -18,6 +39,7 @@ export default function PartnersPage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
+  const [viewPartner, setViewPartner] = useState<Partner | null>(null);
   const q = usePartners({
     page,
     page_size: 20,
@@ -133,45 +155,71 @@ export default function PartnersPage() {
               </Button>
             </div>
           ) : (
-            <div className="overflow-x-auto rounded-xl border border-slate-200">
-              <table className="min-w-full text-left text-sm">
-                <thead className="border-b bg-slate-50 text-xs text-slate-500">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[720px] text-left text-xs">
+                <thead className="sticky top-0 z-10 border-b border-slate-100 bg-slate-50/95 backdrop-blur">
                   <tr>
-                    <th className="px-3 py-2.5 font-medium">Partner</th>
-                    <th className="px-3 py-2.5 font-medium">Code</th>
-                    <th className="px-3 py-2.5 font-medium">Status</th>
-                    <th className="px-3 py-2.5 font-medium">Borrowers</th>
-                    <th className="px-3 py-2.5 font-medium">Credentials</th>
-                    <th className="px-3 py-2.5 font-medium">Loans</th>
-                    <th className="px-3 py-2.5 font-medium">Actions</th>
+                    <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                      Partner
+                    </th>
+                    <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                      Code
+                    </th>
+                    <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                      Status
+                    </th>
+                    <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                      Borrowers
+                    </th>
+                    <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                      Credentials
+                    </th>
+                    <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                      Loans
+                    </th>
+                    <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {rows.map((p) => (
-                    <tr key={p.id} className="border-b border-slate-50 hover:bg-slate-50/70">
-                      <td className="px-3 py-3">
+                    <tr
+                      key={p.id}
+                      className="border-b border-slate-50 transition-colors last:border-0 hover:bg-slate-50/90"
+                    >
+                      <td className="px-3 py-2 align-middle text-slate-700">
                         <p className="font-medium text-slate-900">{p.name}</p>
-                        <p className="text-xs text-slate-400">{p.contact_email || "—"}</p>
+                        <p className="text-[11px] text-slate-400">{p.contact_email || "—"}</p>
                       </td>
-                      <td className="px-3 py-3 font-mono text-xs">{p.code}</td>
-                      <td className="px-3 py-3">
+                      <td className="px-3 py-2 align-middle font-mono text-[11px] text-slate-700">
+                        {p.code}
+                      </td>
+                      <td className="px-3 py-2 align-middle">
                         <Badge variant={p.status === "active" ? "success" : "warning"}>
                           {p.status}
                         </Badge>
                       </td>
-                      <td className="px-3 py-3 tabular-nums">{p.borrower_count ?? 0}</td>
-                      <td className="px-3 py-3 tabular-nums">{p.active_credentials ?? 0}</td>
-                      <td className="px-3 py-3 tabular-nums">{p.loan_application_count ?? 0}</td>
-                      <td className="px-3 py-3">
-                        <div className="flex gap-1.5">
-                          <Button asChild size="sm" variant="outline" className="h-7 rounded-md text-xs">
+                      <td className="px-3 py-2 align-middle tabular-nums text-slate-700">
+                        {p.borrower_count ?? 0}
+                      </td>
+                      <td className="px-3 py-2 align-middle tabular-nums text-slate-700">
+                        {p.active_credentials ?? 0}
+                      </td>
+                      <td className="px-3 py-2 align-middle tabular-nums text-slate-700">
+                        {p.loan_application_count ?? 0}
+                      </td>
+                      <td className="px-3 py-2 align-middle">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <TableViewButton onClick={() => setViewPartner(p)} />
+                          <Button asChild size="sm" variant="outline" className="h-7 rounded-md text-[11px]">
                             <Link href={`/partners/${p.id}`}>Manage</Link>
                           </Button>
                           {canDelete && p.code !== "RUKAPAY" ? (
                             <Button
                               size="sm"
                               variant="outline"
-                              className="h-7 rounded-md border-rose-200 text-xs text-rose-700"
+                              className="h-7 rounded-md border-rose-200 text-[11px] text-rose-700"
                               disabled={del.isPending}
                               onClick={() => void onDelete(p.id, p.name)}
                             >
@@ -212,6 +260,94 @@ export default function PartnersPage() {
           </div>
         </CardContent>
       </Card>
+
+      <DetailsDrawer
+        open={!!viewPartner}
+        onClose={() => setViewPartner(null)}
+        title={viewPartner?.name ?? "Partner"}
+        description={viewPartner?.code}
+        footer={
+          viewPartner ? (
+            <Button asChild className="flex-1 rounded-lg bg-[#08163d] text-xs text-white hover:bg-[#06102a]">
+              <Link href={`/partners/${viewPartner.id}`}>Manage partner</Link>
+            </Button>
+          ) : null
+        }
+      >
+        {viewPartner ? (
+          <>
+            <DetailSection title="Overview">
+              <DetailGrid
+                fields={[
+                  { label: "Name", value: viewPartner.name },
+                  { label: "Code", value: viewPartner.code, mono: true },
+                  { label: "Status", value: viewPartner.status },
+                  { label: "Internal", value: formatDetailValue(viewPartner.is_internal) },
+                  { label: "Country", value: viewPartner.country },
+                  { label: "Currency", value: viewPartner.currency },
+                ]}
+              />
+            </DetailSection>
+            <DetailSection title="Contact">
+              <DetailGrid
+                fields={[
+                  { label: "Contact name", value: viewPartner.contact_name },
+                  { label: "Email", value: viewPartner.contact_email },
+                  { label: "Phone", value: viewPartner.contact_phone },
+                ]}
+              />
+            </DetailSection>
+            <DetailSection title="Integration">
+              <DetailGrid
+                fields={[
+                  {
+                    label: "API base URL",
+                    value: viewPartner.api_base_url,
+                    mono: true,
+                    fullWidth: true,
+                  },
+                  {
+                    label: "IP whitelist",
+                    value: formatDetailValue(viewPartner.ip_whitelist_enabled),
+                  },
+                  {
+                    label: "Allowed IPs",
+                    value:
+                      viewPartner.allowed_ips?.length
+                        ? viewPartner.allowed_ips.join(", ")
+                        : "—",
+                    fullWidth: true,
+                  },
+                ]}
+              />
+            </DetailSection>
+            <DetailSection title="Metrics">
+              <DetailGrid
+                fields={[
+                  { label: "Borrowers", value: viewPartner.borrower_count ?? 0 },
+                  {
+                    label: "Active credentials",
+                    value: viewPartner.active_credentials ?? 0,
+                  },
+                  {
+                    label: "Loan applications",
+                    value: viewPartner.loan_application_count ?? 0,
+                  },
+                ]}
+              />
+            </DetailSection>
+            <DetailSection title="Timestamps">
+              <DetailGrid
+                fields={[
+                  { label: "Created", value: formatDate(viewPartner.created_at) },
+                  { label: "Updated", value: formatDate(viewPartner.updated_at) },
+                  { label: "ID", value: viewPartner.id, mono: true, fullWidth: true },
+                ]}
+              />
+            </DetailSection>
+          </>
+        ) : null}
+      </DetailsDrawer>
     </div>
   );
 }
