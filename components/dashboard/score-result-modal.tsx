@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef } from "react";
 import { createPortal } from "react-dom";
-import { AlertCircle, CheckCircle2, X } from "lucide-react";
+import { AlertCircle, CheckCircle2, Loader2, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useClientMounted } from "@/lib/use-client-mounted";
@@ -101,6 +101,8 @@ export function ScoreResultModal({ feedback, onClose }: ScoreResultModalProps) {
               >
                 {isError ? (
                   <AlertCircle className="size-5" />
+                ) : isQueued ? (
+                  <Loader2 className="size-5 animate-spin" />
                 ) : (
                   <CheckCircle2 className="size-5" />
                 )}
@@ -113,7 +115,7 @@ export function ScoreResultModal({ feedback, onClose }: ScoreResultModalProps) {
                   {isError
                     ? "Scoring failed"
                     : isQueued
-                      ? "Scoring queued"
+                      ? "Processing score…"
                       : "Score complete"}
                 </h2>
                 <p className="mt-0.5 truncate text-sm text-slate-500">
@@ -143,15 +145,20 @@ export function ScoreResultModal({ feedback, onClose }: ScoreResultModalProps) {
               </p>
             </div>
           ) : isQueued ? (
-            <p className="text-sm leading-relaxed text-slate-600">
-              The scoring job was added to the background queue. Results will appear here
-              when processing completes.
+            <div className="space-y-4">
+              <div className="relative h-2 w-full overflow-hidden rounded-full bg-blue-100">
+                <div className="absolute inset-y-0 left-0 w-1/3 animate-[shimmer_1.5s_ease-in-out_infinite] rounded-full bg-blue-500" />
+              </div>
+              <p className="text-sm leading-relaxed text-slate-600">
+                Running credit score in the background. This dialog will update
+                automatically when the result is ready.
+              </p>
               {feedback.jobId ? (
-                <span className="mt-2 block font-mono text-xs text-slate-400">
+                <span className="block font-mono text-xs text-slate-400">
                   Job {feedback.jobId}
                 </span>
               ) : null}
-            </p>
+            </div>
           ) : (
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-2">

@@ -205,3 +205,12 @@
 .hover\:bg-main-700:hover {
   background-color: #06102a;
 }
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(400%);
+  }
+}

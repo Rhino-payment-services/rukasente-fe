@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { use, useState } from "react";
 import { useSession } from "next-auth/react";
-import { ArrowLeft, BellRing, ChevronDown, Loader2 } from "lucide-react";
+import { ArrowLeft, BellRing, ChevronDown, Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,7 @@ import {
   useBorrower,
   useBorrowerLoans,
   useSendLoanReminder,
+  useSyncBorrowerFromRukaPay,
   borrowerSourceLabel,
 } from "@/hooks/use-borrowers";
 import { hasPermission, Perm } from "@/lib/permissions";
@@ -35,6 +36,17 @@ function formatDate(iso?: string) {
   });
 }
 
+function formatDateOnly(iso?: string | null) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
+
 function isOverdue(loan: BorrowerLoan) {
   if (Number(loan.outstanding_balance) <= 0) return false;
   if (!loan.due_date) return false;
@@ -52,6 +64,11 @@ export default function BorrowerDetailPage({
   const borrowerQ = useBorrower(id);
   const loansQ = useBorrowerLoans(id);
   const canRemind = hasPermission(session?.user?.permissions, Perm.LoanRepayment);
+  const canSyncBorrower = hasPermission(
+    session?.user?.permissions,
+    Perm.BorrowerUpdate
+  );
+  const syncBorrower = useSyncBorrowerFromRukaPay();
 
   const borrower = borrowerQ.data;
   const loans = loansQ.data?.items ?? [];
@@ -59,6 +76,22 @@ export default function BorrowerDetailPage({
   const phone = borrower?.phone || loansQ.data?.borrower_phone || "";
 
   const activeLoans = loans.filter((l) => Number(l.outstanding_balance) > 0);
+
+  async function syncFromRukaPay() {
+    const profileId = borrower?.id?.trim();
+    if (!profileId) {
+      toast.error("Missing borrower profile id");
+      return;
+    }
+    try {
+      await syncBorrower.mutateAsync({ id: profileId });
+      toast.success("Borrower profile synced from RukaPay");
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to sync borrower from RukaPay"
+      );
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -82,6 +115,23 @@ export default function BorrowerDetailPage({
         <div className="flex flex-wrap items-center gap-2">
           {borrower ? (
             <>
+              {canSyncBorrower ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-8 gap-1 rounded-lg text-xs"
+                  disabled={syncBorrower.isPending}
+                  onClick={() => void syncFromRukaPay()}
+                >
+                  {syncBorrower.isPending ? (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  ) : (
+                    <RefreshCw className="size-3.5" />
+                  )}
+                  Sync KYC
+                </Button>
+              ) : null}
               <span
                 className="inline-flex rounded px-2 py-1 text-xs font-medium bg-slate-100 text-slate-700"
                 title={
@@ -113,6 +163,44 @@ export default function BorrowerDetailPage({
           emphasize
         />
       </div>
+
+      <Card className="gap-0 border-slate-200 bg-white py-0 shadow-sm">
+        <CardContent className="px-4 py-4">
+          <p className="mb-3 text-sm font-semibold text-slate-900">
+            Borrower profile
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <Metric label="Full name" value={borrower?.full_name || "—"} />
+            <Metric label="Phone number" value={borrower?.phone || "—"} />
+            <Metric label="Email" value={borrower?.email || "—"} />
+            <Metric label="NIN / National ID" value={borrower?.national_id || "—"} />
+            <Metric
+              label="Date of birth"
+              value={formatDateOnly(borrower?.date_of_birth)}
+            />
+            <Metric
+              label="Gender"
+              value={
+                borrower?.gender
+                  ? String(borrower.gender).replace(/_/g, " ")
+                  : "—"
+              }
+            />
+            <Metric
+              label="Source platform"
+              value={borrower ? borrowerSourceLabel(borrower) : "—"}
+            />
+            <Metric
+              label="KYC status"
+              value={borrower?.kyc_status ? borrower.kyc_status : "—"}
+            />
+            <Metric
+              label="Account status"
+              value={borrower?.status ? borrower.status : "—"}
+            />
+          </div>
+        </CardContent>
+      </Card>
 
       <Card className="gap-0 border-slate-200 bg-white py-0 shadow-sm">
         <CardContent className="px-4 py-4">

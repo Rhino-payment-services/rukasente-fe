@@ -47,6 +47,8 @@ export type BorrowerDetail = {
   full_name: string;
   phone: string;
   email: string;
+  date_of_birth?: string | null;
+  gender?: string | null;
   national_id?: string | null;
   kyc_status: string;
   status: string;
@@ -154,6 +156,20 @@ export function useUpdateBorrowerKYC() {
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["borrowers"] });
+    },
+  });
+}
+
+export function useSyncBorrowerFromRukaPay() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id }: { id: string }) => {
+      const res = await apiClient.post(`/admin/borrowers/${id}/sync-rukapay`, {});
+      return unwrapEnvelope<BorrowerRow>(res);
+    },
+    onSuccess: (_, vars) => {
+      void qc.invalidateQueries({ queryKey: ["borrowers"] });
+      void qc.invalidateQueries({ queryKey: ["borrower", vars.id] });
     },
   });
 }
