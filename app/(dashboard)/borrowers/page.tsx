@@ -26,6 +26,7 @@ import {
   Loader2,
   Check,
   X,
+  RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
@@ -37,12 +38,6 @@ import {
   DetailSection,
   formatDetailValue,
 } from "@/components/dashboard/detail-fields";
-import { TableViewButton } from "@/components/dashboard/table-view-button";
-import {
-  ACTION_SLOT,
-  ActionSlot,
-  RowActions,
-} from "@/components/dashboard/row-actions";
 import { DetailsDrawer } from "@/components/ui/details-drawer";
 import {
   ScoreResultFeedback,
@@ -52,9 +47,16 @@ import {
   BorrowerRow,
   borrowerSourceLabel,
   useBorrowersList,
+  useSyncBorrowerFromRukaPay,
   useUpdateBorrowerKYC,
 } from "@/hooks/use-borrowers";
-import { useRunScoring } from "@/hooks/use-scoring";
+import {
+  getLatestScoringResultForUser,
+  useActiveBulkScoringRun,
+  useLatestScoringResultForUser,
+  useRunQueuedScoring,
+  useRunScoring,
+} from "@/hooks/use-scoring";
 import { scoringErrorMessage } from "@/lib/scoring-errors";
 import { Perm } from "@/lib/permissions";
 import { NoAccess } from "@/components/auth/no-access";
@@ -63,6 +65,14 @@ import { usePermissions } from "@/hooks/use-permissions";
 type ScoreRunCtx = {
   runningUserId: string | null;
   runScore: (b: BorrowerRow) => Promise<void>;
+};
+
+type PendingScoreRun = {
+  rukapayUserId: string;
+  name: string;
+  jobId?: string;
+  baselineResultId: string | null;
+  queuedAtMs: number;
 };
 
 const ScoreRunContext = createContext<ScoreRunCtx | null>(null);
@@ -88,9 +98,22 @@ export default function BorrowersPage() {
   const [kycFilter, setKycFilter] = useState<
     "all" | "verified" | "pending" | "rejected"
   >("all");
-  const [viewRow, setViewRow] = useState<BorrowerRow | null>(null);
+  const [drawerRow, setDrawerRow] = useState<BorrowerRow | null>(null);
+  const [drawerShowActions, setDrawerShowActions] = useState(false);
+
+  const closeDrawer = useCallback(() => {
+    setDrawerRow(null);
+    setDrawerShowActions(false);
+  }, []);
+
+  const openDrawerActions = useCallback((borrower: BorrowerRow) => {
+    setDrawerRow(borrower);
+    setDrawerShowActions(true);
+  }, []);
 
   const { mutateAsync } = useRunScoring();
+  const runQueued = useRunQueuedScoring();
+  const { data: activeBulkRun } = useActiveBulkScoringRun(can(Perm.ScoringRun));
   const mutateAsyncRef = useRef(mutateAsync);
   useEffect(() => {
     mutateAsyncRef.current = mutateAsync;
@@ -99,6 +122,51 @@ export default function BorrowersPage() {
   const [runningUserId, setRunningUserId] = useState<string | null>(null);
   const runningUserIdRef = useRef<string | null>(null);
   const [feedback, setFeedback] = useState<ScoreResultFeedback | null>(null);
+  const [pendingScoreRun, setPendingScoreRun] = useState<PendingScoreRun | null>(
+    null
+  );
+
+  const latestScoringResultQ = useLatestScoringResultForUser(
+    pendingScoreRun?.rukapayUserId ?? null,
+    pendingScoreRun?.baselineResultId ?? null,
+    pendingScoreRun?.queuedAtMs ?? null,
+    can(Perm.ScoringView)
+  );
+
+  useEffect(() => {
+    const result = latestScoringResultQ.data;
+    if (!pendingScoreRun || !result) return;
+    setFeedback({
+      kind: "success",
+      name: pendingScoreRun.name,
+      score: result.total_score,
+      band: result.risk_band,
+      decision: String(result.suggested_decision || "—").replace(/_/g, " "),
+      limit: result.recommended_limit,
+    });
+    setPendingScoreRun(null);
+  }, [latestScoringResultQ.data, pendingScoreRun]);
+
+  useEffect(() => {
+    if (!pendingScoreRun) return;
+    const timeoutId = window.setTimeout(() => {
+      setFeedback((current) => {
+        if (current?.kind !== "queued") return current;
+        return {
+          kind: "error",
+          name: pendingScoreRun.name,
+          message:
+            "Scoring is taking longer than expected. The job may already be completed in the background but results are still syncing. Refresh and try again shortly.",
+        };
+      });
+      setPendingScoreRun((current) =>
+        current?.jobId === pendingScoreRun.jobId ? null : current
+      );
+    }, 90_000);
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [pendingScoreRun]);
 
   const runScore = useCallback(async (b: BorrowerRow) => {
     const id = b.rukapay_user_id?.trim();
@@ -106,6 +174,7 @@ export default function BorrowersPage() {
 
     const name = b.full_name || id;
     setFeedback(null);
+    setPendingScoreRun(null);
     runningUserIdRef.current = id;
     setRunningUserId(id);
 
@@ -115,8 +184,16 @@ export default function BorrowersPage() {
     });
 
     try {
+      const baseline = await getLatestScoringResultForUser(id);
       const result = await mutateAsyncRef.current({
         rukapay_user_id: id,
+      });
+      setPendingScoreRun({
+        rukapayUserId: id,
+        name,
+        jobId: result.job_id,
+        baselineResultId: baseline?.id ?? null,
+        queuedAtMs: Date.now(),
       });
       setFeedback({
         kind: "queued",
@@ -131,6 +208,22 @@ export default function BorrowersPage() {
       setRunningUserId(null);
     }
   }, []);
+
+  const bulkBusy =
+    activeBulkRun?.status === "queued" || activeBulkRun?.status === "running";
+
+  const handleRunQueued = useCallback(async () => {
+    try {
+      const res = await runQueued.mutateAsync();
+      toast.success(
+        `Queued bulk scoring for ${res.total_jobs.toLocaleString()} borrowers`
+      );
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Could not start queued scoring";
+      toast.error(message);
+    }
+  }, [runQueued]);
 
   const scoreCtx = useMemo(
     () => ({ runningUserId, runScore }),
@@ -151,19 +244,25 @@ export default function BorrowersPage() {
             <ArrowUpDown className="size-3.5 opacity-50" />
           </button>
         ),
-        cell: ({ row }) =>
-          row.original.id ? (
+        cell: ({ row }) => {
+          const displayName =
+            row.original.full_name?.trim() ||
+            row.original.phone ||
+            row.original.rukapay_user_id ||
+            "Unnamed borrower";
+          return row.original.id ? (
             <Link
               href={`/borrowers/${row.original.id}`}
               className="whitespace-nowrap text-[13px] font-semibold text-slate-900 hover:text-main-600 hover:underline"
             >
-              {row.original.full_name}
+              {displayName}
             </Link>
           ) : (
             <p className="whitespace-nowrap text-[13px] font-semibold text-slate-900">
-              {row.original.full_name}
+              {displayName}
             </p>
-          ),
+          );
+        },
       },
       {
         accessorKey: "phone",
@@ -231,19 +330,27 @@ export default function BorrowersPage() {
         id: "actions",
         header: () => <span className="block text-right">Actions</span>,
         cell: ({ row }) => (
-          <BorrowerActions
-            borrower={row.original}
-            canUpdateKyc={canUpdateKyc}
-            onView={() => setViewRow(row.original)}
-          />
+          <div className="flex justify-end">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              title="Open borrower actions"
+              aria-label="Open borrower actions"
+              className="h-7 rounded-md px-2 text-[11px]"
+              onClick={() => openDrawerActions(row.original)}
+            >
+              Actions
+            </Button>
+          </div>
         ),
       },
     ],
-    [canUpdateKyc, isPlatform]
+    [isPlatform, openDrawerActions]
   );
 
-  const raw = data?.items ?? [];
   const filtered = useMemo(() => {
+    const raw = data?.items ?? [];
     const q = search.trim().toLowerCase();
     return raw.filter((b) => {
       const matchesSearch =
@@ -255,7 +362,7 @@ export default function BorrowersPage() {
       const matchesKyc = kycFilter === "all" || b.kyc_status === kycFilter;
       return matchesSearch && matchesStatus && matchesKyc;
     });
-  }, [raw, search, statusFilter, kycFilter]);
+  }, [data?.items, search, statusFilter, kycFilter]);
 
   const table = useReactTable({
     data: filtered,
@@ -343,6 +450,25 @@ export default function BorrowersPage() {
                     <option value="pending">Pending</option>
                     <option value="rejected">Rejected</option>
                   </select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-9 rounded-lg"
+                    onClick={() => void handleRunQueued()}
+                    disabled={
+                      !can(Perm.ScoringRun) ||
+                      bulkBusy ||
+                      runQueued.isPending ||
+                      !!runningUserId
+                    }
+                  >
+                    {runQueued.isPending ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <Play className="size-4" />
+                    )}
+                    Run score for all in queue
+                  </Button>
                 </div>
               }
               footer={
@@ -380,26 +506,40 @@ export default function BorrowersPage() {
         </Card>
 
         <DetailsDrawer
-          open={!!viewRow}
-          onClose={() => setViewRow(null)}
-          title={viewRow?.full_name ?? "Borrower"}
-          description={viewRow?.phone}
+          open={!!drawerRow}
+          onClose={closeDrawer}
+          title={
+            drawerRow?.full_name?.trim() ||
+            drawerRow?.phone ||
+            drawerRow?.rukapay_user_id ||
+            "Borrower"
+          }
+          description={drawerRow?.phone}
+          footer={
+            drawerShowActions && drawerRow ? (
+              <BorrowerDrawerActions
+                borrower={drawerRow}
+                canUpdateKyc={canUpdateKyc}
+                onBorrowerUpdated={setDrawerRow}
+              />
+            ) : null
+          }
         >
-          {viewRow ? (
+          {drawerRow ? (
             <>
               <DetailSection title="Identity">
                 <DetailGrid
                   fields={[
-                    { label: "Full name", value: viewRow.full_name },
-                    { label: "Phone", value: viewRow.phone, mono: true },
+                    { label: "Full name", value: drawerRow.full_name },
+                    { label: "Phone", value: drawerRow.phone, mono: true },
                     {
                       label: "Email",
-                      value: formatDetailValue(viewRow.email),
+                      value: formatDetailValue(drawerRow.email),
                       fullWidth: true,
                     },
                     {
                       label: "National ID",
-                      value: formatDetailValue(viewRow.national_id),
+                      value: formatDetailValue(drawerRow.national_id),
                       mono: true,
                     },
                   ]}
@@ -410,33 +550,33 @@ export default function BorrowersPage() {
                   fields={[
                     {
                       label: "RukaPay user ID",
-                      value: formatDetailValue(viewRow.rukapay_user_id),
+                      value: formatDetailValue(drawerRow.rukapay_user_id),
                       mono: true,
                       fullWidth: true,
                     },
                     {
                       label: "Profile ID",
-                      value: formatDetailValue(viewRow.id),
+                      value: formatDetailValue(drawerRow.id),
                       mono: true,
                     },
                     {
                       label: "Source platform",
                       value: (
                         <Badge
-                          variant={viewRow.partner_id ? "default" : "info"}
+                          variant={drawerRow.partner_id ? "default" : "info"}
                           title={
-                            viewRow.partner?.code
-                              ? `${borrowerSourceLabel(viewRow)} (${viewRow.partner.code})`
-                              : borrowerSourceLabel(viewRow)
+                            drawerRow.partner?.code
+                              ? `${borrowerSourceLabel(drawerRow)} (${drawerRow.partner.code})`
+                              : borrowerSourceLabel(drawerRow)
                           }
                         >
-                          {borrowerSourceLabel(viewRow)}
+                          {borrowerSourceLabel(drawerRow)}
                         </Badge>
                       ),
                     },
                     {
                       label: "Scoring wallet ID",
-                      value: formatDetailValue(viewRow.scoring_wallet_id),
+                      value: formatDetailValue(drawerRow.scoring_wallet_id),
                       mono: true,
                       fullWidth: true,
                     },
@@ -451,17 +591,17 @@ export default function BorrowersPage() {
                       value: (
                         <Badge
                           variant={
-                            String(viewRow.kyc_status || "").toLowerCase() ===
+                            String(drawerRow.kyc_status || "").toLowerCase() ===
                             "verified"
                               ? "success"
                               : String(
-                                    viewRow.kyc_status || ""
+                                    drawerRow.kyc_status || ""
                                   ).toLowerCase() === "pending"
                                 ? "warning"
                                 : "danger"
                           }
                         >
-                          {viewRow.kyc_status || "—"}
+                          {drawerRow.kyc_status || "—"}
                         </Badge>
                       ),
                     },
@@ -470,16 +610,16 @@ export default function BorrowersPage() {
                       value: (
                         <Badge
                           variant={
-                            String(viewRow.status || "").toLowerCase() ===
+                            String(drawerRow.status || "").toLowerCase() ===
                             "active"
                               ? "info"
-                              : String(viewRow.status || "").toLowerCase() ===
+                              : String(drawerRow.status || "").toLowerCase() ===
                                   "inactive"
                                 ? "warning"
                                 : "danger"
                           }
                         >
-                          {viewRow.status || "—"}
+                          {drawerRow.status || "—"}
                         </Badge>
                       ),
                     },
@@ -494,23 +634,26 @@ export default function BorrowersPage() {
   );
 }
 
-function BorrowerActions({
+function BorrowerDrawerActions({
   borrower,
   canUpdateKyc,
-  onView,
+  onBorrowerUpdated,
 }: {
   borrower: BorrowerRow;
   canUpdateKyc: boolean;
-  onView: () => void;
+  onBorrowerUpdated: (updated: BorrowerRow) => void;
 }) {
   const { runningUserId, runScore } = useScoreRun();
   const updateKyc = useUpdateBorrowerKYC();
+  const syncBorrower = useSyncBorrowerFromRukaPay();
   const id = borrower.rukapay_user_id ?? "";
   const profileId = borrower.id?.trim() ?? "";
   const busy = runningUserId === id;
   const anyBusy = !!runningUserId;
   const kycBusy = updateKyc.isPending;
+  const syncBusy = syncBorrower.isPending;
   const kyc = String(borrower.kyc_status || "").toLowerCase();
+  const showKyc = canUpdateKyc && !!profileId;
 
   async function setKyc(status: "verified" | "rejected" | "pending") {
     if (!profileId) {
@@ -518,7 +661,11 @@ function BorrowerActions({
       return;
     }
     try {
-      await updateKyc.mutateAsync({ id: profileId, kyc_status: status });
+      const updated = await updateKyc.mutateAsync({
+        id: profileId,
+        kyc_status: status,
+      });
+      onBorrowerUpdated(updated);
       toast.success(
         status === "verified"
           ? "KYC approved"
@@ -531,72 +678,91 @@ function BorrowerActions({
     }
   }
 
-  const showKyc = canUpdateKyc && !!profileId;
-  const slots = showKyc
-    ? [ACTION_SLOT.sm, ACTION_SLOT.lg, ACTION_SLOT.icon, ACTION_SLOT.md]
-    : [ACTION_SLOT.sm, ACTION_SLOT.md];
+  async function syncFromRukaPay() {
+    if (!profileId) {
+      toast.error("Missing borrower profile id");
+      return;
+    }
+    try {
+      const updated = await syncBorrower.mutateAsync({ id: profileId });
+      onBorrowerUpdated(updated);
+      toast.success("Borrower profile synced from RukaPay");
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to sync borrower from RukaPay"
+      );
+    }
+  }
 
   return (
-    <RowActions slots={slots}>
-      <ActionSlot>
-        <TableViewButton onClick={onView} />
-      </ActionSlot>
+    <div className="flex w-full flex-col gap-2">
       {showKyc ? (
         <>
-          <ActionSlot>
-            {kyc !== "verified" ? (
-              <Button
-                size="sm"
-                title="Approve KYC"
-                aria-label="Approve KYC"
-                className="h-7 gap-1 rounded-md bg-emerald-600 px-2 text-xs text-white hover:bg-emerald-700"
-                disabled={kycBusy || anyBusy}
-                onClick={() => void setKyc("verified")}
-              >
-                {kycBusy ? (
-                  <Loader2 className="size-3 animate-spin" />
-                ) : (
-                  <Check className="size-3" />
-                )}
-                Approve
-              </Button>
-            ) : null}
-          </ActionSlot>
-          <ActionSlot>
-            {kyc !== "rejected" ? (
-              <Button
-                size="sm"
-                variant="outline"
-                title="Reject KYC"
-                aria-label="Reject KYC"
-                className="size-7 rounded-md border-rose-200 p-0 text-rose-700 hover:bg-rose-50"
-                disabled={kycBusy || anyBusy}
-                onClick={() => void setKyc("rejected")}
-              >
-                <X className="size-3.5" />
-              </Button>
-            ) : null}
-          </ActionSlot>
+          <Button
+            size="sm"
+            variant="outline"
+            title="Sync profile/KYC from RukaPay"
+            aria-label="Sync borrower from RukaPay"
+            className="h-9 w-full gap-2 rounded-lg text-sm"
+            disabled={kycBusy || anyBusy || syncBusy}
+            onClick={() => void syncFromRukaPay()}
+          >
+            {syncBusy ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <RefreshCw className="size-4" />
+            )}
+            Sync KYC from RukaPay
+          </Button>
+          {kyc !== "verified" ? (
+            <Button
+              size="sm"
+              title="Approve KYC"
+              aria-label="Approve KYC"
+              className="h-9 w-full gap-2 rounded-lg bg-emerald-600 text-sm text-white hover:bg-emerald-700"
+              disabled={kycBusy || anyBusy || syncBusy}
+              onClick={() => void setKyc("verified")}
+            >
+              {kycBusy ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Check className="size-4" />
+              )}
+              Approve KYC
+            </Button>
+          ) : null}
+          {kyc !== "rejected" ? (
+            <Button
+              size="sm"
+              variant="outline"
+              title="Reject KYC"
+              aria-label="Reject KYC"
+              className="h-9 w-full gap-2 rounded-lg border-rose-200 text-sm text-rose-700 hover:bg-rose-50"
+              disabled={kycBusy || anyBusy || syncBusy}
+              onClick={() => void setKyc("rejected")}
+            >
+              <X className="size-4" />
+              Reject KYC
+            </Button>
+          ) : null}
         </>
       ) : null}
-      <ActionSlot>
-        <Button
-          size="sm"
-          variant="outline"
-          title="Run credit score"
-          aria-label={busy ? "Running score" : "Run score"}
-          className="h-7 gap-1 rounded-md px-2 text-xs"
-          disabled={anyBusy || kycBusy}
-          onClick={() => void runScore(borrower)}
-        >
-          {busy ? (
-            <Loader2 className="size-3 animate-spin" />
-          ) : (
-            <Play className="size-3" />
-          )}
-          {busy ? "…" : "Score"}
-        </Button>
-      </ActionSlot>
-    </RowActions>
+      <Button
+        size="sm"
+        variant="outline"
+        title="Run credit score"
+        aria-label={busy ? "Running score" : "Run score"}
+        className="h-9 w-full gap-2 rounded-lg text-sm"
+        disabled={anyBusy || kycBusy || syncBusy}
+        onClick={() => void runScore(borrower)}
+      >
+        {busy ? (
+          <Loader2 className="size-4 animate-spin" />
+        ) : (
+          <Play className="size-4" />
+        )}
+        {busy ? "Running score…" : "Run score"}
+      </Button>
+    </div>
   );
 }

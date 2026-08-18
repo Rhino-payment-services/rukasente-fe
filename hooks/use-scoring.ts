@@ -79,6 +79,51 @@ export type CreditScoreListResponse = {
   total_pages: number;
 };
 
+export async function getLatestScoringResultForUser(
+  rukapayUserID: string
+): Promise<CreditScoreResultSummary | null> {
+  const pageSize = 100;
+  const maxPages = 30;
+  for (let page = 1; page <= maxPages; page += 1) {
+    const res = await apiClient.get("/admin/scoring/results", {
+      params: { page, page_size: pageSize },
+    });
+    const data = unwrapEnvelope<CreditScoreListResponse>(res);
+    const hit =
+      data.items.find((item) => item.rukapay_user_id === rukapayUserID) ?? null;
+    if (hit) return hit;
+    if (!data.items.length || page >= data.total_pages) break;
+  }
+  return null;
+}
+
+export function useLatestScoringResultForUser(
+  rukapayUserID: string | null,
+  baselineResultId: string | null,
+  queuedAtMs: number | null,
+  enabled = true
+) {
+  return useQuery({
+    queryKey: ["scoring-latest-user", rukapayUserID, baselineResultId, queuedAtMs],
+    enabled: enabled && !!rukapayUserID,
+    queryFn: async () => {
+      if (!rukapayUserID) return null;
+      const latest = await getLatestScoringResultForUser(rukapayUserID);
+      if (!latest) return null;
+      if (queuedAtMs) {
+        const scoredAtMs = Date.parse(latest.scored_at);
+        if (Number.isFinite(scoredAtMs) && scoredAtMs + 5_000 < queuedAtMs) {
+          return null;
+        }
+      }
+      if (!baselineResultId) return latest;
+      return latest.id !== baselineResultId ? latest : null;
+    },
+    refetchInterval: (query) => (query.state.data ? false : 2500),
+    staleTime: 0,
+  });
+}
+
 // ── Manual Review ──────────────────────────────────────────────────────────────
 
 export type ManualReviewCaseResponse = {
@@ -440,6 +485,24 @@ export function useRunAllScoring() {
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["scoring-bulk-run-active"] });
+    },
+  });
+}
+
+export function useRunQueuedScoring() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      // Uses the current backend bulk run endpoint, surfaced on borrowers page
+      // for queue management without leaving the page.
+      const res = await apiClient.post("/admin/scoring/run-all");
+      return unwrapEnvelope<RunAllScoringResponse>(res);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["scoring-bulk-run-active"] });
+      void queryClient.invalidateQueries({ queryKey: ["scoring-results"] });
+      void queryClient.invalidateQueries({ queryKey: ["eligibility-decisions"] });
+      void queryClient.invalidateQueries({ queryKey: ["subscriptions"] });
     },
   });
 }
