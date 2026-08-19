@@ -94,6 +94,8 @@ type FormState = {
   late_fee_type: "fixed" | "percentage";
   late_fee_value: string;
   grace_period_days: string;
+  pre_approval_enabled: boolean;
+  pre_approval_min_amount: string;
   requires_manual_review: boolean;
   is_active: boolean;
 };
@@ -302,6 +304,8 @@ function defaultForm(initial?: Partial<LoanProduct>): FormState {
     late_fee_type: (initial?.late_fee_type ?? "percentage") as "fixed" | "percentage",
     late_fee_value: String(initial?.late_fee_value ?? 0),
     grace_period_days: String(initial?.grace_period_days ?? 0),
+    pre_approval_enabled: Boolean(initial?.pre_approval_enabled),
+    pre_approval_min_amount: String(initial?.pre_approval_min_amount ?? 0),
     requires_manual_review: Boolean(initial?.requires_manual_review),
     is_active: initial?.is_active ?? true,
   };
@@ -399,6 +403,8 @@ export function LoanProductForm({
       late_fee_type: form.late_fee_type,
       late_fee_value: Number(form.late_fee_value) || 0,
       grace_period_days: Number(form.grace_period_days) || 0,
+      pre_approval_enabled: form.pre_approval_enabled,
+      pre_approval_min_amount: Number(form.pre_approval_min_amount) || 0,
       requires_manual_review: form.requires_manual_review,
       is_active: form.is_active,
     };
@@ -462,11 +468,15 @@ export function LoanProductForm({
     if (index === 3) {
       const pf = Number(form.processing_fee_value);
       const lf = Number(form.late_fee_value);
+      const pa = Number(form.pre_approval_min_amount);
       if (!Number.isFinite(pf) || pf < 0) {
         next.processing_fee_value = "Enter a valid processing fee.";
       }
       if (!Number.isFinite(lf) || lf < 0) {
         next.late_fee_value = "Enter a valid late fee.";
+      }
+      if (form.pre_approval_enabled && (!Number.isFinite(pa) || pa < 0)) {
+        next.pre_approval_min_amount = "Enter a valid pre-approval amount.";
       }
     }
     return next;
@@ -480,7 +490,7 @@ export function LoanProductForm({
           ? ["min_amount", "max_amount", "min_tenor_days", "max_tenor_days"]
           : index === 2
             ? ["interest_rate", "compounding_frequency"]
-            : ["processing_fee_value", "late_fee_value"];
+            : ["processing_fee_value", "late_fee_value", "pre_approval_min_amount"];
     setTouched((t) => {
       const next = { ...t };
       keys.forEach((k) => {
@@ -1158,6 +1168,51 @@ export function LoanProductForm({
                   <label
                     className={cn(
                       "flex cursor-pointer items-start gap-3 rounded-2xl border px-4 py-4 transition-colors",
+                      form.pre_approval_enabled
+                        ? "border-indigo-200 bg-indigo-50/70"
+                        : "border-slate-200 bg-white hover:border-slate-300"
+                    )}
+                  >
+                    <input
+                      type="checkbox"
+                      className="mt-1 size-4 rounded border-slate-300"
+                      checked={form.pre_approval_enabled}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, pre_approval_enabled: e.target.checked }))
+                      }
+                    />
+                    <span>
+                      <span className="block text-sm font-medium text-slate-900">
+                        Enable pre-approval floor
+                      </span>
+                      <span className="mt-0.5 block text-[12px] text-slate-500">
+                        Gives qualified customers a minimum pre-approved amount before normal limits grow.
+                      </span>
+                    </span>
+                  </label>
+                  <Field
+                    label="Pre-approved minimum amount"
+                    optional={!form.pre_approval_enabled}
+                    hint={`Amount in ${form.currency || "UGX"}`}
+                    error={fieldError("pre_approval_min_amount")}
+                  >
+                    <Input
+                      type="number"
+                      min={0}
+                      className={cn(inputClass, fieldError("pre_approval_min_amount") && "border-rose-300")}
+                      value={form.pre_approval_min_amount}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, pre_approval_min_amount: e.target.value }))
+                      }
+                      onBlur={() =>
+                        setTouched((t) => ({ ...t, pre_approval_min_amount: true }))
+                      }
+                      disabled={!form.pre_approval_enabled}
+                    />
+                  </Field>
+                  <label
+                    className={cn(
+                      "flex cursor-pointer items-start gap-3 rounded-2xl border px-4 py-4 transition-colors",
                       form.requires_manual_review
                         ? "border-amber-200 bg-amber-50/70"
                         : "border-slate-200 bg-white hover:border-slate-300"
@@ -1335,6 +1390,14 @@ export function LoanProductForm({
                 <dt className="text-slate-400">Review</dt>
                 <dd className="font-medium text-slate-800">
                   {form.requires_manual_review ? "Manual" : "Auto-eligible"}
+                </dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt className="text-slate-400">Pre-approval</dt>
+                <dd className="text-right font-medium text-slate-800">
+                  {form.pre_approval_enabled
+                    ? `${formatMoney(Number(form.pre_approval_min_amount) || 0, form.currency)} min`
+                    : "Disabled"}
                 </dd>
               </div>
             </dl>

@@ -29,6 +29,8 @@ export type LoanProduct = {
   late_fee_type: "fixed" | "percentage";
   late_fee_value: number;
   grace_period_days: number;
+  pre_approval_enabled: boolean;
+  pre_approval_min_amount: number;
   requires_manual_review: boolean;
   is_active: boolean;
   created_at: string;
@@ -54,6 +56,18 @@ export type LoanRuleOperator =
   | "LESS_THAN_OR_EQUAL";
 
 export type LoanProductEligibilityRule = {
+  id: string;
+  loan_product_id: string;
+  rule_type: LoanRuleType | string;
+  operator: LoanRuleOperator | string;
+  value: string;
+  description: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type LoanProductPreApprovalRule = {
   id: string;
   loan_product_id: string;
   rule_type: LoanRuleType | string;

@@ -12,6 +12,7 @@ import {
   LoanProduct,
   LoanProductCreatePayload,
   LoanProductEligibilityRule,
+  LoanProductPreApprovalRule,
   LoanProductUpdatePayload,
   LoanRepayment,
   CreditScoreLoanLimit,
@@ -124,6 +125,45 @@ export function useDeleteLoanRule(productId: string) {
       return unwrapEnvelope<{ deleted: boolean }>(res);
     },
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["loan-product-rules", productId] }),
+  });
+}
+
+export function useLoanProductPreApprovalRules(productId?: string) {
+  return useQuery({
+    queryKey: ["loan-product-preapproval-rules", productId],
+    enabled: !!productId,
+    queryFn: async () => {
+      const res = await apiClient.get(`/admin/loan-products/${productId}/preapproval-rules`);
+      return unwrapEnvelope<LoanProductPreApprovalRule[]>(res);
+    },
+  });
+}
+
+export function useCreateLoanPreApprovalRule(productId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: {
+      rule_type: string;
+      operator: string;
+      value: string;
+      description?: string;
+      is_active: boolean;
+    }) => {
+      const res = await apiClient.post(`/admin/loan-products/${productId}/preapproval-rules`, payload);
+      return unwrapEnvelope<LoanProductPreApprovalRule>(res);
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["loan-product-preapproval-rules", productId] }),
+  });
+}
+
+export function useDeleteLoanPreApprovalRule(productId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (ruleId: string) => {
+      const res = await apiClient.delete(`/admin/loan-product-preapproval-rules/${ruleId}`);
+      return unwrapEnvelope<{ deleted: boolean }>(res);
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["loan-product-preapproval-rules", productId] }),
   });
 }
 

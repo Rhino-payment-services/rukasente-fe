@@ -465,6 +465,9 @@ export default function LoanProductsPage() {
               <Button asChild className="flex-1 rounded-lg bg-[#08163d] text-xs text-white hover:bg-[#06102a]">
                 <Link href={`/loan-products/${viewProduct.id}/rules`}>Eligibility rules</Link>
               </Button>
+              <Button asChild variant="outline" className="flex-1 rounded-lg text-xs">
+                <Link href={`/loan-products/${viewProduct.id}/preapproval-rules`}>Pre-approval rules</Link>
+              </Button>
             </>
           ) : null
         }
@@ -662,6 +665,11 @@ function ProductActions({
       label: "Eligibility rules",
       icon: ListChecks,
       href: `/loan-products/${product.id}/rules`,
+    },
+    {
+      label: "Pre-approval rules",
+      icon: ListChecks,
+      href: `/loan-products/${product.id}/preapproval-rules`,
     },
     {
       label: product.is_active ? "Deactivate" : "Activate",
