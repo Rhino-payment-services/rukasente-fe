@@ -77,16 +77,22 @@ export default function LoanApplicationsPage() {
   const { can } = usePermissions();
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
+  const [page, setPage] = useState(1);
+  const pageSize = 20;
   const [viewApplication, setViewApplication] = useState<LoanApplication | null>(
     null
   );
   const appsQ = useLoanApplications({
-    page: 1,
-    page_size: 100,
+    page,
+    page_size: pageSize,
     status: status || undefined,
   });
 
   const items = appsQ.data?.items ?? [];
+  const total = appsQ.data?.total ?? 0;
+  const totalPages = appsQ.data?.total_pages ?? 0;
+  const rangeStart = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const rangeEnd = Math.min(page * pageSize, total);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -121,6 +127,7 @@ export default function LoanApplicationsPage() {
   function resetFilters() {
     setSearch("");
     setStatus("");
+    setPage(1);
   }
 
   if (!can(Perm.LoanApplicationView)) {
@@ -165,11 +172,11 @@ export default function LoanApplicationsPage() {
       </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-        <Kpi title="Total" value={stats.total} hint="All applications" icon={FileText} tone="navy" loading={appsQ.isLoading} />
-        <Kpi title="Submitted" value={stats.submitted} hint="Awaiting intake" icon={ClipboardList} tone="blue" loading={appsQ.isLoading} />
-        <Kpi title="Under review" value={stats.underReview} hint="In progress" icon={Clock3} tone="amber" loading={appsQ.isLoading} />
-        <Kpi title="Approved" value={stats.approved} hint="Decisioned yes" icon={BadgeCheck} tone="green" loading={appsQ.isLoading} />
-        <Kpi title="Declined" value={stats.declined} hint="Decisioned no" icon={Ban} tone="rose" loading={appsQ.isLoading} />
+        <Kpi title="Total" value={stats.total} hint="On this page" icon={FileText} tone="navy" loading={appsQ.isLoading} />
+        <Kpi title="Submitted" value={stats.submitted} hint="On this page" icon={ClipboardList} tone="blue" loading={appsQ.isLoading} />
+        <Kpi title="Under review" value={stats.underReview} hint="On this page" icon={Clock3} tone="amber" loading={appsQ.isLoading} />
+        <Kpi title="Approved" value={stats.approved} hint="On this page" icon={BadgeCheck} tone="green" loading={appsQ.isLoading} />
+        <Kpi title="Declined" value={stats.declined} hint="On this page" icon={Ban} tone="rose" loading={appsQ.isLoading} />
       </div>
 
       <Card className="gap-0 border-slate-200/80 bg-white py-0 shadow-sm">
@@ -177,7 +184,7 @@ export default function LoanApplicationsPage() {
           <div>
             <p className="text-sm font-semibold text-slate-900">Search & Filters</p>
             <p className="text-xs text-slate-500">
-              Search by application #, borrower, product, or status
+              Filter by status (server). Search filters the current page only.
             </p>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row">
@@ -186,13 +193,16 @@ export default function LoanApplicationsPage() {
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search applications…"
+                placeholder="Search this page…"
                 className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50/60 pl-10 pr-3 text-sm text-slate-700 outline-none transition focus:border-[rgba(8,22,61,0.25)] focus:bg-white focus:ring-4 focus:ring-[rgba(8,22,61,0.05)]"
               />
             </div>
             <select
               value={status}
-              onChange={(e) => setStatus(e.target.value)}
+              onChange={(e) => {
+                setStatus(e.target.value);
+                setPage(1);
+              }}
               className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-[rgba(8,22,61,0.25)] sm:w-48"
             >
               <option value="">All statuses</option>
@@ -275,8 +285,31 @@ export default function LoanApplicationsPage() {
             </div>
           )}
           {appsQ.data ? (
-            <div className="border-t border-slate-100 px-4 py-2.5 text-xs text-slate-500">
-              Showing {filtered.length} of {appsQ.data.total} applications
+            <div className="flex items-center justify-between gap-3 border-t border-slate-100 px-4 py-2.5 text-xs text-slate-500">
+              <span>
+                Showing {rangeStart}–{rangeEnd} of {total}
+                {search.trim() ? ` (${filtered.length} match on this page)` : ""}
+              </span>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7"
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => p - 1)}
+                >
+                  Prev
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7"
+                  disabled={!!totalPages && page >= totalPages}
+                  onClick={() => setPage((p) => p + 1)}
+                >
+                  Next
+                </Button>
+              </div>
             </div>
           ) : null}
         </CardContent>

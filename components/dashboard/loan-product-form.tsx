@@ -954,8 +954,8 @@ export function LoanProductForm({
                   {!isCompound ? (
                     <Field
                       label="Interest type"
-                      hint="Flat = one-time on principal. Percentage = pro-rata over tenor."
-                      tooltip="Flat charges a fixed percentage of principal once. Percentage spreads interest over the tenor days."
+                      hint="Flat = rate% of principal for the loan. Percentage = annualized (× tenor days ÷ 365) — short tenors may round near zero."
+                      tooltip="Flat charges rate% of principal once for the tenor. Percentage uses P × rate/100 × days/365. For short loans like 7 days at 0.5%, use flat if you want 0.5% of principal."
                     >
                       <select
                         className={selectClass}
@@ -1089,10 +1089,10 @@ export function LoanProductForm({
                     </div>
                     <Field
                       label="How is this fee applied?"
-                      tooltip="Deduct reduces cash received at disbursement. Add to repayable keeps full disbursement and increases debt."
+                      tooltip="Deduct reduces cash received at disbursement and settles the fee to RukaPay. Add to repayable keeps full disbursement and increases debt."
                       hint={
                         form.processing_fee_mode === "deduct_from_disbursement"
-                          ? "Borrower receives principal minus fee. Fee is not added to repayable."
+                          ? "Borrower receives principal minus fee. Fee is taken at disbursement (not added to repayable); interest is collected later on repayment."
                           : "Borrower receives full principal. Fee is added to what they repay."
                       }
                     >
