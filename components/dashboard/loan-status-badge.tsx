@@ -8,16 +8,18 @@ export function LoanStatusBadge({ status }: { status: string }) {
     normalized === "fully_paid" ||
     normalized === "disbursed"
       ? "bg-emerald-100 text-emerald-800"
-      : normalized === "partially_paid"
+      : normalized === "partially_paid" || normalized === "disbursing"
       ? "bg-sky-100 text-sky-800"
       : normalized === "declined" ||
           normalized === "defaulted" ||
           normalized === "written_off" ||
-          normalized === "customer_declined"
+          normalized === "customer_declined" ||
+          normalized === "disbursement_failed"
         ? "bg-rose-100 text-rose-800"
         : normalized === "under_review" ||
             normalized === "overdue" ||
-            normalized === "pending_customer_approval"
+            normalized === "pending_customer_approval" ||
+            normalized === "pending_retry"
           ? "bg-amber-100 text-amber-800"
           : normalized === "customer_approved" || normalized === "submitted"
             ? "bg-blue-100 text-blue-800"

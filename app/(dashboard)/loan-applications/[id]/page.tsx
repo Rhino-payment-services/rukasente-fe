@@ -4,7 +4,7 @@ import Link from "next/link";
 import { FormEvent, use, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import axios from "axios";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, RefreshCw } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CompactLoading } from "@/components/ui/loading";
@@ -16,11 +16,24 @@ import {
   useLoanApplicationReviews,
   useLoanLedger,
   useLoanRepayments,
+  useRetryDisbursement,
   useReviewLoanApplication,
 } from "@/hooks/use-loan";
 import { hasPermission, Perm } from "@/lib/permissions";
 import { usePermissions } from "@/hooks/use-permissions";
 import { toast } from "sonner";
+
+const RETRYABLE_DISBURSE_STATUSES = new Set([
+  "disbursement_failed",
+  "pending_retry",
+  "approved",
+  "customer_approved",
+]);
+
+const FAILED_DISBURSE_STATUSES = new Set([
+  "disbursement_failed",
+  "pending_retry",
+]);
 
 function formatMoney(amount: number, currency = "UGX") {
   return `${currency} ${Number(amount || 0).toLocaleString()}`;
@@ -69,6 +82,7 @@ export default function LoanApplicationDetailPage({
   const repaymentsQ = useLoanRepayments(id);
   const ledgerQ = useLoanLedger(id);
   const review = useReviewLoanApplication(id);
+  const retryDisburse = useRetryDisbursement(id);
   const repay = useInitiateLoanRepayment(id);
   const [open, setOpen] = useState(false);
   const [action, setAction] = useState("sent_to_review");
@@ -84,6 +98,20 @@ export default function LoanApplicationDetailPage({
   const canApprove = hasPermission(permissions, Perm.LoanApplicationApprove);
   const canDecline = hasPermission(permissions, Perm.LoanApplicationDecline);
   const canRepay = hasPermission(permissions, Perm.LoanRepayment);
+  const canDisburse = hasPermission(permissions, Perm.LoanDisburse);
+
+  async function submitRetryDisburse() {
+    if (!canDisburse) {
+      toast.error("You do not have permission to retry disbursement.");
+      return;
+    }
+    try {
+      await retryDisburse.mutateAsync();
+      toast.success("Disbursement retry started");
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Failed to retry disbursement"));
+    }
+  }
 
   async function submitReview(e: FormEvent) {
     e.preventDefault();
@@ -146,6 +174,16 @@ export default function LoanApplicationDetailPage({
   const app = appQ.data;
   const account = accountQ.data;
   const currency = account?.currency || app?.currency || "UGX";
+  const showDisburseFailure =
+    !!app && FAILED_DISBURSE_STATUSES.has(String(app.status || "").toLowerCase());
+  const canRetryDisburse =
+    !!app &&
+    canDisburse &&
+    RETRYABLE_DISBURSE_STATUSES.has(String(app.status || "").toLowerCase());
+  const disburseErrorText =
+    app?.disbursement_error?.trim() ||
+    (showDisburseFailure ? app?.decision_reason?.trim() : "") ||
+    "";
 
   const paidPct = useMemo(() => {
     if (!account?.total_repayable) return 0;
@@ -174,6 +212,21 @@ export default function LoanApplicationDetailPage({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {canRetryDisburse ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-8 rounded-lg border-rose-200 text-xs text-rose-700 hover:bg-rose-50"
+              onClick={() => void submitRetryDisburse()}
+              disabled={retryDisburse.isPending}
+            >
+              <RefreshCw
+                className={`size-3.5 ${retryDisburse.isPending ? "animate-spin" : ""}`}
+              />
+              {retryDisburse.isPending ? "Retrying…" : "Retry disbursement"}
+            </Button>
+          ) : null}
           {account && canRepay && Number(account.outstanding_balance) > 0 ? (
             <Button
               type="button"
@@ -200,6 +253,20 @@ export default function LoanApplicationDetailPage({
           </Button>
         </div>
       </div>
+
+      {showDisburseFailure ? (
+        <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">
+          <p className="font-semibold">Disbursement failed</p>
+          <p className="mt-1 text-rose-800">
+            {disburseErrorText || "The wallet transfer did not complete. You can retry disbursement."}
+          </p>
+          {(app?.disbursement_attempts ?? 0) > 0 ? (
+            <p className="mt-1 text-xs text-rose-700">
+              Attempts: {app?.disbursement_attempts}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
 
       <Card className="gap-0 border-slate-200/80 bg-white py-0 shadow-sm">
         <CardContent className="px-4 py-4">
@@ -269,6 +336,18 @@ export default function LoanApplicationDetailPage({
                 </div>
               </div>
               <Detail label="Submitted" value={formatDate(app.submitted_at)} />
+              <Detail
+                label="Decisioned"
+                value={formatDate(app.decisioned_at)}
+              />
+              <Detail
+                label="Decisioned by"
+                value={
+                  app.decisioned_by_staff_name?.trim() ||
+                  app.decisioned_by_staff_user_id ||
+                  "—"
+                }
+              />
               <Detail label="Decision reason" value={app.decision_reason || "—"} />
               <Detail
                 label="Channel"
@@ -529,8 +608,19 @@ export default function LoanApplicationDetailPage({
                   key={r.id}
                   className="rounded-xl border border-slate-100 bg-slate-50/60 px-3 py-2.5 text-sm"
                 >
-                  <p className="font-medium capitalize text-slate-900">
-                    {String(r.action || "").replace(/_/g, " ")}
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <p className="font-medium capitalize text-slate-900">
+                      {String(r.action || "").replace(/_/g, " ")}
+                    </p>
+                    <p className="text-[11px] text-slate-400">
+                      {formatDate(r.created_at)}
+                    </p>
+                  </div>
+                  <p className="mt-0.5 text-xs text-slate-600">
+                    By{" "}
+                    {r.reviewer_staff_name?.trim() ||
+                      r.reviewer_staff_user_id ||
+                      "—"}
                   </p>
                   <p className="mt-0.5 text-xs text-slate-500">{r.notes || "No notes"}</p>
                 </li>

@@ -304,6 +304,23 @@ export function useReviewLoanApplication(id: string) {
   });
 }
 
+export function useRetryDisbursement(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const res = await apiClient.post(
+        `/admin/loan-applications/${id}/retry-disbursement`
+      );
+      return unwrapEnvelope<LoanApplication>(res);
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["loan-application", id] });
+      void qc.invalidateQueries({ queryKey: ["loan-applications"] });
+      void qc.invalidateQueries({ queryKey: ["loan-account", id] });
+    },
+  });
+}
+
 function isNotFoundError(err: unknown): boolean {
   return axios.isAxiosError(err) && err.response?.status === 404;
 }

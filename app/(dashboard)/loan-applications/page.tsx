@@ -55,6 +55,8 @@ function StatusBadge({ status }: { status: string }) {
     cancelled: "border-slate-200 bg-slate-100 text-slate-600",
     disbursed: "border-violet-200 bg-violet-50 text-violet-700",
     disbursing: "border-indigo-200 bg-indigo-50 text-indigo-700",
+    disbursement_failed: "border-rose-200 bg-rose-50 text-rose-700",
+    pending_retry: "border-amber-200 bg-amber-50 text-amber-800",
     repaid: "border-slate-200 bg-slate-50 text-slate-600",
     overdue: "border-orange-200 bg-orange-50 text-orange-700",
     defaulted: "border-zinc-300 bg-zinc-100 text-zinc-700",
@@ -214,6 +216,9 @@ export default function LoanApplicationsPage() {
               <option value="approved">Approved</option>
               <option value="declined">Declined</option>
               <option value="cancelled">Cancelled</option>
+              <option value="disbursing">Disbursing</option>
+              <option value="disbursement_failed">Disbursement failed</option>
+              <option value="pending_retry">Pending retry</option>
               <option value="disbursed">Disbursed</option>
               <option value="overdue">Overdue</option>
               <option value="defaulted">Defaulted</option>
@@ -397,6 +402,25 @@ export default function LoanApplicationsPage() {
                   { label: "Decision reason", value: viewApplication.decision_reason, fullWidth: true },
                   { label: "Submitted", value: formatDate(viewApplication.submitted_at) },
                   { label: "Decisioned", value: formatDate(viewApplication.decisioned_at) },
+                  {
+                    label: "Decisioned by",
+                    value:
+                      viewApplication.decisioned_by_staff_name?.trim() ||
+                      viewApplication.decisioned_by_staff_user_id ||
+                      "—",
+                  },
+                  {
+                    label: "Disbursement error",
+                    value: viewApplication.disbursement_error || "—",
+                    fullWidth: true,
+                  },
+                  {
+                    label: "Disbursement attempts",
+                    value:
+                      viewApplication.disbursement_attempts != null
+                        ? String(viewApplication.disbursement_attempts)
+                        : "—",
+                  },
                   { label: "Disbursed", value: formatDate(viewApplication.disbursed_at) },
                   {
                     label: "Disbursed amount",

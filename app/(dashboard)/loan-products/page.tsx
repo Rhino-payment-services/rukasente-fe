@@ -413,7 +413,14 @@ export default function LoanProductsPage() {
                       <td className="hidden px-3 py-2 align-middle lg:table-cell">
                         <ReviewPill required={product.requires_manual_review} />
                       </td>
-                      <td className="sticky right-0 z-[1] bg-white px-2 py-2 text-center align-middle group-hover:bg-slate-50/90">
+                      <td
+                        className={cn(
+                          "sticky right-0 bg-white px-2 py-2 text-center align-middle group-hover:bg-slate-50/90",
+                          // Open menu must sit above other sticky action cells (same z-[1]
+                          // would let later rows’ View buttons paint over the dropdown).
+                          openMenuId === product.id ? "z-20" : "z-[1]"
+                        )}
+                      >
                         <div className="flex items-center justify-center gap-1">
                           <TableViewButton
                             onClick={() => setViewProduct(product)}
