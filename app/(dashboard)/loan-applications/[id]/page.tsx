@@ -311,7 +311,15 @@ export default function LoanApplicationDetailPage({
                 <Metric
                   label="Total repayable"
                   value={formatMoney(account.total_repayable, currency)}
-                  hint={`Principal ${formatMoney(account.principal_amount, currency)} · Interest ${formatMoney(account.interest_amount, currency)}`}
+                  hint={[
+                    `Principal ${formatMoney(account.principal_amount, currency)}`,
+                    `Interest ${formatMoney(account.interest_amount, currency)}`,
+                    account.processing_fee && account.processing_fee_mode === "add_to_repayable"
+                      ? `Fee ${formatMoney(account.processing_fee, currency)}`
+                      : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
                 />
                 <Metric
                   label="Repayments"
@@ -343,6 +351,27 @@ export default function LoanApplicationDetailPage({
                   label="Interest remaining"
                   value={formatMoney(account.interest_balance, currency)}
                   hint={`Paid ${formatMoney(account.interest_repaid, currency)}`}
+                />
+                <Detail
+                  label="Fee remaining"
+                  value={formatMoney(account.fee_balance ?? 0, currency)}
+                  hint={
+                    account.processing_fee_mode === "deduct_from_disbursement"
+                      ? `Deducted at disbursement (${formatMoney(account.processing_fee ?? 0, currency)})`
+                      : account.processing_fee
+                        ? `Processing fee ${formatMoney(account.processing_fee, currency)}`
+                        : undefined
+                  }
+                />
+                <Detail
+                  label="Cash disbursed"
+                  value={formatMoney(account.disbursed_amount, currency)}
+                  hint={
+                    account.processing_fee_mode === "deduct_from_disbursement" &&
+                    (account.processing_fee ?? 0) > 0
+                      ? `Principal ${formatMoney(account.principal_amount, currency)} minus fee`
+                      : undefined
+                  }
                 />
                 <Detail label="Disbursed" value={formatDate(account.disbursed_at)} />
                 <Detail label="Due date" value={formatDate(account.due_date)} />

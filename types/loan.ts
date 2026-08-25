@@ -167,6 +167,9 @@ export type LoanAccount = {
   total_repayable: number;
   principal_balance: number;
   interest_balance: number;
+  fee_balance?: number;
+  processing_fee?: number;
+  processing_fee_mode?: "deduct_from_disbursement" | "add_to_repayable" | string;
   outstanding_balance: number;
   amount_repaid: number;
   principal_repaid: number;
