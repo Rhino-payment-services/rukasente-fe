@@ -98,9 +98,11 @@ export function ManualBorrowerOnboarding() {
       ];
 
       const payloadBody = {
-        full_name: form.full_name.trim(),
         phone: form.phone.trim(),
         email: form.email.trim(),
+        ...(form.full_name.trim()
+          ? { full_name: form.full_name.trim() }
+          : {}),
       };
       const res = await fetch("/api/internal/manual-onboard-score", {
         method: "POST",
@@ -228,15 +230,18 @@ export function ManualBorrowerOnboarding() {
                   autoComplete="tel"
                 />
               </Field>
-              <Field label="Full name">
+              <Field
+                label="Full name"
+                optional
+                hint="Auto-filled from the RukaPay account when you submit — override only if needed"
+              >
                 <Input
                   value={form.full_name}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, full_name: e.target.value }))
                   }
-                  placeholder="Mwungeri Sevelin"
+                  placeholder="Filled from RukaPay"
                   className={inputClass}
-                  required
                 />
               </Field>
               <div className="md:col-span-2">
@@ -278,8 +283,8 @@ export function ManualBorrowerOnboarding() {
               )}
             </Button>
             <p className="text-xs text-slate-400">
-              Required: phone and full name. Wallet and RukaPay IDs are resolved
-              automatically.
+              Required: phone. Full name and email are taken from RukaPay when
+              available. Wallet and RukaPay IDs are resolved automatically.
             </p>
           </div>
         </form>

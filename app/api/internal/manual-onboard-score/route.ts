@@ -6,7 +6,8 @@ import { getApiBaseUrl } from "@/lib/config";
 type Body = {
   /** Optional legacy UUID; prefer phone — backend resolves RukaPay identity by MSISDN. */
   rukapay_user_id?: string;
-  full_name: string;
+  /** Optional — filled from the RukaPay subscriber when looking up by phone. */
+  full_name?: string;
   phone: string;
   email?: string;
   wallet_id?: string;
@@ -32,13 +33,13 @@ export async function POST(req: Request) {
   }
 
   const body = (await req.json()) as Body;
-  if (!body.full_name?.trim() || !body.phone?.trim()) {
+  if (!body.phone?.trim()) {
     return NextResponse.json(
       {
         success: false,
         error: {
           code: "validation_error",
-          message: "Full name and phone are required (email is optional)",
+          message: "Phone is required (full name and email are filled from RukaPay when available)",
         },
       },
       { status: 400 }
@@ -65,10 +66,13 @@ export async function POST(req: Request) {
 
   const walletId = body.wallet_id?.trim() || "";
   const enrollBody: Record<string, unknown> = {
-    full_name: body.full_name.trim(),
     phone: body.phone.trim(),
     email,
   };
+  const fullName = body.full_name?.trim() || "";
+  if (fullName) {
+    enrollBody.full_name = fullName;
+  }
   if (body.rukapay_user_id?.trim()) {
     enrollBody.rukapay_user_id = body.rukapay_user_id.trim();
   }
