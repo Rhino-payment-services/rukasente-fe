@@ -4,13 +4,22 @@ import { authOptions } from "@/lib/auth";
 import { getApiBaseUrl } from "@/lib/config";
 
 type Body = {
-  rukapay_user_id: string;
+  /** Optional legacy UUID; prefer phone — backend resolves RukaPay identity by MSISDN. */
+  rukapay_user_id?: string;
   full_name: string;
   phone: string;
-  email: string;
-  wallet_id: string;
+  email?: string;
+  wallet_id?: string;
   scoring_wallet_id?: string;
   consent_version?: string;
+};
+
+type EnrollData = {
+  borrower?: {
+    rukapay_user_id?: string;
+    scoring_wallet_id?: string;
+    wallet_ids?: string[];
+  };
 };
 
 export async function POST(req: Request) {
@@ -23,18 +32,13 @@ export async function POST(req: Request) {
   }
 
   const body = (await req.json()) as Body;
-  if (
-    !body.rukapay_user_id?.trim() ||
-    !body.full_name?.trim() ||
-    !body.phone?.trim() ||
-    !body.wallet_id?.trim()
-  ) {
+  if (!body.full_name?.trim() || !body.phone?.trim()) {
     return NextResponse.json(
       {
         success: false,
         error: {
           code: "validation_error",
-          message: "Missing required fields (email is optional)",
+          message: "Full name and phone are required (email is optional)",
         },
       },
       { status: 400 }
@@ -59,29 +63,63 @@ export async function POST(req: Request) {
     "X-Internal-API-Key": internalKey,
   };
 
+  const walletId = body.wallet_id?.trim() || "";
+  const enrollBody: Record<string, unknown> = {
+    full_name: body.full_name.trim(),
+    phone: body.phone.trim(),
+    email,
+  };
+  if (body.rukapay_user_id?.trim()) {
+    enrollBody.rukapay_user_id = body.rukapay_user_id.trim();
+  }
+  if (walletId) {
+    enrollBody.wallet_ids = [walletId];
+    enrollBody.scoring_wallet_id =
+      body.scoring_wallet_id?.trim() || walletId;
+  }
+
   const enrollRes = await fetch(`${base}/internal/borrowers/enroll`, {
     method: "POST",
     headers,
     cache: "no-store",
-    body: JSON.stringify({
-      rukapay_user_id: body.rukapay_user_id,
-      full_name: body.full_name,
-      phone: body.phone,
-      email,
-      wallet_ids: [body.wallet_id],
-      scoring_wallet_id: body.scoring_wallet_id || body.wallet_id,
-    }),
+    body: JSON.stringify(enrollBody),
   });
   const enrollPayload = await enrollRes.json();
   if (!enrollRes.ok || !enrollPayload?.success) {
     return NextResponse.json(enrollPayload, { status: enrollRes.status });
   }
 
+  const enrollData = enrollPayload.data as EnrollData | undefined;
+  const rukapayUserId =
+    enrollData?.borrower?.rukapay_user_id?.trim() ||
+    body.rukapay_user_id?.trim() ||
+    "";
+  const scoringWallet =
+    enrollData?.borrower?.scoring_wallet_id?.trim() ||
+    body.scoring_wallet_id?.trim() ||
+    walletId ||
+    enrollData?.borrower?.wallet_ids?.[0]?.trim() ||
+    "";
+
+  if (!rukapayUserId || !scoringWallet) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: {
+          code: "enroll_incomplete",
+          message:
+            "Enrollment succeeded but RukaPay user or wallet could not be resolved. Ensure the phone is registered in RukaPay with a PERSONAL wallet.",
+        },
+      },
+      { status: 502 }
+    );
+  }
+
   const consentVersion = body.consent_version?.trim() || "v1";
   const consentRes = await fetch(
     `${base}/internal/borrowers/${encodeURIComponent(
-      body.rukapay_user_id
-    )}/consents?wallet_id=${encodeURIComponent(body.wallet_id)}`,
+      rukapayUserId
+    )}/consents?wallet_id=${encodeURIComponent(scoringWallet)}`,
     {
       method: "POST",
       headers,
@@ -119,8 +157,8 @@ export async function POST(req: Request) {
 
   const runRes = await fetch(
     `${base}/internal/scoring/borrowers/${encodeURIComponent(
-      body.rukapay_user_id
-    )}/run?wallet_id=${encodeURIComponent(body.wallet_id)}`,
+      rukapayUserId
+    )}/run?wallet_id=${encodeURIComponent(scoringWallet)}`,
     {
       method: "POST",
       headers,
@@ -135,13 +173,13 @@ export async function POST(req: Request) {
   const [latestRes, subscriptionRes] = await Promise.all([
     fetch(
       `${base}/internal/scoring/borrowers/${encodeURIComponent(
-        body.rukapay_user_id
+        rukapayUserId
       )}/latest`,
       { headers, cache: "no-store" }
     ),
     fetch(
       `${base}/internal/borrowers/${encodeURIComponent(
-        body.rukapay_user_id
+        rukapayUserId
       )}/subscription`,
       { headers, cache: "no-store" }
     ),
@@ -158,7 +196,10 @@ export async function POST(req: Request) {
       scoring_run: runPayload.data,
       latest_score: latestPayload?.data ?? null,
       subscription: subscriptionPayload?.data ?? null,
+      resolved: {
+        rukapay_user_id: rukapayUserId,
+        wallet_id: scoringWallet,
+      },
     },
   });
 }
-
