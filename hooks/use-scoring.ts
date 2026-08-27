@@ -353,6 +353,52 @@ export type EnqueueScoringResponse = {
   status: string;
 };
 
+export type ScoringJobStatusResponse = {
+  job_id: string;
+  status:
+    | "pending"
+    | "processing"
+    | "completed"
+    | "failed"
+    | "cancelled"
+    | string;
+  rukapay_user_id: string;
+  borrower_profile_id: string;
+  attempts: number;
+  last_error?: string;
+  started_at?: string | null;
+  finished_at?: string | null;
+  credit_score_result_id?: string | null;
+  credit_score_result?: CreditScoreResultSummary | null;
+};
+
+/** Poll a single async scoring job until it leaves pending/processing. */
+export function useScoringJobStatus(jobId: string | null, enabled = true) {
+  return useQuery({
+    queryKey: ["scoring-job", jobId],
+    enabled: enabled && !!jobId,
+    queryFn: async () => {
+      if (!jobId) return null;
+      const res = await apiClient.get(
+        `/admin/scoring/jobs/${encodeURIComponent(jobId)}`
+      );
+      return unwrapEnvelope<ScoringJobStatusResponse>(res);
+    },
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      if (
+        status === "completed" ||
+        status === "failed" ||
+        status === "cancelled"
+      ) {
+        return false;
+      }
+      return 1500;
+    },
+    staleTime: 0,
+  });
+}
+
 export type BulkRunResponse = {
   id: string;
   status: string;

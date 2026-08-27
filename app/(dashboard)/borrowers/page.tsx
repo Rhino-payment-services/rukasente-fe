@@ -51,11 +51,10 @@ import {
   useUpdateBorrowerKYC,
 } from "@/hooks/use-borrowers";
 import {
-  getLatestScoringResultForUser,
   useActiveBulkScoringRun,
-  useLatestScoringResultForUser,
   useRunQueuedScoring,
   useRunScoring,
+  useScoringJobStatus,
 } from "@/hooks/use-scoring";
 import { scoringErrorMessage } from "@/lib/scoring-errors";
 import { Perm } from "@/lib/permissions";
@@ -70,9 +69,7 @@ type ScoreRunCtx = {
 type PendingScoreRun = {
   rukapayUserId: string;
   name: string;
-  jobId?: string;
-  baselineResultId: string | null;
-  queuedAtMs: number;
+  jobId: string;
 };
 
 const ScoreRunContext = createContext<ScoreRunCtx | null>(null);
@@ -126,26 +123,49 @@ export default function BorrowersPage() {
     null
   );
 
-  const latestScoringResultQ = useLatestScoringResultForUser(
-    pendingScoreRun?.rukapayUserId ?? null,
-    pendingScoreRun?.baselineResultId ?? null,
-    pendingScoreRun?.queuedAtMs ?? null,
-    can(Perm.ScoringView)
+  const jobStatusQ = useScoringJobStatus(
+    pendingScoreRun?.jobId ?? null,
+    !!pendingScoreRun
   );
 
   useEffect(() => {
-    const result = latestScoringResultQ.data;
-    if (!pendingScoreRun || !result) return;
-    setFeedback({
-      kind: "success",
-      name: pendingScoreRun.name,
-      score: result.total_score,
-      band: result.risk_band,
-      decision: String(result.suggested_decision || "—").replace(/_/g, " "),
-      limit: result.recommended_limit,
-    });
-    setPendingScoreRun(null);
-  }, [latestScoringResultQ.data, pendingScoreRun]);
+    const job = jobStatusQ.data;
+    if (!pendingScoreRun || !job) return;
+
+    if (job.status === "completed") {
+      const result = job.credit_score_result;
+      if (result) {
+        setFeedback({
+          kind: "success",
+          name: pendingScoreRun.name,
+          score: result.total_score,
+          band: result.risk_band,
+          decision: String(result.suggested_decision || "—").replace(/_/g, " "),
+          limit: result.recommended_limit,
+        });
+      } else {
+        setFeedback({
+          kind: "error",
+          name: pendingScoreRun.name,
+          message:
+            "Score finished but the result could not be loaded. Open Score results to view it.",
+        });
+      }
+      setPendingScoreRun(null);
+      return;
+    }
+
+    if (job.status === "failed" || job.status === "cancelled") {
+      setFeedback({
+        kind: "error",
+        name: pendingScoreRun.name,
+        message:
+          job.last_error?.trim() ||
+          `Scoring job ${job.status}. Try again shortly.`,
+      });
+      setPendingScoreRun(null);
+    }
+  }, [jobStatusQ.data, pendingScoreRun]);
 
   useEffect(() => {
     if (!pendingScoreRun) return;
@@ -156,7 +176,7 @@ export default function BorrowersPage() {
           kind: "error",
           name: pendingScoreRun.name,
           message:
-            "Scoring is taking longer than expected. The job may already be completed in the background but results are still syncing. Refresh and try again shortly.",
+            "Scoring is taking longer than expected. Refresh and check Score results shortly.",
         };
       });
       setPendingScoreRun((current) =>
@@ -184,7 +204,6 @@ export default function BorrowersPage() {
     });
 
     try {
-      const baseline = await getLatestScoringResultForUser(id);
       const result = await mutateAsyncRef.current({
         rukapay_user_id: id,
       });
@@ -192,8 +211,6 @@ export default function BorrowersPage() {
         rukapayUserId: id,
         name,
         jobId: result.job_id,
-        baselineResultId: baseline?.id ?? null,
-        queuedAtMs: Date.now(),
       });
       setFeedback({
         kind: "queued",
@@ -391,7 +408,10 @@ export default function BorrowersPage() {
 
         <ScoreResultModal
           feedback={feedback}
-          onClose={() => setFeedback(null)}
+          onClose={() => {
+            setFeedback(null);
+            setPendingScoreRun(null);
+          }}
         />
 
         <Card className="gap-0 border-slate-200 py-0 shadow-none">
