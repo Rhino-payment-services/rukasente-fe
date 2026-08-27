@@ -57,6 +57,8 @@ import {
 } from "@/components/dashboard/score-result-modal";
 import {
   CreditScoreResultSummary,
+  getLatestScoringResultForUser,
+  useLatestScoringResultForUser,
   useRunScoring,
   useScoringResults,
 } from "@/hooks/use-scoring";
@@ -80,6 +82,14 @@ type ScoreRunCtx = {
     label?: string | null;
     walletId?: string;
   }) => Promise<void>;
+};
+
+type PendingScoreRun = {
+  rukapayUserId: string;
+  name: string;
+  jobId?: string;
+  baselineResultId: string | null;
+  queuedAtMs: number;
 };
 
 const ScoreRunContext = createContext<ScoreRunCtx | null>(null);
@@ -150,6 +160,9 @@ export default function ScoringResultsPage() {
   const [manualOpen, setManualOpen] = useState(false);
   const [feedback, setFeedback] = useState<ScoreResultFeedback | null>(null);
   const [viewRow, setViewRow] = useState<CreditScoreResultSummary | null>(null);
+  const [pendingScoreRun, setPendingScoreRun] = useState<PendingScoreRun | null>(
+    null
+  );
 
   const { mutateAsync } = useRunScoring();
   const mutateAsyncRef = useRef(mutateAsync);
@@ -159,6 +172,48 @@ export default function ScoringResultsPage() {
 
   const [runningUserId, setRunningUserId] = useState<string | null>(null);
   const runningUserIdRef = useRef<string | null>(null);
+
+  const latestScoringResultQ = useLatestScoringResultForUser(
+    pendingScoreRun?.rukapayUserId ?? null,
+    pendingScoreRun?.baselineResultId ?? null,
+    pendingScoreRun?.queuedAtMs ?? null,
+    can(Perm.ScoringView)
+  );
+
+  useEffect(() => {
+    const result = latestScoringResultQ.data;
+    if (!pendingScoreRun || !result) return;
+    setFeedback({
+      kind: "success",
+      name: pendingScoreRun.name,
+      score: result.total_score,
+      band: result.risk_band,
+      decision: String(result.suggested_decision || "—").replace(/_/g, " "),
+      limit: result.recommended_limit,
+    });
+    setPendingScoreRun(null);
+  }, [latestScoringResultQ.data, pendingScoreRun]);
+
+  useEffect(() => {
+    if (!pendingScoreRun) return;
+    const timeoutId = window.setTimeout(() => {
+      setFeedback((current) => {
+        if (current?.kind !== "queued") return current;
+        return {
+          kind: "error",
+          name: pendingScoreRun.name,
+          message:
+            "Scoring is taking longer than expected. The job may already be completed in the background but results are still syncing. Refresh and try again shortly.",
+        };
+      });
+      setPendingScoreRun((current) =>
+        current?.jobId === pendingScoreRun.jobId ? null : current
+      );
+    }, 90_000);
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [pendingScoreRun]);
 
   const runScore = useCallback(
     async (opts: {
@@ -171,6 +226,7 @@ export default function ScoringResultsPage() {
 
       const name = opts.label?.trim() || id;
       setFeedback(null);
+      setPendingScoreRun(null);
       runningUserIdRef.current = id;
       setRunningUserId(id);
 
@@ -179,9 +235,17 @@ export default function ScoringResultsPage() {
       });
 
       try {
+        const baseline = await getLatestScoringResultForUser(id);
         const result = await mutateAsyncRef.current({
           rukapay_user_id: id,
           wallet_id: opts.walletId?.trim() || undefined,
+        });
+        setPendingScoreRun({
+          rukapayUserId: id,
+          name,
+          jobId: result.job_id,
+          baselineResultId: baseline?.id ?? null,
+          queuedAtMs: Date.now(),
         });
         setFeedback({
           kind: "queued",
@@ -549,7 +613,10 @@ export default function ScoringResultsPage() {
 
         <ScoreResultModal
           feedback={feedback}
-          onClose={() => setFeedback(null)}
+          onClose={() => {
+            setFeedback(null);
+            setPendingScoreRun(null);
+          }}
         />
 
         <ScoreResultDetailsDrawer

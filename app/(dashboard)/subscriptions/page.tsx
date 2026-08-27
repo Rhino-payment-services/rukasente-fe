@@ -46,7 +46,11 @@ import {
   ScoreResultModal,
 } from "@/components/dashboard/score-result-modal";
 import { SubscriptionRow, useSubscriptionsList } from "@/hooks/use-subscriptions";
-import { useRunScoring } from "@/hooks/use-scoring";
+import {
+  getLatestScoringResultForUser,
+  useLatestScoringResultForUser,
+  useRunScoring,
+} from "@/hooks/use-scoring";
 import { scoringErrorMessage } from "@/lib/scoring-errors";
 import { NoAccess } from "@/components/auth/no-access";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -55,6 +59,14 @@ import { Perm } from "@/lib/permissions";
 type ScoreRunCtx = {
   runningUserId: string | null;
   runScore: (s: SubscriptionRow) => Promise<void>;
+};
+
+type PendingScoreRun = {
+  rukapayUserId: string;
+  name: string;
+  jobId?: string;
+  baselineResultId: string | null;
+  queuedAtMs: number;
 };
 
 const ScoreRunContext = createContext<ScoreRunCtx | null>(null);
@@ -145,19 +157,73 @@ export default function SubscriptionsPage() {
   const [runningUserId, setRunningUserId] = useState<string | null>(null);
   const runningUserIdRef = useRef<string | null>(null);
   const [feedback, setFeedback] = useState<ScoreResultFeedback | null>(null);
+  const [pendingScoreRun, setPendingScoreRun] = useState<PendingScoreRun | null>(
+    null
+  );
+
+  const latestScoringResultQ = useLatestScoringResultForUser(
+    pendingScoreRun?.rukapayUserId ?? null,
+    pendingScoreRun?.baselineResultId ?? null,
+    pendingScoreRun?.queuedAtMs ?? null,
+    can(Perm.ScoringView)
+  );
+
+  useEffect(() => {
+    const result = latestScoringResultQ.data;
+    if (!pendingScoreRun || !result) return;
+    setFeedback({
+      kind: "success",
+      name: pendingScoreRun.name,
+      score: result.total_score,
+      band: result.risk_band,
+      decision: String(result.suggested_decision || "—").replace(/_/g, " "),
+      limit: result.recommended_limit,
+    });
+    setPendingScoreRun(null);
+  }, [latestScoringResultQ.data, pendingScoreRun]);
+
+  useEffect(() => {
+    if (!pendingScoreRun) return;
+    const timeoutId = window.setTimeout(() => {
+      setFeedback((current) => {
+        if (current?.kind !== "queued") return current;
+        return {
+          kind: "error",
+          name: pendingScoreRun.name,
+          message:
+            "Scoring is taking longer than expected. The job may already be completed in the background but results are still syncing. Refresh and try again shortly.",
+        };
+      });
+      setPendingScoreRun((current) =>
+        current?.jobId === pendingScoreRun.jobId ? null : current
+      );
+    }, 90_000);
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [pendingScoreRun]);
 
   const runScore = useCallback(async (s: SubscriptionRow) => {
     const id = s.rukapay_user_id?.trim();
     if (!id || runningUserIdRef.current) return;
     const name = s.full_name?.trim() || id;
     setFeedback(null);
+    setPendingScoreRun(null);
     runningUserIdRef.current = id;
     setRunningUserId(id);
     await new Promise<void>((resolve) => {
       window.setTimeout(resolve, 0);
     });
     try {
+      const baseline = await getLatestScoringResultForUser(id);
       const result = await mutateAsyncRef.current({ rukapay_user_id: id });
+      setPendingScoreRun({
+        rukapayUserId: id,
+        name,
+        jobId: result.job_id,
+        baselineResultId: baseline?.id ?? null,
+        queuedAtMs: Date.now(),
+      });
       setFeedback({
         kind: "queued",
         name,
@@ -579,7 +645,10 @@ export default function SubscriptionsPage() {
 
       <ScoreResultModal
         feedback={feedback}
-        onClose={() => setFeedback(null)}
+        onClose={() => {
+          setFeedback(null);
+          setPendingScoreRun(null);
+        }}
       />
     </div>
     </ScoreRunContext.Provider>
