@@ -53,10 +53,13 @@ function activityMeta(status: string): {
 }
 
 function actorLabel(app: LoanApplication): string {
-  if (app.submission_channel === "internal_admin") return "System Administrator";
+  if (app.decisioned_by_staff_name?.trim()) {
+    return app.decisioned_by_staff_name.trim();
+  }
   if (app.submission_channel === "api") return "API Partner";
-  if (app.decisioned_by_staff_user_id) return "System Administrator";
-  return "System Administrator";
+  if (app.submission_channel === "internal_admin") return "System Administrator";
+  if (app.decisioned_by_staff_user_id) return "Staff reviewer";
+  return "System";
 }
 
 function relativeTime(iso?: string) {

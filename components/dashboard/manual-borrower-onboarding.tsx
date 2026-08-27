@@ -18,6 +18,16 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 type ResultData = {
+  already_exists?: boolean;
+  enroll?: {
+    borrower?: {
+      full_name?: string;
+      phone?: string;
+      email?: string;
+      rukapay_user_id?: string;
+    };
+    subscription?: { status?: string } | null;
+  } | null;
   latest_score?: {
     total_score?: number;
     risk_band?: string;
@@ -77,11 +87,9 @@ const inputClass =
 
 export function ManualBorrowerOnboarding() {
   const [form, setForm] = useState({
-    rukapay_user_id: "",
     full_name: "",
     phone: "",
     email: "",
-    wallet_id: "",
   });
   const [submitting, setSubmitting] = useState(false);
   const [activeStep, setActiveStep] = useState<StepId | null>(null);
@@ -100,11 +108,11 @@ export function ManualBorrowerOnboarding() {
       ];
 
       const payloadBody = {
-        rukapay_user_id: form.rukapay_user_id.trim(),
-        full_name: form.full_name.trim(),
         phone: form.phone.trim(),
         email: form.email.trim(),
-        wallet_id: form.wallet_id.trim(),
+        ...(form.full_name.trim()
+          ? { full_name: form.full_name.trim() }
+          : {}),
       };
       const res = await fetch("/api/internal/manual-onboard-score", {
         method: "POST",
@@ -121,9 +129,28 @@ export function ManualBorrowerOnboarding() {
       if (!res.ok || !payload.success) {
         throw new Error(payload.error?.message || "Manual onboarding failed");
       }
-      setResult(payload.data ?? null);
+      const data = payload.data ?? null;
+      setResult(data);
+      const resolvedName = data?.enroll?.borrower?.full_name?.trim() || "";
+      const resolvedEmail = data?.enroll?.borrower?.email?.trim() || "";
+      const resolvedPhone = data?.enroll?.borrower?.phone?.trim() || "";
+      if (resolvedName || resolvedEmail || resolvedPhone) {
+        setForm((f) => ({
+          ...f,
+          full_name: resolvedName || f.full_name,
+          email: resolvedEmail || f.email,
+          phone: resolvedPhone || f.phone,
+        }));
+      }
       setActiveStep(null);
-      toast.success("Borrower linked and scored successfully");
+      if (data?.already_exists) {
+        toast.message("Borrower already linked in RukaSente", {
+          description:
+            "Skipped re-enroll and consent. Showing their current subscription and score.",
+        });
+      } else {
+        toast.success("Borrower linked and scored successfully");
+      }
     } catch (err) {
       setActiveStep(null);
       toast.error((err as Error).message || "Failed to run manual flow");
@@ -156,7 +183,8 @@ export function ManualBorrowerOnboarding() {
             Link and score borrower
           </h1>
           <p className="mt-1.5 text-sm text-slate-500">
-            Paste RukaPay identity details, then run enroll → consent → scoring.
+            Enter the customer&apos;s phone number — we look them up in RukaPay,
+            then run enroll → consent → scoring.
           </p>
         </header>
 
@@ -211,58 +239,14 @@ export function ManualBorrowerOnboarding() {
         <form onSubmit={onSubmit} className="space-y-8">
           <section className="space-y-4">
             <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#08163d]">
-              <Wallet className="size-3.5 text-indigo-500" />
-              RukaPay identity
+              <UserRound className="size-3.5 text-indigo-500" />
+              Borrower
             </div>
             <div className="grid gap-4 md:grid-cols-2">
               <Field
-                label="RukaPay user ID"
-                hint="UUID from RukaPay / rdbs_core"
+                label="Phone"
+                hint="Uganda MSISDN with country code — used to find the RukaPay account"
               >
-                <Input
-                  value={form.rukapay_user_id}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, rukapay_user_id: e.target.value }))
-                  }
-                  placeholder="e.g. bd0922a5-dc43-4c3c-9d8d-…"
-                  className={cn(inputClass, "font-mono text-xs")}
-                  required
-                  autoComplete="off"
-                />
-              </Field>
-              <Field label="Wallet ID" hint="Wallet used for scoring">
-                <Input
-                  value={form.wallet_id}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, wallet_id: e.target.value }))
-                  }
-                  placeholder="e.g. 80196611-e436-480b-…"
-                  className={cn(inputClass, "font-mono text-xs")}
-                  required
-                  autoComplete="off"
-                />
-              </Field>
-            </div>
-          </section>
-
-          <section className="space-y-4">
-            <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#08163d]">
-              <UserRound className="size-3.5 text-indigo-500" />
-              Borrower profile
-            </div>
-            <div className="grid gap-4 md:grid-cols-2">
-              <Field label="Full name">
-                <Input
-                  value={form.full_name}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, full_name: e.target.value }))
-                  }
-                  placeholder="Mwungeri Sevelin"
-                  className={inputClass}
-                  required
-                />
-              </Field>
-              <Field label="Phone" hint="Include country code, e.g. 256…">
                 <Input
                   value={form.phone}
                   onChange={(e) =>
@@ -272,6 +256,21 @@ export function ManualBorrowerOnboarding() {
                   className={inputClass}
                   required
                   inputMode="tel"
+                  autoComplete="tel"
+                />
+              </Field>
+              <Field
+                label="Full name"
+                optional
+                hint="Auto-filled from the RukaPay account when you submit — override only if needed"
+              >
+                <Input
+                  value={form.full_name}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, full_name: e.target.value }))
+                  }
+                  placeholder="Filled from RukaPay"
+                  className={inputClass}
                 />
               </Field>
               <div className="md:col-span-2">
@@ -313,7 +312,8 @@ export function ManualBorrowerOnboarding() {
               )}
             </Button>
             <p className="text-xs text-slate-400">
-              Required fields are marked with *. Email is optional.
+              Required: phone. Full name and email are taken from RukaPay when
+              available. Wallet and RukaPay IDs are resolved automatically.
             </p>
           </div>
         </form>
@@ -330,6 +330,11 @@ export function ManualBorrowerOnboarding() {
           </div>
           <ul className="space-y-3">
             {[
+              {
+                icon: Wallet,
+                tone: "bg-indigo-50 text-indigo-600",
+                text: "Looks up the RukaPay subscriber and PERSONAL wallet by phone",
+              },
               {
                 icon: UserRound,
                 tone: "bg-violet-50 text-violet-600",
@@ -392,6 +397,16 @@ export function ManualBorrowerOnboarding() {
 
           {result ? (
             <div className="grid gap-3">
+              {result.already_exists ? (
+                <p className="rounded-xl border border-amber-100 bg-amber-50/80 px-3 py-2 text-[12px] leading-snug text-amber-900">
+                  This phone is already linked in RukaSente — no new enroll or
+                  consent was created.
+                </p>
+              ) : null}
+              <ResultStat
+                label="Borrower"
+                value={result.enroll?.borrower?.full_name?.trim() || "—"}
+              />
               <ResultStat
                 label="Subscription"
                 value={result.subscription?.status ?? "—"}

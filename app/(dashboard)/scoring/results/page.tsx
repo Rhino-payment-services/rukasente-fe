@@ -58,6 +58,7 @@ import {
 import {
   CreditScoreResultSummary,
   useRunScoring,
+  useScoringJobStatus,
   useScoringResults,
 } from "@/hooks/use-scoring";
 import { scoringErrorMessage } from "@/lib/scoring-errors";
@@ -80,6 +81,12 @@ type ScoreRunCtx = {
     label?: string | null;
     walletId?: string;
   }) => Promise<void>;
+};
+
+type PendingScoreRun = {
+  rukapayUserId: string;
+  name: string;
+  jobId: string;
 };
 
 const ScoreRunContext = createContext<ScoreRunCtx | null>(null);
@@ -150,6 +157,9 @@ export default function ScoringResultsPage() {
   const [manualOpen, setManualOpen] = useState(false);
   const [feedback, setFeedback] = useState<ScoreResultFeedback | null>(null);
   const [viewRow, setViewRow] = useState<CreditScoreResultSummary | null>(null);
+  const [pendingScoreRun, setPendingScoreRun] = useState<PendingScoreRun | null>(
+    null
+  );
 
   const { mutateAsync } = useRunScoring();
   const mutateAsyncRef = useRef(mutateAsync);
@@ -159,6 +169,71 @@ export default function ScoringResultsPage() {
 
   const [runningUserId, setRunningUserId] = useState<string | null>(null);
   const runningUserIdRef = useRef<string | null>(null);
+
+  const jobStatusQ = useScoringJobStatus(
+    pendingScoreRun?.jobId ?? null,
+    !!pendingScoreRun
+  );
+
+  useEffect(() => {
+    const job = jobStatusQ.data;
+    if (!pendingScoreRun || !job) return;
+
+    if (job.status === "completed") {
+      const result = job.credit_score_result;
+      if (result) {
+        setFeedback({
+          kind: "success",
+          name: pendingScoreRun.name,
+          score: result.total_score,
+          band: result.risk_band,
+          decision: String(result.suggested_decision || "—").replace(/_/g, " "),
+          limit: result.recommended_limit,
+        });
+      } else {
+        setFeedback({
+          kind: "error",
+          name: pendingScoreRun.name,
+          message:
+            "Score finished but the result could not be loaded. Open Score results to view it.",
+        });
+      }
+      setPendingScoreRun(null);
+      return;
+    }
+
+    if (job.status === "failed" || job.status === "cancelled") {
+      setFeedback({
+        kind: "error",
+        name: pendingScoreRun.name,
+        message:
+          job.last_error?.trim() ||
+          `Scoring job ${job.status}. Try again shortly.`,
+      });
+      setPendingScoreRun(null);
+    }
+  }, [jobStatusQ.data, pendingScoreRun]);
+
+  useEffect(() => {
+    if (!pendingScoreRun) return;
+    const timeoutId = window.setTimeout(() => {
+      setFeedback((current) => {
+        if (current?.kind !== "queued") return current;
+        return {
+          kind: "error",
+          name: pendingScoreRun.name,
+          message:
+            "Scoring is taking longer than expected. Refresh and check Score results shortly.",
+        };
+      });
+      setPendingScoreRun((current) =>
+        current?.jobId === pendingScoreRun.jobId ? null : current
+      );
+    }, 90_000);
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [pendingScoreRun]);
 
   const runScore = useCallback(
     async (opts: {
@@ -171,6 +246,7 @@ export default function ScoringResultsPage() {
 
       const name = opts.label?.trim() || id;
       setFeedback(null);
+      setPendingScoreRun(null);
       runningUserIdRef.current = id;
       setRunningUserId(id);
 
@@ -182,6 +258,11 @@ export default function ScoringResultsPage() {
         const result = await mutateAsyncRef.current({
           rukapay_user_id: id,
           wallet_id: opts.walletId?.trim() || undefined,
+        });
+        setPendingScoreRun({
+          rukapayUserId: id,
+          name,
+          jobId: result.job_id,
         });
         setFeedback({
           kind: "queued",
@@ -549,7 +630,10 @@ export default function ScoringResultsPage() {
 
         <ScoreResultModal
           feedback={feedback}
-          onClose={() => setFeedback(null)}
+          onClose={() => {
+            setFeedback(null);
+            setPendingScoreRun(null);
+          }}
         />
 
         <ScoreResultDetailsDrawer

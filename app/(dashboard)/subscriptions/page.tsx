@@ -46,7 +46,10 @@ import {
   ScoreResultModal,
 } from "@/components/dashboard/score-result-modal";
 import { SubscriptionRow, useSubscriptionsList } from "@/hooks/use-subscriptions";
-import { useRunScoring } from "@/hooks/use-scoring";
+import {
+  useRunScoring,
+  useScoringJobStatus,
+} from "@/hooks/use-scoring";
 import { scoringErrorMessage } from "@/lib/scoring-errors";
 import { NoAccess } from "@/components/auth/no-access";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -55,6 +58,12 @@ import { Perm } from "@/lib/permissions";
 type ScoreRunCtx = {
   runningUserId: string | null;
   runScore: (s: SubscriptionRow) => Promise<void>;
+};
+
+type PendingScoreRun = {
+  rukapayUserId: string;
+  name: string;
+  jobId: string;
 };
 
 const ScoreRunContext = createContext<ScoreRunCtx | null>(null);
@@ -145,12 +154,81 @@ export default function SubscriptionsPage() {
   const [runningUserId, setRunningUserId] = useState<string | null>(null);
   const runningUserIdRef = useRef<string | null>(null);
   const [feedback, setFeedback] = useState<ScoreResultFeedback | null>(null);
+  const [pendingScoreRun, setPendingScoreRun] = useState<PendingScoreRun | null>(
+    null
+  );
+
+  const jobStatusQ = useScoringJobStatus(
+    pendingScoreRun?.jobId ?? null,
+    !!pendingScoreRun
+  );
+
+  useEffect(() => {
+    const job = jobStatusQ.data;
+    if (!pendingScoreRun || !job) return;
+
+    if (job.status === "completed") {
+      const result = job.credit_score_result;
+      if (result) {
+        setFeedback({
+          kind: "success",
+          name: pendingScoreRun.name,
+          score: result.total_score,
+          band: result.risk_band,
+          decision: String(result.suggested_decision || "—").replace(/_/g, " "),
+          limit: result.recommended_limit,
+        });
+      } else {
+        setFeedback({
+          kind: "error",
+          name: pendingScoreRun.name,
+          message:
+            "Score finished but the result could not be loaded. Open Score results to view it.",
+        });
+      }
+      setPendingScoreRun(null);
+      return;
+    }
+
+    if (job.status === "failed" || job.status === "cancelled") {
+      setFeedback({
+        kind: "error",
+        name: pendingScoreRun.name,
+        message:
+          job.last_error?.trim() ||
+          `Scoring job ${job.status}. Try again shortly.`,
+      });
+      setPendingScoreRun(null);
+    }
+  }, [jobStatusQ.data, pendingScoreRun]);
+
+  useEffect(() => {
+    if (!pendingScoreRun) return;
+    const timeoutId = window.setTimeout(() => {
+      setFeedback((current) => {
+        if (current?.kind !== "queued") return current;
+        return {
+          kind: "error",
+          name: pendingScoreRun.name,
+          message:
+            "Scoring is taking longer than expected. Refresh the page and check Score results shortly.",
+        };
+      });
+      setPendingScoreRun((current) =>
+        current?.jobId === pendingScoreRun.jobId ? null : current
+      );
+    }, 90_000);
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [pendingScoreRun]);
 
   const runScore = useCallback(async (s: SubscriptionRow) => {
     const id = s.rukapay_user_id?.trim();
     if (!id || runningUserIdRef.current) return;
     const name = s.full_name?.trim() || id;
     setFeedback(null);
+    setPendingScoreRun(null);
     runningUserIdRef.current = id;
     setRunningUserId(id);
     await new Promise<void>((resolve) => {
@@ -158,6 +236,11 @@ export default function SubscriptionsPage() {
     });
     try {
       const result = await mutateAsyncRef.current({ rukapay_user_id: id });
+      setPendingScoreRun({
+        rukapayUserId: id,
+        name,
+        jobId: result.job_id,
+      });
       setFeedback({
         kind: "queued",
         name,
@@ -579,7 +662,10 @@ export default function SubscriptionsPage() {
 
       <ScoreResultModal
         feedback={feedback}
-        onClose={() => setFeedback(null)}
+        onClose={() => {
+          setFeedback(null);
+          setPendingScoreRun(null);
+        }}
       />
     </div>
     </ScoreRunContext.Provider>

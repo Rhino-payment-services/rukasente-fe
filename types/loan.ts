@@ -125,6 +125,7 @@ export type LoanApplication = {
   status: "draft" | "submitted" | "under_review" | "approved" | "declined" | "cancelled" | string;
   submission_channel: "web" | "internal_admin" | "api" | string;
   decisioned_by_staff_user_id?: string;
+  decisioned_by_staff_name?: string;
   decision_reason: string;
   submitted_at: string;
   decisioned_at?: string;
@@ -132,6 +133,8 @@ export type LoanApplication = {
   disbursement_txn_id?: string;
   disbursed_amount?: number;
   disbursement_wallet_id?: string;
+  disbursement_error?: string;
+  disbursement_attempts?: number;
   due_date?: string;
   repaid_at?: string;
   overdue_since?: string;
@@ -143,6 +146,7 @@ export type LoanApplicationReview = {
   id: string;
   loan_application_id: string;
   reviewer_staff_user_id: string;
+  reviewer_staff_name?: string;
   action: string;
   notes: string;
   metadata_json: string;
@@ -167,6 +171,9 @@ export type LoanAccount = {
   total_repayable: number;
   principal_balance: number;
   interest_balance: number;
+  fee_balance?: number;
+  processing_fee?: number;
+  processing_fee_mode?: "deduct_from_disbursement" | "add_to_repayable" | string;
   outstanding_balance: number;
   amount_repaid: number;
   principal_repaid: number;
@@ -176,6 +183,8 @@ export type LoanAccount = {
   repayment_frequency: string;
   status: string;
   display_reference?: string;
+  disbursement_error?: string;
+  disbursement_attempts?: number;
   approved_at?: string;
   disbursed_at?: string;
   due_date?: string;
