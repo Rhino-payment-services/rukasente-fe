@@ -57,9 +57,8 @@ import {
 } from "@/components/dashboard/score-result-modal";
 import {
   CreditScoreResultSummary,
-  getLatestScoringResultForUser,
-  useLatestScoringResultForUser,
   useRunScoring,
+  useScoringJobStatus,
   useScoringResults,
 } from "@/hooks/use-scoring";
 import { scoringErrorMessage } from "@/lib/scoring-errors";
@@ -87,9 +86,7 @@ type ScoreRunCtx = {
 type PendingScoreRun = {
   rukapayUserId: string;
   name: string;
-  jobId?: string;
-  baselineResultId: string | null;
-  queuedAtMs: number;
+  jobId: string;
 };
 
 const ScoreRunContext = createContext<ScoreRunCtx | null>(null);
@@ -173,26 +170,49 @@ export default function ScoringResultsPage() {
   const [runningUserId, setRunningUserId] = useState<string | null>(null);
   const runningUserIdRef = useRef<string | null>(null);
 
-  const latestScoringResultQ = useLatestScoringResultForUser(
-    pendingScoreRun?.rukapayUserId ?? null,
-    pendingScoreRun?.baselineResultId ?? null,
-    pendingScoreRun?.queuedAtMs ?? null,
-    can(Perm.ScoringView)
+  const jobStatusQ = useScoringJobStatus(
+    pendingScoreRun?.jobId ?? null,
+    !!pendingScoreRun
   );
 
   useEffect(() => {
-    const result = latestScoringResultQ.data;
-    if (!pendingScoreRun || !result) return;
-    setFeedback({
-      kind: "success",
-      name: pendingScoreRun.name,
-      score: result.total_score,
-      band: result.risk_band,
-      decision: String(result.suggested_decision || "—").replace(/_/g, " "),
-      limit: result.recommended_limit,
-    });
-    setPendingScoreRun(null);
-  }, [latestScoringResultQ.data, pendingScoreRun]);
+    const job = jobStatusQ.data;
+    if (!pendingScoreRun || !job) return;
+
+    if (job.status === "completed") {
+      const result = job.credit_score_result;
+      if (result) {
+        setFeedback({
+          kind: "success",
+          name: pendingScoreRun.name,
+          score: result.total_score,
+          band: result.risk_band,
+          decision: String(result.suggested_decision || "—").replace(/_/g, " "),
+          limit: result.recommended_limit,
+        });
+      } else {
+        setFeedback({
+          kind: "error",
+          name: pendingScoreRun.name,
+          message:
+            "Score finished but the result could not be loaded. Open Score results to view it.",
+        });
+      }
+      setPendingScoreRun(null);
+      return;
+    }
+
+    if (job.status === "failed" || job.status === "cancelled") {
+      setFeedback({
+        kind: "error",
+        name: pendingScoreRun.name,
+        message:
+          job.last_error?.trim() ||
+          `Scoring job ${job.status}. Try again shortly.`,
+      });
+      setPendingScoreRun(null);
+    }
+  }, [jobStatusQ.data, pendingScoreRun]);
 
   useEffect(() => {
     if (!pendingScoreRun) return;
@@ -203,7 +223,7 @@ export default function ScoringResultsPage() {
           kind: "error",
           name: pendingScoreRun.name,
           message:
-            "Scoring is taking longer than expected. The job may already be completed in the background but results are still syncing. Refresh and try again shortly.",
+            "Scoring is taking longer than expected. Refresh and check Score results shortly.",
         };
       });
       setPendingScoreRun((current) =>
@@ -235,7 +255,6 @@ export default function ScoringResultsPage() {
       });
 
       try {
-        const baseline = await getLatestScoringResultForUser(id);
         const result = await mutateAsyncRef.current({
           rukapay_user_id: id,
           wallet_id: opts.walletId?.trim() || undefined,
@@ -244,8 +263,6 @@ export default function ScoringResultsPage() {
           rukapayUserId: id,
           name,
           jobId: result.job_id,
-          baselineResultId: baseline?.id ?? null,
-          queuedAtMs: Date.now(),
         });
         setFeedback({
           kind: "queued",
