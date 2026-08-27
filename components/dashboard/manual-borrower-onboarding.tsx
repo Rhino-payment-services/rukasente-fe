@@ -18,6 +18,16 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 type ResultData = {
+  already_exists?: boolean;
+  enroll?: {
+    borrower?: {
+      full_name?: string;
+      phone?: string;
+      email?: string;
+      rukapay_user_id?: string;
+    };
+    subscription?: { status?: string } | null;
+  } | null;
   latest_score?: {
     total_score?: number;
     risk_band?: string;
@@ -119,9 +129,28 @@ export function ManualBorrowerOnboarding() {
       if (!res.ok || !payload.success) {
         throw new Error(payload.error?.message || "Manual onboarding failed");
       }
-      setResult(payload.data ?? null);
+      const data = payload.data ?? null;
+      setResult(data);
+      const resolvedName = data?.enroll?.borrower?.full_name?.trim() || "";
+      const resolvedEmail = data?.enroll?.borrower?.email?.trim() || "";
+      const resolvedPhone = data?.enroll?.borrower?.phone?.trim() || "";
+      if (resolvedName || resolvedEmail || resolvedPhone) {
+        setForm((f) => ({
+          ...f,
+          full_name: resolvedName || f.full_name,
+          email: resolvedEmail || f.email,
+          phone: resolvedPhone || f.phone,
+        }));
+      }
       setActiveStep(null);
-      toast.success("Borrower linked and scored successfully");
+      if (data?.already_exists) {
+        toast.message("Borrower already linked in RukaSente", {
+          description:
+            "Skipped re-enroll and consent. Showing their current subscription and score.",
+        });
+      } else {
+        toast.success("Borrower linked and scored successfully");
+      }
     } catch (err) {
       setActiveStep(null);
       toast.error((err as Error).message || "Failed to run manual flow");
@@ -368,6 +397,16 @@ export function ManualBorrowerOnboarding() {
 
           {result ? (
             <div className="grid gap-3">
+              {result.already_exists ? (
+                <p className="rounded-xl border border-amber-100 bg-amber-50/80 px-3 py-2 text-[12px] leading-snug text-amber-900">
+                  This phone is already linked in RukaSente — no new enroll or
+                  consent was created.
+                </p>
+              ) : null}
+              <ResultStat
+                label="Borrower"
+                value={result.enroll?.borrower?.full_name?.trim() || "—"}
+              />
               <ResultStat
                 label="Subscription"
                 value={result.subscription?.status ?? "—"}

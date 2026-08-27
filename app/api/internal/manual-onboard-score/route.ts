@@ -16,11 +16,15 @@ type Body = {
 };
 
 type EnrollData = {
+  already_exists?: boolean;
   borrower?: {
     rukapay_user_id?: string;
     scoring_wallet_id?: string;
     wallet_ids?: string[];
+    full_name?: string;
+    phone?: string;
   };
+  subscription?: { status?: string } | null;
 };
 
 export async function POST(req: Request) {
@@ -39,7 +43,8 @@ export async function POST(req: Request) {
         success: false,
         error: {
           code: "validation_error",
-          message: "Phone is required (full name and email are filled from RukaPay when available)",
+          message:
+            "Phone is required (full name and email are filled from RukaPay when available)",
         },
       },
       { status: 400 }
@@ -119,6 +124,43 @@ export async function POST(req: Request) {
     );
   }
 
+  // Already linked for this lender — return current score/subscription; do not re-consent or re-score.
+  if (enrollData?.already_exists) {
+    const [latestRes, subscriptionRes] = await Promise.all([
+      fetch(
+        `${base}/internal/scoring/borrowers/${encodeURIComponent(
+          rukapayUserId
+        )}/latest`,
+        { headers, cache: "no-store" }
+      ),
+      fetch(
+        `${base}/internal/borrowers/${encodeURIComponent(
+          rukapayUserId
+        )}/subscription`,
+        { headers, cache: "no-store" }
+      ),
+    ]);
+    const latestPayload = await latestRes.json();
+    const subscriptionPayload = await subscriptionRes.json();
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        already_exists: true,
+        enroll: enrollPayload.data,
+        consents: null,
+        scoring_run: null,
+        latest_score: latestPayload?.data ?? null,
+        subscription:
+          subscriptionPayload?.data ?? enrollData.subscription ?? null,
+        resolved: {
+          rukapay_user_id: rukapayUserId,
+          wallet_id: scoringWallet,
+        },
+      },
+    });
+  }
+
   const consentVersion = body.consent_version?.trim() || "v1";
   const consentRes = await fetch(
     `${base}/internal/borrowers/${encodeURIComponent(
@@ -195,6 +237,7 @@ export async function POST(req: Request) {
   return NextResponse.json({
     success: true,
     data: {
+      already_exists: false,
       enroll: enrollPayload.data,
       consents: consentPayload.data,
       scoring_run: runPayload.data,
