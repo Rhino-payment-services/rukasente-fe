@@ -28,6 +28,47 @@ function formatBalance(amount?: number | null) {
   return formatUgx(Number(amount));
 }
 
+function WalletAccountCell({
+  snap,
+  roleLabel,
+}: {
+  snap: PartnerWalletSetupListItem["disbursement"];
+  roleLabel: string;
+}) {
+  const configured = snap.configured;
+  const verified = snap.verified;
+  return (
+    <div className="flex items-start justify-between gap-3">
+      <div className="min-w-0">
+        <p className="text-[11px] font-medium text-slate-700">{roleLabel}</p>
+        <p className="text-[11px] text-slate-500">
+          {configured
+            ? verified
+              ? "Verified"
+              : "Unverified"
+            : "Not set"}
+        </p>
+        {configured && snap.wallet_id ? (
+          <p className="mt-0.5 font-mono text-[10px] text-slate-400">
+            ···{snap.wallet_id.slice(-4)}
+          </p>
+        ) : null}
+        <p className="mt-1 text-[11px] text-slate-500">
+          Frozen: {formatBalance(snap.frozen)}
+        </p>
+      </div>
+      <div className="shrink-0 text-right">
+        <p className="text-lg font-bold tabular-nums text-slate-900">
+          {formatBalance(snap.available)}
+        </p>
+        <p className="text-[10px] font-medium uppercase tracking-wide text-slate-500">
+          Available
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function PlatformPartnerRow({ item }: { item: PartnerWalletSetupListItem }) {
   return (
     <tr className="hover:bg-slate-50/60">
@@ -35,8 +76,8 @@ function PlatformPartnerRow({ item }: { item: PartnerWalletSetupListItem }) {
         <p className="font-medium text-slate-900">{item.partner_name}</p>
         <p className="text-xs text-slate-500">{item.partner_code}</p>
         {item.is_internal ? (
-          <span className="mt-1 inline-block rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600">
-            Internal
+          <span className="mt-1 inline-block rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-medium text-indigo-700">
+            Platform (RukaSente)
           </span>
         ) : null}
       </td>
@@ -52,48 +93,10 @@ function PlatformPartnerRow({ item }: { item: PartnerWalletSetupListItem }) {
         ) : null}
       </td>
       <td className="px-4 py-3 align-top">
-        <p className="font-mono text-[11px] text-slate-600">
-          {item.disbursement.configured
-            ? item.disbursement.verified
-              ? "Verified disbursement account"
-              : "Disbursement account (unverified)"
-            : "—"}
-        </p>
-        <p className="mt-1 text-xs text-slate-700">
-          Available: {formatBalance(item.disbursement.available)}
-        </p>
-        <p className="text-[11px] text-slate-500">
-          Frozen: {formatBalance(item.disbursement.frozen)}
-        </p>
-        <p className="text-[11px] text-slate-500">
-          {item.disbursement.verified
-            ? "Verified"
-            : item.disbursement.configured
-              ? "Unverified"
-              : "Not set"}
-        </p>
+        <WalletAccountCell snap={item.disbursement} roleLabel="Disbursement" />
       </td>
       <td className="px-4 py-3 align-top">
-        <p className="font-mono text-[11px] text-slate-600">
-          {item.collection.configured
-            ? item.collection.verified
-              ? "Verified collection account"
-              : "Collection account (unverified)"
-            : "—"}
-        </p>
-        <p className="mt-1 text-xs text-slate-700">
-          Available: {formatBalance(item.collection.available)}
-        </p>
-        <p className="text-[11px] text-slate-500">
-          Frozen: {formatBalance(item.collection.frozen)}
-        </p>
-        <p className="text-[11px] text-slate-500">
-          {item.collection.verified
-            ? "Verified"
-            : item.collection.configured
-              ? "Unverified"
-              : "Not set"}
-        </p>
+        <WalletAccountCell snap={item.collection} roleLabel="Collection" />
       </td>
       <td className="px-4 py-3 text-right align-top">
         <Button
@@ -115,11 +118,16 @@ function PlatformPartnerRow({ item }: { item: PartnerWalletSetupListItem }) {
 
 function PlatformWalletsView() {
   const walletsQ = usePlatformPartnerWallets();
-  const [showInternal, setShowInternal] = useState(false);
+  const [showInternal, setShowInternal] = useState(true);
 
   const items = useMemo(() => {
     const all = walletsQ.data ?? [];
-    return showInternal ? all : all.filter((p) => !p.is_internal);
+    const filtered = showInternal ? all : all.filter((p) => !p.is_internal);
+    return [...filtered].sort((a, b) => {
+      if (a.is_internal && !b.is_internal) return -1;
+      if (!a.is_internal && b.is_internal) return 1;
+      return a.partner_name.localeCompare(b.partner_name);
+    });
   }, [walletsQ.data, showInternal]);
 
   const readyCount = items.filter((p) => p.ready).length;
@@ -158,7 +166,7 @@ function PlatformWalletsView() {
             onChange={(e) => setShowInternal(e.target.checked)}
             className="rounded border-slate-300"
           />
-          Show internal partners
+          Show platform (RukaSente)
         </label>
       </div>
 

@@ -38,7 +38,7 @@ function isGenericEscrowLabel(text: string): boolean {
 function accountSuffix(walletId: string): string {
   const trimmed = walletId.trim();
   if (trimmed.length < 4) return "";
-  return ` ···${trimmed.slice(-4)}`;
+  return `···${trimmed.slice(-4)}`;
 }
 
 function walletTitle(
@@ -55,12 +55,12 @@ function walletTitle(
         return `${roleLabel} · ${description}`;
       }
     }
-    return `${roleLabel} account${accountSuffix(wallet.id)}`;
+    return `${roleLabel} account${accountSuffix(wallet.id) ? ` ${accountSuffix(wallet.id)}` : ""}`;
   }
 
   if (description && !isGenericEscrowLabel(description)) return description;
   if (wallet.is_default) return "Default ESCROW account";
-  return `ESCROW account${accountSuffix(wallet.id)}`;
+  return `ESCROW account${accountSuffix(wallet.id) ? ` ${accountSuffix(wallet.id)}` : ""}`;
 }
 
 function walletSubtitle(
@@ -87,6 +87,7 @@ type WalletPickerCardsProps = {
   disabledWalletIds?: string[];
   loading?: boolean;
   emptyMessage?: string;
+  optionsError?: boolean;
 };
 
 export function WalletPickerCards({
@@ -99,14 +100,17 @@ export function WalletPickerCards({
   disabledWalletIds = [],
   loading,
   emptyMessage,
+  optionsError,
 }: WalletPickerCardsProps) {
   const resolvedEmptyMessage =
     emptyMessage ??
-    (accountRole === "disbursement"
-      ? "No disbursement account options found. Check RukaPay gateway admin configuration."
-      : accountRole === "collection"
-        ? "No collection account options found. Check RukaPay gateway admin configuration."
-        : "No ESCROW accounts found. Check RukaPay gateway admin configuration.");
+    (optionsError
+      ? "Could not load wallet options. Configure RUKA_RDBS_GATEWAY_ADMIN_* env vars on rukasente-be."
+      : accountRole === "disbursement"
+        ? "No disbursement account options found. Configure RukaPay gateway admin on rukasente-be."
+        : accountRole === "collection"
+          ? "No collection account options found. Configure RukaPay gateway admin on rukasente-be."
+          : "No ESCROW accounts found. Configure RukaPay gateway admin on rukasente-be.");
 
   if (loading) {
     return (
@@ -139,11 +143,18 @@ export function WalletPickerCards({
       ) : null}
 
       {!wallets.length ? (
-        <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-xs text-slate-500">
+        <p
+          className={cn(
+            "rounded-xl border border-dashed px-3 py-4 text-xs",
+            optionsError
+              ? "border-amber-200 bg-amber-50 text-amber-800"
+              : "border-slate-200 bg-slate-50 text-slate-500"
+          )}
+        >
           {resolvedEmptyMessage}
         </p>
       ) : (
-        <div className="grid gap-2 sm:grid-cols-2">
+        <div className="grid gap-2">
           {wallets.map((wallet) => {
             const selected = selectedId === wallet.id;
             const disabled =
@@ -155,7 +166,7 @@ export function WalletPickerCards({
                 disabled={disabled}
                 onClick={() => onSelect(wallet.id)}
                 className={cn(
-                  "rounded-xl border p-3 text-left transition",
+                  "flex w-full items-stretch justify-between gap-4 rounded-xl border p-3 text-left transition",
                   selected
                     ? accountRole === "collection"
                       ? "border-sky-600 bg-sky-50/60 ring-1 ring-sky-600/20"
@@ -164,43 +175,59 @@ export function WalletPickerCards({
                   disabled && "cursor-not-allowed opacity-50"
                 )}
               >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex min-w-0 items-start gap-2">
-                    <span
-                      className={cn(
-                        "mt-0.5 inline-flex size-8 shrink-0 items-center justify-center rounded-lg",
-                        selected
-                          ? accountRole === "collection"
-                            ? "bg-sky-700 text-white"
-                            : "bg-[#08163d] text-white"
-                          : "bg-slate-100 text-slate-600"
-                      )}
-                    >
-                      <Wallet className="size-4" />
-                    </span>
-                    <div className="min-w-0">
-                      {accountRole ? (
-                        <span
-                          className={cn(
-                            "mb-1 inline-flex rounded-full border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
-                            ROLE_META[accountRole].badgeClass
-                          )}
-                        >
-                          {ROLE_META[accountRole].label}
+                <div className="flex min-w-0 flex-1 items-start gap-2">
+                  <span
+                    className={cn(
+                      "mt-0.5 inline-flex size-8 shrink-0 items-center justify-center rounded-lg",
+                      selected
+                        ? accountRole === "collection"
+                          ? "bg-sky-700 text-white"
+                          : "bg-[#08163d] text-white"
+                        : "bg-slate-100 text-slate-600"
+                    )}
+                  >
+                    <Wallet className="size-4" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    {accountRole ? (
+                      <span
+                        className={cn(
+                          "mb-1 inline-flex rounded-full border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+                          ROLE_META[accountRole].badgeClass
+                        )}
+                      >
+                        {ROLE_META[accountRole].label}
+                      </span>
+                    ) : null}
+                    <p className="truncate text-sm font-semibold text-slate-900">
+                      {walletTitle(wallet, accountRole)}
+                    </p>
+                    <p className="text-[11px] text-slate-500">
+                      {walletSubtitle(wallet, accountRole)}
+                    </p>
+                    <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-slate-600">
+                      {wallet.wallet_number ? (
+                        <span>
+                          Wallet <span className="font-semibold">#{wallet.wallet_number}</span>
                         </span>
                       ) : null}
-                      <p className="truncate text-sm font-semibold text-slate-900">
-                        {walletTitle(wallet, accountRole)}
-                      </p>
-                      <p className="text-[11px] text-slate-500">
-                        {walletSubtitle(wallet, accountRole)}
-                      </p>
+                      {wallet.public_wallet_id ? (
+                        <span>
+                          RukaPay No.{" "}
+                          <span className="font-semibold">{wallet.public_wallet_id}</span>
+                        </span>
+                      ) : null}
+                      {accountSuffix(wallet.id) ? (
+                        <span className="font-mono text-slate-400">
+                          ID {accountSuffix(wallet.id)}
+                        </span>
+                      ) : null}
                     </div>
                   </div>
                   {selected ? (
                     <CheckCircle2
                       className={cn(
-                        "size-4 shrink-0",
+                        "size-4 shrink-0 self-start",
                         accountRole === "collection"
                           ? "text-sky-700"
                           : "text-[#08163d]"
@@ -208,19 +235,16 @@ export function WalletPickerCards({
                     />
                   ) : null}
                 </div>
-                <div className="mt-3 grid grid-cols-2 gap-2 text-[11px]">
-                  <div>
-                    <p className="text-slate-500">Available</p>
-                    <p className="font-semibold text-slate-900">
-                      {formatUgx(wallet.available_balance)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-slate-500">Frozen</p>
-                    <p className="font-semibold text-slate-900">
-                      {formatUgx(wallet.frozen)}
-                    </p>
-                  </div>
+                <div className="shrink-0 text-right">
+                  <p className="text-xl font-bold tabular-nums text-slate-900 sm:text-2xl">
+                    {formatUgx(wallet.available_balance)}
+                  </p>
+                  <p className="text-[10px] font-medium uppercase tracking-wide text-slate-500">
+                    Available
+                  </p>
+                  <p className="mt-1 text-[11px] text-slate-500">
+                    Frozen {formatUgx(wallet.frozen)}
+                  </p>
                 </div>
               </button>
             );
@@ -229,4 +253,14 @@ export function WalletPickerCards({
       )}
     </div>
   );
+}
+
+/** Lookup wallet metadata from options list for verify summary. */
+export function findWalletOption(
+  wallets: PartnerEscrowWalletOption[],
+  walletId: string
+): PartnerEscrowWalletOption | undefined {
+  const id = walletId.trim();
+  if (!id) return undefined;
+  return wallets.find((w) => w.id === id);
 }

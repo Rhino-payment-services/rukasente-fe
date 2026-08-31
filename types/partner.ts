@@ -264,6 +264,8 @@ export type PartnerEscrowWalletOption = {
   available_balance: number;
   is_default: boolean;
   is_active: boolean;
+  public_wallet_id?: string;
+  wallet_number?: number;
 };
 
 export type PartnerWalletRule = {

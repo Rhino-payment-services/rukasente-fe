@@ -6,7 +6,10 @@ import { CheckCircle2, CircleAlert, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { WalletPickerCards } from "@/components/partners/wallet-picker-cards";
+import {
+  WalletPickerCards,
+  findWalletOption,
+} from "@/components/partners/wallet-picker-cards";
 import { CompactLoading } from "@/components/ui/loading";
 import { usePartner } from "@/hooks/use-partners";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -71,6 +74,41 @@ function mergeWalletOptions(
   return Array.from(byId.values());
 }
 
+function VerifySummaryRow({
+  role,
+  wallet,
+  valid,
+  available,
+}: {
+  role: string;
+  wallet?: PartnerEscrowWalletOption;
+  valid: boolean;
+  available?: number;
+}) {
+  return (
+    <div
+      className={`rounded-lg border px-3 py-2.5 text-xs ${
+        valid
+          ? "border-emerald-200 bg-emerald-50/60 text-emerald-900"
+          : "border-rose-200 bg-rose-50/60 text-rose-900"
+      }`}
+    >
+      <p className="font-semibold">{role}</p>
+      {wallet ? (
+        <p className="mt-0.5 text-slate-700">
+          {wallet.description || "ESCROW account"}
+          {wallet.wallet_number ? ` · Wallet #${wallet.wallet_number}` : ""}
+          {wallet.public_wallet_id ? ` · RukaPay ${wallet.public_wallet_id}` : ""}
+        </p>
+      ) : null}
+      <p className="mt-1">
+        {valid ? "Verified" : "Not verified"}
+        {available != null ? ` · Available ${formatUgx(available)}` : ""}
+      </p>
+    </div>
+  );
+}
+
 export default function PartnerWalletsPage({
   params,
 }: {
@@ -97,6 +135,23 @@ export default function PartnerWalletsPage({
   const setup = setupQ.data;
   const options = optionsQ.data?.items ?? [];
   const currency = partner?.currency || "UGX";
+
+  const allOptions = useMemo(
+    () =>
+      mergeWalletOptions(options, [
+        snapshotToWalletOption(
+          setup?.disbursement,
+          "Disbursement account (assigned)",
+          currency
+        ),
+        snapshotToWalletOption(
+          setup?.collection,
+          "Collection account (assigned)",
+          currency
+        ),
+      ]),
+    [options, setup?.disbursement, setup?.collection, currency]
+  );
 
   const legacyDisbursementOnly =
     !!setup?.disbursement.configured && !setup?.collection.configured;
@@ -125,6 +180,11 @@ export default function PartnerWalletsPage({
     [options, setup?.collection, currency]
   );
 
+  const bothVerified =
+    verifyResult?.disbursement?.valid === true &&
+    verifyResult?.collection?.valid === true &&
+    verifyResult.wallets_separate !== false;
+
   useEffect(() => {
     if (!initialized && (partner || setup)) {
       const disbursementId =
@@ -149,14 +209,34 @@ export default function PartnerWalletsPage({
     }
   }, [setup?.disbursement.wallet_id, disbursementWalletId]);
 
+  useEffect(() => {
+    setVerifyResult(null);
+  }, [disbursementWalletId, collectionWalletId]);
+
   async function onVerify() {
+    if (!disbursementWalletId.trim() || !collectionWalletId.trim()) {
+      toast.error("Select both disbursement and collection accounts first");
+      return;
+    }
+    if (disbursementWalletId.trim() === collectionWalletId.trim()) {
+      toast.error("Disbursement and collection accounts must be different");
+      return;
+    }
     try {
       const result = await verify.mutateAsync({
-        disbursement_wallet_id: disbursementWalletId.trim() || undefined,
-        collection_wallet_id: collectionWalletId.trim() || undefined,
+        disbursement_wallet_id: disbursementWalletId.trim(),
+        collection_wallet_id: collectionWalletId.trim(),
       });
       setVerifyResult(result);
-      toast.success("Wallets verified");
+      if (
+        result.disbursement?.valid &&
+        result.collection?.valid &&
+        result.wallets_separate !== false
+      ) {
+        toast.success("Both accounts verified with RukaPay");
+      } else {
+        toast.error("One or more accounts could not be verified");
+      }
     } catch (err) {
       toast.error((err as Error).message || "Verification failed");
     }
@@ -164,18 +244,22 @@ export default function PartnerWalletsPage({
 
   async function onSaveWallets(e: FormEvent) {
     e.preventDefault();
-    if (
-      disbursementWalletId.trim() &&
-      collectionWalletId.trim() &&
-      disbursementWalletId.trim() === collectionWalletId.trim()
-    ) {
+    if (!disbursementWalletId.trim() || !collectionWalletId.trim()) {
+      toast.error("Select both disbursement and collection accounts");
+      return;
+    }
+    if (disbursementWalletId.trim() === collectionWalletId.trim()) {
       toast.error("Disbursement and collection wallets must be different");
+      return;
+    }
+    if (!bothVerified) {
+      toast.error("Verify both accounts with RukaPay before saving");
       return;
     }
     try {
       await saveWallets.mutateAsync({
-        rukapay_escrow_wallet_id: disbursementWalletId.trim() || null,
-        rukapay_collection_wallet_id: collectionWalletId.trim() || null,
+        rukapay_escrow_wallet_id: disbursementWalletId.trim(),
+        rukapay_collection_wallet_id: collectionWalletId.trim(),
       });
       toast.success("Wallet configuration saved");
       setupQ.refetch();
@@ -236,7 +320,8 @@ export default function PartnerWalletsPage({
           <h2 className="text-sm font-semibold text-slate-900">Wallet configuration</h2>
           <p className="text-xs text-slate-500">
             Both accounts are ESCROW wallets in RukaPay. Assign one role for loan
-            disbursement and a separate account for repayment collection.
+            disbursement and a separate account for repayment collection. Verify
+            both accounts before saving.
           </p>
           {legacyDisbursementOnly ? (
             <div className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2.5 text-xs text-blue-900">
@@ -257,9 +342,10 @@ export default function PartnerWalletsPage({
                 collectionWalletId ? [collectionWalletId] : []
               }
               loading={optionsQ.isLoading && !setup?.disbursement.configured}
+              optionsError={optionsQ.isError}
               emptyMessage={
                 setup?.disbursement.configured
-                  ? "Configured disbursement wallet is shown above. Add RukaPay gateway admin env vars to list more wallets."
+                  ? "Configured disbursement account is shown above. Set RUKA_RDBS_GATEWAY_ADMIN_* on rukasente-be to list more wallets."
                   : undefined
               }
             />
@@ -274,6 +360,7 @@ export default function PartnerWalletsPage({
                 disbursementWalletId ? [disbursementWalletId] : []
               }
               loading={optionsQ.isLoading}
+              optionsError={optionsQ.isError}
             />
             <div className="flex flex-wrap gap-2">
               <Button
@@ -286,32 +373,35 @@ export default function PartnerWalletsPage({
               </Button>
               <Button
                 type="submit"
-                disabled={saveWallets.isPending}
+                disabled={saveWallets.isPending || !bothVerified}
                 className="bg-[#08163d] text-white hover:bg-[#06102a]"
               >
                 Save wallets
               </Button>
             </div>
+            {!bothVerified ? (
+              <p className="text-[11px] text-slate-500">
+                Verify both accounts with RukaPay to enable Save.
+              </p>
+            ) : null}
           </form>
           {verifyResult ? (
-            <div className="grid gap-2 text-xs text-slate-600 md:grid-cols-2">
+            <div className="grid gap-2 md:grid-cols-2">
               {verifyResult.disbursement ? (
-                <p>
-                  Disbursement:{" "}
-                  {verifyResult.disbursement.valid ? "valid" : "invalid"}
-                  {verifyResult.disbursement.available != null
-                    ? ` · available ${formatUgx(verifyResult.disbursement.available)}`
-                    : ""}
-                </p>
+                <VerifySummaryRow
+                  role="Disbursement"
+                  wallet={findWalletOption(allOptions, disbursementWalletId)}
+                  valid={verifyResult.disbursement.valid}
+                  available={verifyResult.disbursement.available}
+                />
               ) : null}
               {verifyResult.collection ? (
-                <p>
-                  Collection:{" "}
-                  {verifyResult.collection.valid ? "valid" : "invalid"}
-                  {verifyResult.collection.available != null
-                    ? ` · available ${formatUgx(verifyResult.collection.available)}`
-                    : ""}
-                </p>
+                <VerifySummaryRow
+                  role="Collection"
+                  wallet={findWalletOption(allOptions, collectionWalletId)}
+                  valid={verifyResult.collection.valid}
+                  available={verifyResult.collection.available}
+                />
               ) : null}
             </div>
           ) : null}
