@@ -359,7 +359,6 @@ export default function PartnerWalletsPage({
               }
               loading={optionsQ.isLoading && !setup?.disbursement.configured}
               optionsError={optionsQ.isError}
-              lockAssigned={legacyDisbursementOnly && !!setup?.disbursement.configured}
               emptyMessage={
                 setup?.disbursement.configured
                   ? "Configured disbursement account is shown above. Set RUKA_RDBS_BASE_URL and RUKA_RDBS_API_KEY on rukasente-be to list more wallets."

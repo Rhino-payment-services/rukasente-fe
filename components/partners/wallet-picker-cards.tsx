@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { CheckCircle2, Search, Wallet, X } from "lucide-react";
 import { formatUgx } from "@/hooks/use-dashboard-stats";
 import { cn } from "@/lib/utils";
@@ -229,8 +229,6 @@ type WalletPickerCardsProps = {
   loading?: boolean;
   emptyMessage?: string;
   optionsError?: boolean;
-  /** When true, show only the assigned wallet until the user chooses to change it. */
-  lockAssigned?: boolean;
 };
 
 export function WalletPickerCards({
@@ -244,15 +242,17 @@ export function WalletPickerCards({
   loading,
   emptyMessage,
   optionsError,
-  lockAssigned = false,
 }: WalletPickerCardsProps) {
   const [searchQuery, setSearchQuery] = useState("");
-  const [pickerOpen, setPickerOpen] = useState(!lockAssigned);
+  const searchRef = useRef<HTMLInputElement>(null);
 
   const selectedWallet = useMemo(
     () => wallets.find((w) => w.id === selectedId.trim()),
     [wallets, selectedId]
   );
+
+  const trimmedSearch = searchQuery.trim();
+  const showResults = trimmedSearch.length > 0;
 
   const filteredWallets = useMemo(
     () => filterWallets(wallets, searchQuery, accountRole),
@@ -267,7 +267,15 @@ export function WalletPickerCards({
     [filteredWallets, selectedWallet]
   );
 
-  const showPicker = pickerOpen || !selectedWallet;
+  function handleSelect(walletId: string) {
+    onSelect(walletId);
+    setSearchQuery("");
+  }
+
+  function focusSearch() {
+    searchRef.current?.focus();
+  }
+
   const roleAccent =
     accountRole === "collection"
       ? "border-sky-200 bg-sky-50/40"
@@ -330,19 +338,17 @@ export function WalletPickerCards({
             <div className={cn("rounded-xl border p-3", roleAccent)}>
               <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-600">
-                  Selected account
+                  Assigned account
                 </p>
-                {lockAssigned && !pickerOpen ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-7 text-xs"
-                    onClick={() => setPickerOpen(true)}
-                  >
-                    Change account
-                  </Button>
-                ) : null}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={focusSearch}
+                >
+                  Change account
+                </Button>
               </div>
               <WalletOptionCard
                 wallet={selectedWallet}
@@ -355,46 +361,49 @@ export function WalletPickerCards({
             </div>
           ) : null}
 
-          {showPicker ? (
-            <div className="space-y-2">
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-slate-400" />
-                <Input
-                  type="search"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search by name, Wallet #, RukaPay No., or ID…"
-                  className="h-9 pl-8 pr-8 text-sm"
-                  aria-label={`Search ${label.toLowerCase()}`}
-                />
-                {searchQuery ? (
-                  <button
-                    type="button"
-                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-slate-400 hover:text-slate-600"
-                    onClick={() => setSearchQuery("")}
-                    aria-label="Clear search"
-                  >
-                    <X className="size-3.5" />
-                  </button>
-                ) : null}
-              </div>
+          <div className="space-y-2">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-slate-400" />
+              <Input
+                ref={searchRef}
+                type="search"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search by name, Wallet #, RukaPay No., or ID…"
+                className="h-9 pl-8 pr-8 text-sm"
+                aria-label={`Search ${label.toLowerCase()}`}
+              />
+              {searchQuery ? (
+                <button
+                  type="button"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-slate-400 hover:text-slate-600"
+                  onClick={() => setSearchQuery("")}
+                  aria-label="Clear search"
+                >
+                  <X className="size-3.5" />
+                </button>
+              ) : null}
+            </div>
+
+            {!showResults ? (
               <p className="text-[11px] text-slate-500">
-                {listWallets.length} account{listWallets.length === 1 ? "" : "s"} to
-                choose from
-                {searchQuery.trim() ? ` matching “${searchQuery.trim()}”` : ""}
-                {" · "}
-                Click a row to set this account.
+                {selectedWallet
+                  ? "Search to assign a different account."
+                  : "Search to find and assign an account."}
               </p>
-              {!listWallets.length ? (
-                <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-xs text-slate-500">
-                  {selectedWallet && !searchQuery.trim()
-                    ? "This is the only available account for this role."
-                    : "No accounts match your search. Try RukaPay No., Wallet #, or description."}
+            ) : !listWallets.length ? (
+              <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-xs text-slate-500">
+                No accounts match “{trimmedSearch}”. Try RukaPay No., Wallet #, or
+                description.
+              </p>
+            ) : (
+              <>
+                <p className="text-[11px] text-slate-500">
+                  {listWallets.length} match{listWallets.length === 1 ? "" : "es"} ·
+                  Click to assign.
                 </p>
-              ) : (
-                <div className="grid max-h-[min(420px,50vh)] gap-2 overflow-y-auto pr-0.5">
+                <div className="grid max-h-[min(360px,45vh)] gap-2 overflow-y-auto pr-0.5">
                   {listWallets.map((wallet) => {
-                    const selected = selectedId === wallet.id;
                     const disabled =
                       !wallet.is_active || disabledWalletIds.includes(wallet.id);
                     return (
@@ -402,33 +411,16 @@ export function WalletPickerCards({
                         key={wallet.id}
                         wallet={wallet}
                         accountRole={accountRole}
-                        selected={selected}
+                        selected={false}
                         disabled={disabled}
-                        onSelect={() => {
-                          onSelect(wallet.id);
-                          setPickerOpen(lockAssigned ? false : true);
-                        }}
+                        onSelect={() => handleSelect(wallet.id)}
                       />
                     );
                   })}
                 </div>
-              )}
-              {lockAssigned && pickerOpen && selectedWallet ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 text-xs text-slate-600"
-                  onClick={() => {
-                    setPickerOpen(false);
-                    setSearchQuery("");
-                  }}
-                >
-                  Done — keep selected account
-                </Button>
-              ) : null}
-            </div>
-          ) : null}
+              </>
+            )}
+          </div>
         </div>
       )}
     </div>
