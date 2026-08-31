@@ -6,8 +6,6 @@ import { unwrapEnvelope } from "@/lib/api-envelope";
 import { useMe } from "@/hooks/use-me";
 import type {
   PartnerEscrowWalletOption,
-  PartnerWalletRule,
-  PartnerWalletRuleCreatePayload,
   PartnerWalletSetup,
   PartnerWalletSetupListItem,
   PartnerWalletVerifyResult,
@@ -52,17 +50,6 @@ export function usePlatformPartnerWallets(enabled = true) {
   });
 }
 
-export function usePartnerWalletRules(partnerId?: string) {
-  return useQuery({
-    queryKey: ["partner-wallet-rules", partnerId],
-    enabled: !!partnerId,
-    queryFn: async () => {
-      const res = await apiClient.get(`/admin/partners/${partnerId}/wallet-rules`);
-      return unwrapEnvelope<{ items: PartnerWalletRule[] }>(res);
-    },
-  });
-}
-
 export function useVerifyPartnerWallets(partnerId: string) {
   return useMutation({
     mutationFn: async (payload: {
@@ -90,57 +77,6 @@ export function useSavePartnerWallets(partnerId: string) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["partner", partnerId] });
-      qc.invalidateQueries({ queryKey: ["partner-wallet-setup", partnerId] });
-      qc.invalidateQueries({ queryKey: ["wallet"] });
-    },
-  });
-}
-
-export function useCreatePartnerWalletRule(partnerId: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (payload: PartnerWalletRuleCreatePayload) => {
-      const res = await apiClient.post(
-        `/admin/partners/${partnerId}/wallet-rules`,
-        payload
-      );
-      return unwrapEnvelope<PartnerWalletRule>(res);
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["partner-wallet-rules", partnerId] });
-      qc.invalidateQueries({ queryKey: ["partner-wallet-setup", partnerId] });
-    },
-  });
-}
-
-export function useDeletePartnerWalletRule(partnerId: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (ruleId: string) => {
-      await apiClient.delete(`/admin/partners/${partnerId}/wallet-rules/${ruleId}`);
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["partner-wallet-rules", partnerId] });
-      qc.invalidateQueries({ queryKey: ["partner-wallet-setup", partnerId] });
-    },
-  });
-}
-
-export function useSetPartnerWalletReserve(partnerId: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (payload: {
-      wallet_role: string;
-      amount: number;
-      reason: string;
-    }) => {
-      const res = await apiClient.post(
-        `/admin/partners/${partnerId}/wallets/reserve`,
-        payload
-      );
-      return unwrapEnvelope(res);
-    },
-    onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["partner-wallet-setup", partnerId] });
       qc.invalidateQueries({ queryKey: ["wallet"] });
     },

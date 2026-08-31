@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { FormEvent, use, useState } from "react";
 import { useSession } from "next-auth/react";
-import { ArrowLeft, BookOpen, Copy, KeyRound, RefreshCw, ShieldOff } from "lucide-react";
+import { ArrowLeft, BookOpen, Copy, KeyRound, RefreshCw, ShieldOff, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,6 +34,12 @@ import type { PartnerCredentialCreated } from "@/types/partner";
 function copy(text: string, label: string) {
   void navigator.clipboard.writeText(text);
   toast.success(`${label} copied`);
+}
+
+function walletAccountLabel(walletId?: string | null): string {
+  const id = walletId?.trim();
+  if (!id) return "Not set";
+  return `Configured ···${id.slice(-4)}`;
 }
 
 export default function PartnerDetailPage({
@@ -96,10 +102,6 @@ export default function PartnerDetailPage({
         currency: String(fd.get("currency") || ""),
         primary_color: String(fd.get("primary_color") || ""),
         payment_provider_id: String(fd.get("payment_provider_id") || "") || null,
-        rukapay_escrow_wallet_id:
-          String(fd.get("rukapay_escrow_wallet_id") || "").trim() || null,
-        rukapay_collection_wallet_id:
-          String(fd.get("rukapay_collection_wallet_id") || "").trim() || null,
         product_loan_enabled: fd.get("product_loan_enabled") === "on",
         rukapay_merchant_code:
           String(fd.get("rukapay_merchant_code") || "").trim() || null,
@@ -323,36 +325,47 @@ export default function PartnerDetailPage({
                   ))}
                 </select>
               </label>
-              <label className="sm:col-span-2 block space-y-1.5">
-                <span className="text-xs font-medium text-slate-700">
-                  Disbursement wallet ID
-                </span>
-                <Input
-                  name="rukapay_escrow_wallet_id"
-                  defaultValue={p.rukapay_escrow_wallet_id || ""}
-                  placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                  className="font-mono text-xs"
-                />
-                <span className="block text-[11px] text-slate-400">
-                  ESCROW wallet debited when loans are disbursed. Required for
-                  non-internal lending companies before disbursement.
-                </span>
-              </label>
-              <label className="sm:col-span-2 block space-y-1.5">
-                <span className="text-xs font-medium text-slate-700">
-                  Collection wallet ID
-                </span>
-                <Input
-                  name="rukapay_collection_wallet_id"
-                  defaultValue={p.rukapay_collection_wallet_id || ""}
-                  placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                  className="font-mono text-xs"
-                />
-                <span className="block text-[11px] text-slate-400">
-                  ESCROW wallet credited when repayments are collected. Leave empty
-                  to use the disbursement wallet.
-                </span>
-              </label>
+              {isPlatform ? (
+                <div className="sm:col-span-2 rounded-xl border border-slate-200 bg-slate-50/80 p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-medium text-slate-700">
+                        Disbursement & collection accounts
+                      </p>
+                      <p className="mt-1 text-[11px] text-slate-500">
+                        RukaPay ESCROW wallets for loan payouts and repayments.
+                        Configure on the wallet setup page.
+                      </p>
+                    </div>
+                    <Button asChild type="button" size="sm" variant="outline">
+                      <Link href={`/partners/${id}/wallets`}>
+                        <Wallet className="size-3.5" />
+                        Manage wallets
+                      </Link>
+                    </Button>
+                  </div>
+                  <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+                    <div>
+                      <dt className="text-[11px] text-slate-500">Disbursement</dt>
+                      <dd className="font-medium text-slate-800">
+                        {walletAccountLabel(p.rukapay_escrow_wallet_id)}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-[11px] text-slate-500">Collection</dt>
+                      <dd className="font-medium text-slate-800">
+                        {walletAccountLabel(p.rukapay_collection_wallet_id)}
+                      </dd>
+                    </div>
+                  </dl>
+                  {walletSetupQ.data && !walletSetupQ.data.ready ? (
+                    <p className="mt-2 text-[11px] text-amber-700">
+                      Wallet setup incomplete — both accounts must be configured and
+                      verified.
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
               <label className="sm:col-span-2 flex items-center gap-2 text-xs text-slate-700">
                 <input
                   type="checkbox"
@@ -461,16 +474,23 @@ export default function PartnerDetailPage({
                 <dd className="truncate">{providerLabel}</dd>
               </div>
               <div className="sm:col-span-2">
-                <dt className="text-xs text-slate-400">Disbursement wallet</dt>
-                <dd className="truncate font-mono text-xs">
-                  {p.rukapay_escrow_wallet_id || "—"}
+                <dt className="text-xs text-slate-400">Disbursement account</dt>
+                <dd className="text-sm text-slate-800">
+                  {walletAccountLabel(p.rukapay_escrow_wallet_id)}
                 </dd>
               </div>
               <div className="sm:col-span-2">
-                <dt className="text-xs text-slate-400">Collection wallet</dt>
-                <dd className="truncate font-mono text-xs">
-                  {p.rukapay_collection_wallet_id || p.rukapay_escrow_wallet_id || "—"}
+                <dt className="text-xs text-slate-400">Collection account</dt>
+                <dd className="text-sm text-slate-800">
+                  {walletAccountLabel(p.rukapay_collection_wallet_id)}
                 </dd>
+                {isPlatform ? (
+                  <dd className="mt-1">
+                    <Button asChild type="button" size="sm" variant="outline" className="h-7 text-xs">
+                      <Link href={`/partners/${id}/wallets`}>Manage wallets</Link>
+                    </Button>
+                  </dd>
+                ) : null}
               </div>
               <div>
                 <dt className="text-xs text-slate-400">Product loans</dt>
