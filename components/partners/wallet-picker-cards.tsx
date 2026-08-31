@@ -105,12 +105,12 @@ export function WalletPickerCards({
   const resolvedEmptyMessage =
     emptyMessage ??
     (optionsError
-      ? "Could not load wallet options. Configure RUKA_RDBS_GATEWAY_ADMIN_* env vars on rukasente-be."
+      ? "Could not load wallet options from RukaPay. Check RUKA_RDBS_BASE_URL and RUKA_RDBS_API_KEY on rukasente-be, then restart the backend."
       : accountRole === "disbursement"
-        ? "No disbursement account options found. Configure RukaPay gateway admin on rukasente-be."
+        ? "No disbursement account options found. Set RUKA_RDBS_BASE_URL and RUKA_RDBS_API_KEY on rukasente-be."
         : accountRole === "collection"
-          ? "No collection account options found. Configure RukaPay gateway admin on rukasente-be."
-          : "No ESCROW accounts found. Configure RukaPay gateway admin on rukasente-be.");
+          ? "No collection account options found. Set RUKA_RDBS_BASE_URL and RUKA_RDBS_API_KEY on rukasente-be."
+          : "No ESCROW accounts found. Set RUKA_RDBS_BASE_URL and RUKA_RDBS_API_KEY on rukasente-be.");
 
   if (loading) {
     return (

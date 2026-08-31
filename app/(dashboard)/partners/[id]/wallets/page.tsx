@@ -330,6 +330,21 @@ export default function PartnerWalletsPage({
               <span className="font-semibold">collection</span> wallet below.
             </div>
           ) : null}
+          {optionsQ.isError ? (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-900">
+              <p className="font-medium">Could not load ESCROW wallets from RukaPay</p>
+              <p className="mt-1">
+                Wallet listing uses{" "}
+                <span className="font-mono">RUKA_RDBS_BASE_URL</span> +{" "}
+                <span className="font-mono">RUKA_RDBS_API_KEY</span> (partner{" "}
+                <span className="font-mono">X-API-Key</span>), not the gateway admin vars.
+                Restart rukasente-be after changing <span className="font-mono">.env</span>.
+              </p>
+              <p className="mt-1 font-mono text-[11px] text-amber-800">
+                {(optionsQ.error as Error)?.message || "Request failed"}
+              </p>
+            </div>
+          ) : null}
           <form className="grid gap-6" onSubmit={onSaveWallets}>
             <WalletPickerCards
               label="Disbursement account"
@@ -345,7 +360,7 @@ export default function PartnerWalletsPage({
               optionsError={optionsQ.isError}
               emptyMessage={
                 setup?.disbursement.configured
-                  ? "Configured disbursement account is shown above. Set RUKA_RDBS_GATEWAY_ADMIN_* on rukasente-be to list more wallets."
+                  ? "Configured disbursement account is shown above. Set RUKA_RDBS_BASE_URL and RUKA_RDBS_API_KEY on rukasente-be to list more wallets."
                   : undefined
               }
             />
