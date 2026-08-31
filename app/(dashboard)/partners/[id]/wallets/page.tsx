@@ -319,9 +319,8 @@ export default function PartnerWalletsPage({
         <CardContent className="space-y-4 pt-4">
           <h2 className="text-sm font-semibold text-slate-900">Wallet configuration</h2>
           <p className="text-xs text-slate-500">
-            Both accounts are ESCROW wallets in RukaPay. Assign one role for loan
-            disbursement and a separate account for repayment collection. Verify
-            both accounts before saving.
+            Search each account by name, Wallet #, or RukaPay No., set disbursement
+            and collection, verify with RukaPay, then save.
           </p>
           {legacyDisbursementOnly ? (
             <div className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2.5 text-xs text-blue-900">
@@ -360,6 +359,7 @@ export default function PartnerWalletsPage({
               }
               loading={optionsQ.isLoading && !setup?.disbursement.configured}
               optionsError={optionsQ.isError}
+              lockAssigned={legacyDisbursementOnly && !!setup?.disbursement.configured}
               emptyMessage={
                 setup?.disbursement.configured
                   ? "Configured disbursement account is shown above. Set RUKA_RDBS_BASE_URL and RUKA_RDBS_API_KEY on rukasente-be to list more wallets."
@@ -379,6 +379,27 @@ export default function PartnerWalletsPage({
               loading={optionsQ.isLoading}
               optionsError={optionsQ.isError}
             />
+            <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-600">
+                1 · Set accounts → 2 · Verify → 3 · Save
+              </p>
+              <div className="mt-2 grid gap-2 text-xs text-slate-700 md:grid-cols-2">
+                <p>
+                  <span className="font-medium">Disbursement:</span>{" "}
+                  {disbursementWalletId
+                    ? findWalletOption(allOptions, disbursementWalletId)?.description ||
+                      `···${disbursementWalletId.slice(-4)}`
+                    : "Not selected"}
+                </p>
+                <p>
+                  <span className="font-medium">Collection:</span>{" "}
+                  {collectionWalletId
+                    ? findWalletOption(allOptions, collectionWalletId)?.description ||
+                      `···${collectionWalletId.slice(-4)}`
+                    : "Not selected"}
+                </p>
+              </div>
+            </div>
             <div className="flex flex-wrap gap-2">
               <Button
                 type="button"

@@ -1,10 +1,13 @@
 "use client";
 
-import { CheckCircle2, Wallet } from "lucide-react";
+import { useMemo, useState } from "react";
+import { CheckCircle2, Search, Wallet, X } from "lucide-react";
 import { formatUgx } from "@/hooks/use-dashboard-stats";
 import { cn } from "@/lib/utils";
 import type { PartnerEscrowWalletOption } from "@/types/partner";
 import { CompactLoading } from "@/components/ui/loading";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 
 export type PartnerWalletAccountRole = "disbursement" | "collection";
 
@@ -77,6 +80,144 @@ function walletSubtitle(
   return parts.join(" · ");
 }
 
+function filterWallets(
+  wallets: PartnerEscrowWalletOption[],
+  query: string,
+  accountRole?: PartnerWalletAccountRole
+): PartnerEscrowWalletOption[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return wallets;
+  return wallets.filter((wallet) => {
+    const haystack = [
+      wallet.description,
+      wallet.public_wallet_id,
+      wallet.wallet_number != null ? String(wallet.wallet_number) : "",
+      wallet.id,
+      walletTitle(wallet, accountRole),
+      wallet.currency,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    return haystack.includes(q);
+  });
+}
+
+function WalletOptionCard({
+  wallet,
+  accountRole,
+  selected,
+  disabled,
+  onSelect,
+  readOnly = false,
+}: {
+  wallet: PartnerEscrowWalletOption;
+  accountRole?: PartnerWalletAccountRole;
+  selected: boolean;
+  disabled: boolean;
+  onSelect: () => void;
+  readOnly?: boolean;
+}) {
+  const className = cn(
+    "flex w-full items-stretch justify-between gap-4 rounded-xl border p-3 text-left transition",
+    selected
+      ? accountRole === "collection"
+        ? "border-sky-600 bg-sky-50/60 ring-1 ring-sky-600/20"
+        : "border-[#08163d] bg-[#08163d]/5 ring-1 ring-[#08163d]/20"
+      : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50",
+    disabled && "cursor-not-allowed opacity-50"
+  );
+
+  const inner = (
+    <>
+      <div className="flex min-w-0 flex-1 items-start gap-2">
+        <span
+          className={cn(
+            "mt-0.5 inline-flex size-8 shrink-0 items-center justify-center rounded-lg",
+            selected
+              ? accountRole === "collection"
+                ? "bg-sky-700 text-white"
+                : "bg-[#08163d] text-white"
+              : "bg-slate-100 text-slate-600"
+          )}
+        >
+          <Wallet className="size-4" />
+        </span>
+        <div className="min-w-0 flex-1">
+          {accountRole ? (
+            <span
+              className={cn(
+                "mb-1 inline-flex rounded-full border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+                ROLE_META[accountRole].badgeClass
+              )}
+            >
+              {ROLE_META[accountRole].label}
+            </span>
+          ) : null}
+          <p className="truncate text-sm font-semibold text-slate-900">
+            {walletTitle(wallet, accountRole)}
+          </p>
+          <p className="text-[11px] text-slate-500">
+            {walletSubtitle(wallet, accountRole)}
+          </p>
+          <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-slate-600">
+            {wallet.wallet_number ? (
+              <span>
+                Wallet <span className="font-semibold">#{wallet.wallet_number}</span>
+              </span>
+            ) : null}
+            {wallet.public_wallet_id ? (
+              <span>
+                RukaPay No.{" "}
+                <span className="font-semibold">{wallet.public_wallet_id}</span>
+              </span>
+            ) : null}
+            {accountSuffix(wallet.id) ? (
+              <span className="font-mono text-slate-400">
+                ID {accountSuffix(wallet.id)}
+              </span>
+            ) : null}
+          </div>
+        </div>
+        {selected ? (
+          <CheckCircle2
+            className={cn(
+              "size-4 shrink-0 self-start",
+              accountRole === "collection" ? "text-sky-700" : "text-[#08163d]"
+            )}
+          />
+        ) : null}
+      </div>
+      <div className="shrink-0 text-right">
+        <p className="text-xl font-bold tabular-nums text-slate-900 sm:text-2xl">
+          {formatUgx(wallet.available_balance)}
+        </p>
+        <p className="text-[10px] font-medium uppercase tracking-wide text-slate-500">
+          Available
+        </p>
+        <p className="mt-1 text-[11px] text-slate-500">
+          Frozen {formatUgx(wallet.frozen)}
+        </p>
+      </div>
+    </>
+  );
+
+  if (readOnly) {
+    return <div className={className}>{inner}</div>;
+  }
+
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onSelect}
+      className={className}
+    >
+      {inner}
+    </button>
+  );
+}
+
 type WalletPickerCardsProps = {
   label: string;
   hint?: string;
@@ -88,6 +229,8 @@ type WalletPickerCardsProps = {
   loading?: boolean;
   emptyMessage?: string;
   optionsError?: boolean;
+  /** When true, show only the assigned wallet until the user chooses to change it. */
+  lockAssigned?: boolean;
 };
 
 export function WalletPickerCards({
@@ -101,7 +244,35 @@ export function WalletPickerCards({
   loading,
   emptyMessage,
   optionsError,
+  lockAssigned = false,
 }: WalletPickerCardsProps) {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [pickerOpen, setPickerOpen] = useState(!lockAssigned);
+
+  const selectedWallet = useMemo(
+    () => wallets.find((w) => w.id === selectedId.trim()),
+    [wallets, selectedId]
+  );
+
+  const filteredWallets = useMemo(
+    () => filterWallets(wallets, searchQuery, accountRole),
+    [wallets, searchQuery, accountRole]
+  );
+
+  const listWallets = useMemo(
+    () =>
+      selectedWallet
+        ? filteredWallets.filter((w) => w.id !== selectedWallet.id)
+        : filteredWallets,
+    [filteredWallets, selectedWallet]
+  );
+
+  const showPicker = pickerOpen || !selectedWallet;
+  const roleAccent =
+    accountRole === "collection"
+      ? "border-sky-200 bg-sky-50/40"
+      : "border-[#08163d]/20 bg-[#08163d]/5";
+
   const resolvedEmptyMessage =
     emptyMessage ??
     (optionsError
@@ -154,101 +325,110 @@ export function WalletPickerCards({
           {resolvedEmptyMessage}
         </p>
       ) : (
-        <div className="grid gap-2">
-          {wallets.map((wallet) => {
-            const selected = selectedId === wallet.id;
-            const disabled =
-              !wallet.is_active || disabledWalletIds.includes(wallet.id);
-            return (
-              <button
-                key={wallet.id}
-                type="button"
-                disabled={disabled}
-                onClick={() => onSelect(wallet.id)}
-                className={cn(
-                  "flex w-full items-stretch justify-between gap-4 rounded-xl border p-3 text-left transition",
-                  selected
-                    ? accountRole === "collection"
-                      ? "border-sky-600 bg-sky-50/60 ring-1 ring-sky-600/20"
-                      : "border-[#08163d] bg-[#08163d]/5 ring-1 ring-[#08163d]/20"
-                    : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50",
-                  disabled && "cursor-not-allowed opacity-50"
-                )}
-              >
-                <div className="flex min-w-0 flex-1 items-start gap-2">
-                  <span
-                    className={cn(
-                      "mt-0.5 inline-flex size-8 shrink-0 items-center justify-center rounded-lg",
-                      selected
-                        ? accountRole === "collection"
-                          ? "bg-sky-700 text-white"
-                          : "bg-[#08163d] text-white"
-                        : "bg-slate-100 text-slate-600"
-                    )}
+        <div className="space-y-3">
+          {selectedWallet ? (
+            <div className={cn("rounded-xl border p-3", roleAccent)}>
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-600">
+                  Selected account
+                </p>
+                {lockAssigned && !pickerOpen ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => setPickerOpen(true)}
                   >
-                    <Wallet className="size-4" />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    {accountRole ? (
-                      <span
-                        className={cn(
-                          "mb-1 inline-flex rounded-full border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
-                          ROLE_META[accountRole].badgeClass
-                        )}
-                      >
-                        {ROLE_META[accountRole].label}
-                      </span>
-                    ) : null}
-                    <p className="truncate text-sm font-semibold text-slate-900">
-                      {walletTitle(wallet, accountRole)}
-                    </p>
-                    <p className="text-[11px] text-slate-500">
-                      {walletSubtitle(wallet, accountRole)}
-                    </p>
-                    <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-slate-600">
-                      {wallet.wallet_number ? (
-                        <span>
-                          Wallet <span className="font-semibold">#{wallet.wallet_number}</span>
-                        </span>
-                      ) : null}
-                      {wallet.public_wallet_id ? (
-                        <span>
-                          RukaPay No.{" "}
-                          <span className="font-semibold">{wallet.public_wallet_id}</span>
-                        </span>
-                      ) : null}
-                      {accountSuffix(wallet.id) ? (
-                        <span className="font-mono text-slate-400">
-                          ID {accountSuffix(wallet.id)}
-                        </span>
-                      ) : null}
-                    </div>
-                  </div>
-                  {selected ? (
-                    <CheckCircle2
-                      className={cn(
-                        "size-4 shrink-0 self-start",
-                        accountRole === "collection"
-                          ? "text-sky-700"
-                          : "text-[#08163d]"
-                      )}
-                    />
-                  ) : null}
+                    Change account
+                  </Button>
+                ) : null}
+              </div>
+              <WalletOptionCard
+                wallet={selectedWallet}
+                accountRole={accountRole}
+                selected
+                disabled={false}
+                readOnly
+                onSelect={() => undefined}
+              />
+            </div>
+          ) : null}
+
+          {showPicker ? (
+            <div className="space-y-2">
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-slate-400" />
+                <Input
+                  type="search"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search by name, Wallet #, RukaPay No., or ID…"
+                  className="h-9 pl-8 pr-8 text-sm"
+                  aria-label={`Search ${label.toLowerCase()}`}
+                />
+                {searchQuery ? (
+                  <button
+                    type="button"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-slate-400 hover:text-slate-600"
+                    onClick={() => setSearchQuery("")}
+                    aria-label="Clear search"
+                  >
+                    <X className="size-3.5" />
+                  </button>
+                ) : null}
+              </div>
+              <p className="text-[11px] text-slate-500">
+                {listWallets.length} account{listWallets.length === 1 ? "" : "s"} to
+                choose from
+                {searchQuery.trim() ? ` matching “${searchQuery.trim()}”` : ""}
+                {" · "}
+                Click a row to set this account.
+              </p>
+              {!listWallets.length ? (
+                <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-xs text-slate-500">
+                  {selectedWallet && !searchQuery.trim()
+                    ? "This is the only available account for this role."
+                    : "No accounts match your search. Try RukaPay No., Wallet #, or description."}
+                </p>
+              ) : (
+                <div className="grid max-h-[min(420px,50vh)] gap-2 overflow-y-auto pr-0.5">
+                  {listWallets.map((wallet) => {
+                    const selected = selectedId === wallet.id;
+                    const disabled =
+                      !wallet.is_active || disabledWalletIds.includes(wallet.id);
+                    return (
+                      <WalletOptionCard
+                        key={wallet.id}
+                        wallet={wallet}
+                        accountRole={accountRole}
+                        selected={selected}
+                        disabled={disabled}
+                        onSelect={() => {
+                          onSelect(wallet.id);
+                          setPickerOpen(lockAssigned ? false : true);
+                        }}
+                      />
+                    );
+                  })}
                 </div>
-                <div className="shrink-0 text-right">
-                  <p className="text-xl font-bold tabular-nums text-slate-900 sm:text-2xl">
-                    {formatUgx(wallet.available_balance)}
-                  </p>
-                  <p className="text-[10px] font-medium uppercase tracking-wide text-slate-500">
-                    Available
-                  </p>
-                  <p className="mt-1 text-[11px] text-slate-500">
-                    Frozen {formatUgx(wallet.frozen)}
-                  </p>
-                </div>
-              </button>
-            );
-          })}
+              )}
+              {lockAssigned && pickerOpen && selectedWallet ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs text-slate-600"
+                  onClick={() => {
+                    setPickerOpen(false);
+                    setSearchQuery("");
+                  }}
+                >
+                  Done — keep selected account
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       )}
     </div>
