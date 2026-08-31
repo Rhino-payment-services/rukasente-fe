@@ -334,11 +334,13 @@ export default function PartnerWalletsPage({
             <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-900">
               <p className="font-medium">Could not load ESCROW wallets from RukaPay</p>
               <p className="mt-1">
-                Wallet listing uses{" "}
-                <span className="font-mono">RUKA_RDBS_BASE_URL</span> +{" "}
-                <span className="font-mono">RUKA_RDBS_API_KEY</span> (partner{" "}
-                <span className="font-mono">X-API-Key</span>), not the gateway admin vars.
-                Restart rukasente-be after changing <span className="font-mono">.env</span>.
+                Primary: <span className="font-mono">RUKA_RDBS_BASE_URL</span> +{" "}
+                <span className="font-mono">RUKA_RDBS_API_KEY</span>. If your rdbs_core
+                build lacks <span className="font-mono">GET /gateway/wallets</span>, also set{" "}
+                <span className="font-mono">RUKA_RDBS_GATEWAY_ADMIN_TOKEN</span> and{" "}
+                <span className="font-mono">RUKA_RDBS_GATEWAY_PARTNER_ID</span> (ApiPartner UUID
+                from rdbs_core_fn). Restart rukasente-be after changing{" "}
+                <span className="font-mono">.env</span>.
               </p>
               <p className="mt-1 font-mono text-[11px] text-amber-800">
                 {(optionsQ.error as Error)?.message || "Request failed"}
