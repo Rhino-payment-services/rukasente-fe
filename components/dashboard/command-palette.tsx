@@ -1,9 +1,11 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { Command } from "cmdk";
 import {
   Cable,
+  Database,
   LayoutDashboard,
   Users,
   UserCircle,
@@ -14,6 +16,7 @@ import {
   Link2,
   FileText,
   Search,
+  Wallet,
 } from "lucide-react";
 import { useSidebar } from "@/components/dashboard/sidebar-context";
 import { useClientMounted } from "@/lib/use-client-mounted";
@@ -31,15 +34,21 @@ const LINKS = [
   { href: "/scoring", label: "Scoring", icon: LineChart, group: "Analytics" },
   { href: "/scoring/results", label: "Score results", icon: FileText, group: "Analytics" },
   { href: "/scoring/eligibility", label: "Eligibility", icon: FileText, group: "Analytics" },
-  { href: "/partners", label: "Lending companies", icon: Link2, group: "Integrations" },
-  { href: "/payment-providers", label: "Payment providers", icon: Cable, group: "Integrations" },
+  { href: "/partners", label: "Lending companies", icon: Link2, group: "Integrations", platformOnly: true },
+  { href: "/wallets", label: "Wallets", icon: Wallet, group: "System", platformOnly: true },
+  { href: "/backups", label: "Backups", icon: Database, group: "System" },
+  { href: "/payment-providers", label: "Payment providers", icon: Cable, group: "Integrations", platformOnly: true },
   { href: "/integrations", label: "API endpoints", icon: Plug, group: "Integrations" },
-];
+] as const;
 
 export function CommandPalette() {
   const router = useRouter();
+  const { data: session } = useSession();
+  const isPlatform = !!session?.user?.isPlatform;
   const { commandOpen, setCommandOpen } = useSidebar();
   const mounted = useClientMounted();
+
+  const links = LINKS.filter((item) => !("platformOnly" in item && item.platformOnly) || isPlatform);
 
   if (!mounted || !commandOpen) return null;
 
@@ -70,7 +79,7 @@ export function CommandPalette() {
             No results found.
           </Command.Empty>
           {["Overview", "Operations", "Management", "Analytics", "System"].map((group) => {
-            const items = LINKS.filter((l) => l.group === group);
+            const items = links.filter((l) => l.group === group);
             if (!items.length) return null;
             return (
               <Command.Group

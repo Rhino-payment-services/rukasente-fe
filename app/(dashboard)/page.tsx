@@ -36,7 +36,7 @@ export default function OverviewPage() {
   const walletQ = useWalletBalances();
 
   const topStats: KPIItem[] = [];
-  if (me) {
+  if (me?.is_platform) {
     const disbursement = walletQ.data?.disbursement;
     const collection = walletQ.data?.collection;
 
@@ -45,18 +45,14 @@ export default function OverviewPage() {
         {
           title: "Disbursement wallet",
           value: "—",
-          subtitle: me.is_platform
-            ? "Main disbursement available"
-            : "Linked disbursement available",
+          subtitle: "Main disbursement available",
           icon: Banknote,
           tone: "emerald",
         },
         {
           title: "Collection wallet",
           value: "—",
-          subtitle: me.is_platform
-            ? "Main collection available"
-            : "Linked collection available",
+          subtitle: "Main collection available",
           icon: Wallet,
           tone: "blue",
         },
@@ -70,9 +66,7 @@ export default function OverviewPage() {
             available == null || walletQ.isError
               ? "—"
               : formatUgx(Number(available)),
-          subtitle: me.is_platform
-            ? "Main disbursement available"
-            : "Linked disbursement available",
+          subtitle: "Main disbursement available",
           icon: Banknote,
           tone: "emerald",
         });
@@ -85,9 +79,7 @@ export default function OverviewPage() {
             available == null || walletQ.isError
               ? "—"
               : formatUgx(Number(available)),
-          subtitle: me.is_platform
-            ? "Main collection available"
-            : "Linked collection available",
+          subtitle: "Main collection available",
           icon: Wallet,
           tone: "blue",
         });

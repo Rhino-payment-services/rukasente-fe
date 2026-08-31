@@ -26,6 +26,7 @@ import {
   useUpdatePartner,
 } from "@/hooks/use-partners";
 import { usePartnerWalletSetup } from "@/hooks/use-partner-wallets";
+import { usePermissions } from "@/hooks/use-permissions";
 import { hasPermission, Perm } from "@/lib/permissions";
 import type { PartnerCredentialCreated } from "@/types/partner";
 
@@ -41,6 +42,7 @@ export default function PartnerDetailPage({
 }) {
   const { id } = use(params);
   const { data: session } = useSession();
+  const { isPlatform } = usePermissions();
   const canUpdate = hasPermission(session?.user?.permissions, Perm.PartnerUpdate);
   const canLogs = hasPermission(session?.user?.permissions, Perm.PartnerViewLogs);
   const canManageCreds = hasPermission(
@@ -49,7 +51,7 @@ export default function PartnerDetailPage({
   );
 
   const partnerQ = usePartner(id);
-  const walletSetupQ = usePartnerWalletSetup(id);
+  const walletSetupQ = usePartnerWalletSetup(isPlatform ? id : undefined);
   const statsQ = usePartnerStats(id);
   const credsQ = usePartnerCredentials(id);
   const grantsQ = usePartnerAPIGrants(id);
@@ -151,9 +153,11 @@ export default function PartnerDetailPage({
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
-          <Button asChild variant="outline" size="sm" className="h-8 rounded-lg">
-            <Link href={`/partners/${id}/wallets`}>Wallet setup</Link>
-          </Button>
+          {isPlatform ? (
+            <Button asChild variant="outline" size="sm" className="h-8 rounded-lg">
+              <Link href={`/partners/${id}/wallets`}>Wallet setup</Link>
+            </Button>
+          ) : null}
           <Button asChild variant="outline" size="sm" className="h-8 rounded-lg">
             <Link href={`/partners/${id}/developer`}>
               <BookOpen className="size-3.5" />
@@ -180,39 +184,41 @@ export default function PartnerDetailPage({
         </div>
       </div>
 
-      <Card className={walletSetupQ.data?.ready ? "border-emerald-200" : "border-amber-200"}>
-        <CardHeader className="pb-2">
-          <CardTitle className="flex items-center justify-between text-sm">
-            <span>Wallet setup</span>
-            <Badge variant={walletSetupQ.data?.ready ? "success" : "warning"}>
-              {walletSetupQ.data?.ready ? "Ready" : "Incomplete"}
-            </Badge>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2 text-xs text-slate-600">
-          <p>
-            Disbursement:{" "}
-            <span className="font-mono">
-              {p.rukapay_escrow_wallet_id || "not set"}
-            </span>
-            {" · "}
-            Collection:{" "}
-            <span className="font-mono">
-              {p.rukapay_collection_wallet_id || "not set"}
-            </span>
-          </p>
-          {walletSetupQ.data?.blocking_issues?.length ? (
-            <ul className="list-disc pl-4 text-amber-800">
-              {walletSetupQ.data.blocking_issues.map((issue) => (
-                <li key={issue}>{issue}</li>
-              ))}
-            </ul>
-          ) : null}
-          <Button asChild size="sm" variant="outline" className="mt-1 h-8">
-            <Link href={`/partners/${id}/wallets`}>Configure wallets & rules</Link>
-          </Button>
-        </CardContent>
-      </Card>
+      {isPlatform ? (
+        <Card className={walletSetupQ.data?.ready ? "border-emerald-200" : "border-amber-200"}>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center justify-between text-sm">
+              <span>Wallet setup</span>
+              <Badge variant={walletSetupQ.data?.ready ? "success" : "warning"}>
+                {walletSetupQ.data?.ready ? "Ready" : "Incomplete"}
+              </Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-xs text-slate-600">
+            <p>
+              Disbursement:{" "}
+              <span className="font-mono">
+                {p.rukapay_escrow_wallet_id || "not set"}
+              </span>
+              {" · "}
+              Collection:{" "}
+              <span className="font-mono">
+                {p.rukapay_collection_wallet_id || "not set"}
+              </span>
+            </p>
+            {walletSetupQ.data?.blocking_issues?.length ? (
+              <ul className="list-disc pl-4 text-amber-800">
+                {walletSetupQ.data.blocking_issues.map((issue) => (
+                  <li key={issue}>{issue}</li>
+                ))}
+              </ul>
+            ) : null}
+            <Button asChild size="sm" variant="outline" className="mt-1 h-8">
+              <Link href={`/partners/${id}/wallets`}>Configure wallets & rules</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         {[

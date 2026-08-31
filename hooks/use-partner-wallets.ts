@@ -8,6 +8,7 @@ import type {
   PartnerWalletRule,
   PartnerWalletRuleCreatePayload,
   PartnerWalletSetup,
+  PartnerWalletSetupListItem,
   PartnerWalletVerifyResult,
   PartnerUpdatePayload,
 } from "@/types/partner";
@@ -29,6 +30,21 @@ export function usePartnerWalletSetup(partnerId?: string) {
     queryFn: async () => {
       const res = await apiClient.get(`/admin/partners/${partnerId}/wallet-setup`);
       return unwrapEnvelope<PartnerWalletSetup>(res);
+    },
+  });
+}
+
+/** Platform admin: all partners' disbursement/collection wallet accounts with balances. */
+export function usePlatformPartnerWallets(enabled = true) {
+  return useQuery({
+    queryKey: ["platform-partner-wallets"],
+    enabled,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+    queryFn: async () => {
+      const res = await apiClient.get("/admin/wallets/partners");
+      const data = unwrapEnvelope<{ items: PartnerWalletSetupListItem[] }>(res);
+      return data.items ?? [];
     },
   });
 }

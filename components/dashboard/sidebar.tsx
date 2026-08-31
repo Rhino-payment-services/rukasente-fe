@@ -15,16 +15,18 @@ import {
   Link2,
   ChevronDown,
   ChevronRight,
-  PanelLeftClose,
   PanelLeftOpen,
+  PanelLeftClose,
   Search,
   X,
+  Database,
   type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Perm, hasPermission } from "@/lib/permissions";
 import { usePermissions } from "@/hooks/use-permissions";
+import { useMe } from "@/hooks/use-me";
 import { RukaPayLogoMark } from "@/components/brand/rukapay-logo-mark";
 import { useSidebar } from "@/components/dashboard/sidebar-context";
 
@@ -35,6 +37,8 @@ type NavChild = {
   platformOnly?: boolean;
   /** Strict: only when session.user.isPlatform. */
   requirePlatform?: boolean;
+  /** Show when the staff user is linked to a tenant partner. */
+  showWhenPartnerLinked?: boolean;
   perm?: string;
   anyOf?: string[];
 };
@@ -47,6 +51,7 @@ type NavItem = {
   anyOf?: string[];
   /** When true, require session.user.isPlatform (or listed perms). */
   platformOnly?: boolean;
+  showWhenPartnerLinked?: boolean;
   badge?: string;
   children?: NavChild[];
 };
@@ -149,6 +154,18 @@ function buildSections(isPlatform: boolean): NavSection[] {
       title: "System",
       items: [
         {
+          href: "/wallets",
+          label: "Wallets",
+          icon: WalletCards,
+          platformOnly: true,
+        },
+        {
+          href: "/backups",
+          label: "Backups",
+          icon: Database,
+          perm: Perm.BackupView,
+        },
+        {
           href: "/integrations",
           label: "Integrations",
           icon: Plug,
@@ -183,10 +200,14 @@ function buildSections(isPlatform: boolean): NavSection[] {
 function isNavVisible(
   perms: string[],
   item: NavItem,
-  isPlatform: boolean
+  isPlatform: boolean,
+  partnerLinked: boolean
 ): boolean {
   if (item.platformOnly && !isPlatform) {
     return false;
+  }
+  if (item.showWhenPartnerLinked && partnerLinked) {
+    return true;
   }
   if (item.anyOf?.length) return item.anyOf.some((k) => hasPermission(perms, k));
   if (item.perm) return hasPermission(perms, item.perm);
@@ -236,6 +257,8 @@ export function Sidebar({
   const pathname = usePathname();
   const { data: session } = useSession();
   const { permissions: perms, isPlatform, roles } = usePermissions();
+  const { data: me } = useMe();
+  const partnerLinked = Boolean(me?.partner_id);
   const sections = useMemo(() => buildSections(isPlatform), [isPlatform]);
   const { collapsed, toggleCollapsed, setCommandOpen } = useSidebar();
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
@@ -318,7 +341,7 @@ export function Sidebar({
           <nav className="flex-1 space-y-5 overflow-y-auto pb-3 scrollbar-thin">
             {sections.map((section) => {
               const visible = section.items
-                .filter((i) => isNavVisible(perms, i, isPlatform))
+                .filter((i) => isNavVisible(perms, i, isPlatform, partnerLinked))
                 .map((item) => ({
                   ...item,
                   children: item.children?.filter((c) =>

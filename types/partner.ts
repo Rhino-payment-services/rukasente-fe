@@ -224,6 +224,20 @@ export type PartnerWalletSetup = {
   blocking_issues: string[];
 };
 
+/** Platform-wide partner wallet overview (GET /admin/wallets/partners). */
+export type PartnerWalletSetupListItem = {
+  partner_id: string;
+  partner_name: string;
+  partner_code: string;
+  currency: string;
+  is_internal: boolean;
+  ready: boolean;
+  disbursement: PartnerWalletSnapshot;
+  collection: PartnerWalletSnapshot;
+  wallets_separate: boolean;
+  blocking_issues: string[];
+};
+
 export type PartnerWalletVerifySnapshot = {
   wallet_id: string;
   valid: boolean;

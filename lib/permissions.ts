@@ -10,6 +10,9 @@ export const Perm = {
   PermissionView: "permission.view",
   AuditView: "audit.view",
   SystemSettingsManage: "system.settings.manage",
+  BackupCreate: "backup.create",
+  BackupView: "backup.view",
+  BackupDelete: "backup.delete",
 
   // Borrowers
   BorrowerCreate: "borrower.create",
@@ -90,7 +93,13 @@ export const PERMISSION_GROUPS: { title: string; keys: string[] }[] = [
   },
   {
     title: "System",
-    keys: [Perm.AuditView, Perm.SystemSettingsManage],
+    keys: [
+      Perm.AuditView,
+      Perm.SystemSettingsManage,
+      Perm.BackupCreate,
+      Perm.BackupView,
+      Perm.BackupDelete,
+    ],
   },
   {
     title: "Borrowers",

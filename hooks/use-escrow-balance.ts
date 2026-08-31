@@ -28,7 +28,7 @@ function walletQueryKey(me: ReturnType<typeof useMe>["data"], suffix: string) {
 /** Fetches RukaPay disbursement wallet balance for tenant staff and platform. */
 export function useEscrowBalance() {
   const { data: me } = useMe();
-  const enabled = Boolean(me);
+  const enabled = Boolean(me?.is_platform);
 
   return useQuery({
     queryKey: walletQueryKey(me, "escrow-balance"),
@@ -45,7 +45,7 @@ export function useEscrowBalance() {
 /** Fetches RukaPay collection wallet balance for tenant staff and platform. */
 export function useCollectionBalance() {
   const { data: me } = useMe();
-  const enabled = Boolean(me);
+  const enabled = Boolean(me?.is_platform);
 
   return useQuery({
     queryKey: walletQueryKey(me, "collection-balance"),
@@ -62,7 +62,7 @@ export function useCollectionBalance() {
 /** Fetches disbursement and collection wallet balances in one request. */
 export function useWalletBalances() {
   const { data: me } = useMe();
-  const enabled = Boolean(me);
+  const enabled = Boolean(me?.is_platform);
 
   return useQuery({
     queryKey: walletQueryKey(me, "balances"),

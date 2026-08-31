@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { DataTable } from "@/components/ui/data-table";
 import { CompactLoading } from "@/components/ui/loading";
 import { usePartner } from "@/hooks/use-partners";
+import { usePermissions } from "@/hooks/use-permissions";
 import { formatUgx } from "@/hooks/use-dashboard-stats";
 import {
   useCreatePartnerWalletRule,
@@ -57,6 +58,7 @@ export default function PartnerWalletsPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
+  const { isPlatform } = usePermissions();
   const partnerQ = usePartner(id);
   const setupQ = usePartnerWalletSetup(id);
   const rulesQ = usePartnerWalletRules(id);
@@ -216,6 +218,14 @@ export default function PartnerWalletsPage({
     } catch (err) {
       toast.error((err as Error).message || "Failed to set reserve");
     }
+  }
+
+  if (!isPlatform) {
+    return (
+      <p className="text-sm text-slate-500">
+        Wallet management is only available to platform administrators.
+      </p>
+    );
   }
 
   if (partnerQ.isLoading) {
