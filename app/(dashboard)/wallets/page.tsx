@@ -207,7 +207,8 @@ export default function WalletsPage() {
               Disbursement & collection wallets
             </h1>
             <p className="text-xs text-slate-500">
-              Review and configure RukaPay ESCROW wallets for each lending company.
+              Review disbursement and collection accounts (RukaPay ESCROW) for each
+              lending company.
             </p>
           </div>
         </div>

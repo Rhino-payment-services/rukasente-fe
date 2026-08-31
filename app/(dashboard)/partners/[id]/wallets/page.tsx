@@ -28,7 +28,9 @@ import {
   PARTNER_WALLET_OPERATORS,
   PARTNER_WALLET_ROLES,
   PARTNER_WALLET_RULE_TYPES,
+  type PartnerEscrowWalletOption,
   type PartnerWalletRule,
+  type PartnerWalletSnapshot,
 } from "@/types/partner";
 
 const selectClass =
@@ -51,6 +53,36 @@ function ReadinessBadge({ ready }: { ready: boolean }) {
       {ready ? "Ready" : "Incomplete"}
     </span>
   );
+}
+
+function snapshotToWalletOption(
+  snap: PartnerWalletSnapshot | undefined,
+  label: string,
+  currency = "UGX"
+): PartnerEscrowWalletOption | null {
+  if (!snap?.wallet_id || !snap.configured) return null;
+  return {
+    id: snap.wallet_id,
+    description: label,
+    currency: snap.currency || currency,
+    balance: snap.balance ?? snap.available ?? 0,
+    frozen: snap.frozen ?? 0,
+    available_balance: snap.available ?? 0,
+    is_default: label.toLowerCase().includes("disbursement"),
+    is_active: true,
+  };
+}
+
+function mergeWalletOptions(
+  options: PartnerEscrowWalletOption[],
+  extras: Array<PartnerEscrowWalletOption | null>
+): PartnerEscrowWalletOption[] {
+  const byId = new Map<string, PartnerEscrowWalletOption>();
+  for (const wallet of options) byId.set(wallet.id, wallet);
+  for (const extra of extras) {
+    if (extra && !byId.has(extra.id)) byId.set(extra.id, extra);
+  }
+  return Array.from(byId.values());
 }
 
 export default function PartnerWalletsPage({
@@ -92,18 +124,68 @@ export default function PartnerWalletsPage({
   const partner = partnerQ.data;
   const setup = setupQ.data;
   const options = optionsQ.data?.items ?? [];
+  const currency = partner?.currency || "UGX";
+
+  const legacyDisbursementOnly =
+    !!setup?.disbursement.configured && !setup?.collection.configured;
+
+  const disbursementOptions = useMemo(
+    () =>
+      mergeWalletOptions(options, [
+        snapshotToWalletOption(
+          setup?.disbursement,
+          "Disbursement account (assigned)",
+          currency
+        ),
+      ]),
+    [options, setup?.disbursement, currency]
+  );
+
+  const collectionOptions = useMemo(
+    () =>
+      mergeWalletOptions(options, [
+        snapshotToWalletOption(
+          setup?.collection,
+          "Collection account (assigned)",
+          currency
+        ),
+      ]),
+    [options, setup?.collection, currency]
+  );
 
   useEffect(() => {
-    if (partner && !initialized) {
-      setDisbursementWalletId(partner.rukapay_escrow_wallet_id || "");
-      setCollectionWalletId(partner.rukapay_collection_wallet_id || "");
+    if (!initialized && (partner || setup)) {
+      const disbursementId =
+        setup?.disbursement.wallet_id?.trim() ||
+        partner?.rukapay_escrow_wallet_id?.trim() ||
+        "";
+      const collectionId =
+        setup?.collection.wallet_id?.trim() ||
+        partner?.rukapay_collection_wallet_id?.trim() ||
+        "";
+
+      setDisbursementWalletId(disbursementId);
+      setCollectionWalletId(collectionId);
       setInitialized(true);
     }
-  }, [partner, initialized]);
+  }, [partner, setup, initialized]);
+
+  useEffect(() => {
+    const configuredDisbursement = setup?.disbursement.wallet_id?.trim();
+    if (configuredDisbursement && !disbursementWalletId) {
+      setDisbursementWalletId(configuredDisbursement);
+    }
+  }, [setup?.disbursement.wallet_id, disbursementWalletId]);
 
   const ruleColumns = useMemo<ColumnDef<PartnerWalletRule>[]>(
     () => [
-      { accessorKey: "wallet_role", header: "Wallet" },
+      {
+        accessorKey: "wallet_role",
+        header: "Wallet",
+        cell: ({ row }) =>
+          PARTNER_WALLET_ROLES.find((r) => r.value === row.original.wallet_role)
+            ?.label ?? row.original.wallet_role,
+      },
       { accessorKey: "rule_type", header: "Rule" },
       { accessorKey: "operator", header: "Op" },
       { accessorKey: "value", header: "Value" },
@@ -272,25 +354,39 @@ export default function PartnerWalletsPage({
         <CardContent className="space-y-4 pt-4">
           <h2 className="text-sm font-semibold text-slate-900">Wallet configuration</h2>
           <p className="text-xs text-slate-500">
-            Pick one disbursement wallet and one collection wallet. They must be different
-            accounts.
+            Both accounts are ESCROW wallets in RukaPay. Assign one role for loan
+            disbursement and a separate account for repayment collection.
           </p>
+          {legacyDisbursementOnly ? (
+            <div className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2.5 text-xs text-blue-900">
+              This partner previously used a single wallet. That wallet is kept as the{" "}
+              <span className="font-semibold">disbursement</span> wallet. Choose a separate{" "}
+              <span className="font-semibold">collection</span> wallet below.
+            </div>
+          ) : null}
           <form className="grid gap-6" onSubmit={onSaveWallets}>
             <WalletPickerCards
-              label="Disbursement wallet"
+              label="Disbursement account"
+              accountRole="disbursement"
               hint="Debited when loans are disbursed to borrowers or merchants."
-              wallets={options}
+              wallets={disbursementOptions}
               selectedId={disbursementWalletId}
               onSelect={setDisbursementWalletId}
               disabledWalletIds={
                 collectionWalletId ? [collectionWalletId] : []
               }
-              loading={optionsQ.isLoading}
+              loading={optionsQ.isLoading && !setup?.disbursement.configured}
+              emptyMessage={
+                setup?.disbursement.configured
+                  ? "Configured disbursement wallet is shown above. Add RukaPay gateway admin env vars to list more wallets."
+                  : undefined
+              }
             />
             <WalletPickerCards
-              label="Collection wallet"
-              hint="Credited when loan repayments are collected."
-              wallets={options}
+              label="Collection account"
+              accountRole="collection"
+              hint="Credited when loan repayments are collected. Must differ from disbursement."
+              wallets={collectionOptions}
               selectedId={collectionWalletId}
               onSelect={setCollectionWalletId}
               disabledWalletIds={

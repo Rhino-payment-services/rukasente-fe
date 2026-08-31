@@ -407,6 +407,7 @@ export default function NewPartnerPage() {
                   >
                     <WalletPickerCards
                       label=""
+                      accountRole="disbursement"
                       wallets={walletOptions}
                       selectedId={form.rukapay_escrow_wallet_id}
                       onSelect={(id) =>
@@ -426,6 +427,7 @@ export default function NewPartnerPage() {
                   >
                     <WalletPickerCards
                       label=""
+                      accountRole="collection"
                       wallets={walletOptions}
                       selectedId={form.rukapay_collection_wallet_id}
                       onSelect={(id) =>
