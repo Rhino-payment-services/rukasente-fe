@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { WalletPickerCards } from "@/components/partners/wallet-picker-cards";
 import { DataTable } from "@/components/ui/data-table";
 import { CompactLoading } from "@/components/ui/loading";
 import { usePartner } from "@/hooks/use-partners";
@@ -270,57 +271,33 @@ export default function PartnerWalletsPage({
       <Card>
         <CardContent className="space-y-4 pt-4">
           <h2 className="text-sm font-semibold text-slate-900">Wallet configuration</h2>
-          <form className="grid gap-4" onSubmit={onSaveWallets}>
-            <div className="grid gap-4 md:grid-cols-2">
-              <label className="block space-y-1.5">
-                <span className="text-xs font-medium text-slate-700">
-                  Disbursement wallet
-                </span>
-                <select
-                  className={selectClass}
-                  value={disbursementWalletId}
-                  onChange={(e) => setDisbursementWalletId(e.target.value)}
-                >
-                  <option value="">Select or enter below…</option>
-                  {options.map((w) => (
-                    <option key={w.id} value={w.id}>
-                      {w.description || w.id.slice(0, 8)} —{" "}
-                      {formatUgx(w.available_balance)}
-                    </option>
-                  ))}
-                </select>
-                <Input
-                  value={disbursementWalletId}
-                  onChange={(e) => setDisbursementWalletId(e.target.value)}
-                  placeholder="Wallet UUID"
-                  className="font-mono text-xs"
-                />
-              </label>
-              <label className="block space-y-1.5">
-                <span className="text-xs font-medium text-slate-700">
-                  Collection wallet
-                </span>
-                <select
-                  className={selectClass}
-                  value={collectionWalletId}
-                  onChange={(e) => setCollectionWalletId(e.target.value)}
-                >
-                  <option value="">Select or enter below…</option>
-                  {options.map((w) => (
-                    <option key={w.id} value={w.id}>
-                      {w.description || w.id.slice(0, 8)} —{" "}
-                      {formatUgx(w.available_balance)}
-                    </option>
-                  ))}
-                </select>
-                <Input
-                  value={collectionWalletId}
-                  onChange={(e) => setCollectionWalletId(e.target.value)}
-                  placeholder="Wallet UUID"
-                  className="font-mono text-xs"
-                />
-              </label>
-            </div>
+          <p className="text-xs text-slate-500">
+            Pick one disbursement wallet and one collection wallet. They must be different
+            accounts.
+          </p>
+          <form className="grid gap-6" onSubmit={onSaveWallets}>
+            <WalletPickerCards
+              label="Disbursement wallet"
+              hint="Debited when loans are disbursed to borrowers or merchants."
+              wallets={options}
+              selectedId={disbursementWalletId}
+              onSelect={setDisbursementWalletId}
+              disabledWalletIds={
+                collectionWalletId ? [collectionWalletId] : []
+              }
+              loading={optionsQ.isLoading}
+            />
+            <WalletPickerCards
+              label="Collection wallet"
+              hint="Credited when loan repayments are collected."
+              wallets={options}
+              selectedId={collectionWalletId}
+              onSelect={setCollectionWalletId}
+              disabledWalletIds={
+                disbursementWalletId ? [disbursementWalletId] : []
+              }
+              loading={optionsQ.isLoading}
+            />
             <div className="flex flex-wrap gap-2">
               <Button
                 type="button"

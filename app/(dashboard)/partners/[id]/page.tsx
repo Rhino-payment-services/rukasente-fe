@@ -26,6 +26,7 @@ import {
   useUpdatePartner,
 } from "@/hooks/use-partners";
 import { usePartnerWalletSetup } from "@/hooks/use-partner-wallets";
+import { formatUgx } from "@/hooks/use-dashboard-stats";
 import { usePermissions } from "@/hooks/use-permissions";
 import { hasPermission, Perm } from "@/lib/permissions";
 import type { PartnerCredentialCreated } from "@/types/partner";
@@ -197,14 +198,14 @@ export default function PartnerDetailPage({
           <CardContent className="space-y-2 text-xs text-slate-600">
             <p>
               Disbursement:{" "}
-              <span className="font-mono">
-                {p.rukapay_escrow_wallet_id || "not set"}
-              </span>
+              {walletSetupQ.data?.disbursement.configured
+                ? formatUgx(Number(walletSetupQ.data.disbursement.available ?? 0))
+                : "not set"}
               {" · "}
               Collection:{" "}
-              <span className="font-mono">
-                {p.rukapay_collection_wallet_id || "not set"}
-              </span>
+              {walletSetupQ.data?.collection.configured
+                ? formatUgx(Number(walletSetupQ.data.collection.available ?? 0))
+                : "not set"}
             </p>
             {walletSetupQ.data?.blocking_issues?.length ? (
               <ul className="list-disc pl-4 text-amber-800">

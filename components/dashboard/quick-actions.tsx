@@ -44,6 +44,12 @@ const actions: QuickAction[] = [
     anyOf: [Perm.ScoringView, Perm.ScoringRun],
   },
   {
+    label: "Add Staff",
+    href: "/staff/add",
+    icon: UserPlus,
+    anyOf: [Perm.StaffCreate],
+  },
+  {
     label: "Register Borrower",
     href: "/manual-borrower",
     icon: UserPlus,

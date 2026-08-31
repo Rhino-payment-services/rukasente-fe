@@ -33,6 +33,8 @@ import {
   usePaymentProviders,
   useRegisterLendingCompany,
 } from "@/hooks/use-partners";
+import { useEscrowWalletOptions } from "@/hooks/use-partner-wallets";
+import { WalletPickerCards } from "@/components/partners/wallet-picker-cards";
 import { cn } from "@/lib/utils";
 import type { RegisterLendingCompanyResult } from "@/types/partner";
 
@@ -113,6 +115,8 @@ export default function NewPartnerPage() {
   const create = useCreatePartner();
   const register = useRegisterLendingCompany();
   const providersQ = usePaymentProviders();
+  const walletOptionsQ = useEscrowWalletOptions();
+  const walletOptions = walletOptionsQ.data?.items ?? [];
   const [codeTouched, setCodeTouched] = useState(false);
   const [tempReveal, setTempReveal] = useState<RegisterLendingCompanyResult | null>(
     null
@@ -398,35 +402,41 @@ export default function NewPartnerPage() {
                     </select>
                   </Field>
                   <Field
-                    label="Disbursement wallet ID"
-                    hint="Required for non-internal lending companies. ESCROW wallet debited when loans are disbursed."
+                    label="Disbursement wallet"
+                    hint="Required for non-internal lending companies. Debited when loans are disbursed."
                   >
-                    <Input
-                      value={form.rukapay_escrow_wallet_id}
-                      onChange={(e) =>
-                        setForm((f) => ({
-                          ...f,
-                          rukapay_escrow_wallet_id: e.target.value,
-                        }))
+                    <WalletPickerCards
+                      label=""
+                      wallets={walletOptions}
+                      selectedId={form.rukapay_escrow_wallet_id}
+                      onSelect={(id) =>
+                        setForm((f) => ({ ...f, rukapay_escrow_wallet_id: id }))
                       }
-                      placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                      className={cn(inputClass, "font-mono text-xs")}
+                      disabledWalletIds={
+                        form.rukapay_collection_wallet_id
+                          ? [form.rukapay_collection_wallet_id]
+                          : []
+                      }
+                      loading={walletOptionsQ.isLoading}
                     />
                   </Field>
                   <Field
-                    label="Collection wallet ID"
-                    hint="Required. Must differ from disbursement. ESCROW wallet credited when repayments are collected."
+                    label="Collection wallet"
+                    hint="Required. Must differ from disbursement. Credited when repayments are collected."
                   >
-                    <Input
-                      value={form.rukapay_collection_wallet_id}
-                      onChange={(e) =>
-                        setForm((f) => ({
-                          ...f,
-                          rukapay_collection_wallet_id: e.target.value,
-                        }))
+                    <WalletPickerCards
+                      label=""
+                      wallets={walletOptions}
+                      selectedId={form.rukapay_collection_wallet_id}
+                      onSelect={(id) =>
+                        setForm((f) => ({ ...f, rukapay_collection_wallet_id: id }))
                       }
-                      placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                      className={cn(inputClass, "font-mono text-xs")}
+                      disabledWalletIds={
+                        form.rukapay_escrow_wallet_id
+                          ? [form.rukapay_escrow_wallet_id]
+                          : []
+                      }
+                      loading={walletOptionsQ.isLoading}
                     />
                   </Field>
                   <label className="flex items-center gap-2 text-sm text-slate-700">

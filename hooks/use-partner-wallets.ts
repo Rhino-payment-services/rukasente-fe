@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { unwrapEnvelope } from "@/lib/api-envelope";
+import { useMe } from "@/hooks/use-me";
 import type {
   PartnerEscrowWalletOption,
   PartnerWalletRule,
@@ -14,8 +15,10 @@ import type {
 } from "@/types/partner";
 
 export function useEscrowWalletOptions() {
+  const { data: me } = useMe();
   return useQuery({
     queryKey: ["wallet", "escrow-options"],
+    enabled: !!me?.is_platform,
     queryFn: async () => {
       const res = await apiClient.get("/admin/wallet/escrow-options");
       return unwrapEnvelope<{ items: PartnerEscrowWalletOption[] }>(res);

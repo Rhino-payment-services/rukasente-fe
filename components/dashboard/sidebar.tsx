@@ -20,6 +20,7 @@ import {
   Search,
   X,
   Database,
+  UserPlus,
   type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -98,6 +99,12 @@ function buildSections(isPlatform: boolean): NavSection[] {
       title: "Management",
       items: [
         { href: "/staff", label: "Staff", icon: Users, perm: Perm.StaffView },
+        {
+          href: "/staff/add",
+          label: "Add staff",
+          icon: UserPlus,
+          perm: Perm.StaffCreate,
+        },
         {
           href: "/subscriptions",
           label: "Subscriptions",

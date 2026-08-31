@@ -53,7 +53,11 @@ function PlatformPartnerRow({ item }: { item: PartnerWalletSetupListItem }) {
       </td>
       <td className="px-4 py-3 align-top">
         <p className="font-mono text-[11px] text-slate-600">
-          {item.disbursement.wallet_id || "—"}
+          {item.disbursement.configured
+            ? item.disbursement.verified
+              ? "Verified disbursement account"
+              : "Disbursement account (unverified)"
+            : "—"}
         </p>
         <p className="mt-1 text-xs text-slate-700">
           Available: {formatBalance(item.disbursement.available)}
@@ -71,7 +75,11 @@ function PlatformPartnerRow({ item }: { item: PartnerWalletSetupListItem }) {
       </td>
       <td className="px-4 py-3 align-top">
         <p className="font-mono text-[11px] text-slate-600">
-          {item.collection.wallet_id || "—"}
+          {item.collection.configured
+            ? item.collection.verified
+              ? "Verified collection account"
+              : "Collection account (unverified)"
+            : "—"}
         </p>
         <p className="mt-1 text-xs text-slate-700">
           Available: {formatBalance(item.collection.available)}
