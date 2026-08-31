@@ -25,6 +25,7 @@ import {
   useRevokePartnerCredential,
   useUpdatePartner,
 } from "@/hooks/use-partners";
+import { usePartnerWalletSetup } from "@/hooks/use-partner-wallets";
 import { hasPermission, Perm } from "@/lib/permissions";
 import type { PartnerCredentialCreated } from "@/types/partner";
 
@@ -48,6 +49,7 @@ export default function PartnerDetailPage({
   );
 
   const partnerQ = usePartner(id);
+  const walletSetupQ = usePartnerWalletSetup(id);
   const statsQ = usePartnerStats(id);
   const credsQ = usePartnerCredentials(id);
   const grantsQ = usePartnerAPIGrants(id);
@@ -93,6 +95,8 @@ export default function PartnerDetailPage({
         payment_provider_id: String(fd.get("payment_provider_id") || "") || null,
         rukapay_escrow_wallet_id:
           String(fd.get("rukapay_escrow_wallet_id") || "").trim() || null,
+        rukapay_collection_wallet_id:
+          String(fd.get("rukapay_collection_wallet_id") || "").trim() || null,
         product_loan_enabled: fd.get("product_loan_enabled") === "on",
         rukapay_merchant_code:
           String(fd.get("rukapay_merchant_code") || "").trim() || null,
@@ -148,6 +152,9 @@ export default function PartnerDetailPage({
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
           <Button asChild variant="outline" size="sm" className="h-8 rounded-lg">
+            <Link href={`/partners/${id}/wallets`}>Wallet setup</Link>
+          </Button>
+          <Button asChild variant="outline" size="sm" className="h-8 rounded-lg">
             <Link href={`/partners/${id}/developer`}>
               <BookOpen className="size-3.5" />
               Developer settings
@@ -172,6 +179,40 @@ export default function PartnerDetailPage({
           </Button>
         </div>
       </div>
+
+      <Card className={walletSetupQ.data?.ready ? "border-emerald-200" : "border-amber-200"}>
+        <CardHeader className="pb-2">
+          <CardTitle className="flex items-center justify-between text-sm">
+            <span>Wallet setup</span>
+            <Badge variant={walletSetupQ.data?.ready ? "success" : "warning"}>
+              {walletSetupQ.data?.ready ? "Ready" : "Incomplete"}
+            </Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2 text-xs text-slate-600">
+          <p>
+            Disbursement:{" "}
+            <span className="font-mono">
+              {p.rukapay_escrow_wallet_id || "not set"}
+            </span>
+            {" · "}
+            Collection:{" "}
+            <span className="font-mono">
+              {p.rukapay_collection_wallet_id || "not set"}
+            </span>
+          </p>
+          {walletSetupQ.data?.blocking_issues?.length ? (
+            <ul className="list-disc pl-4 text-amber-800">
+              {walletSetupQ.data.blocking_issues.map((issue) => (
+                <li key={issue}>{issue}</li>
+              ))}
+            </ul>
+          ) : null}
+          <Button asChild size="sm" variant="outline" className="mt-1 h-8">
+            <Link href={`/partners/${id}/wallets`}>Configure wallets & rules</Link>
+          </Button>
+        </CardContent>
+      </Card>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         {[
@@ -277,7 +318,7 @@ export default function PartnerDetailPage({
               </label>
               <label className="sm:col-span-2 block space-y-1.5">
                 <span className="text-xs font-medium text-slate-700">
-                  RukaPay escrow wallet ID
+                  Disbursement wallet ID
                 </span>
                 <Input
                   name="rukapay_escrow_wallet_id"
@@ -286,8 +327,23 @@ export default function PartnerDetailPage({
                   className="font-mono text-xs"
                 />
                 <span className="block text-[11px] text-slate-400">
-                  ESCROW wallet under the shared RukaSente ApiPartner. Required for
+                  ESCROW wallet debited when loans are disbursed. Required for
                   non-internal lending companies before disbursement.
+                </span>
+              </label>
+              <label className="sm:col-span-2 block space-y-1.5">
+                <span className="text-xs font-medium text-slate-700">
+                  Collection wallet ID
+                </span>
+                <Input
+                  name="rukapay_collection_wallet_id"
+                  defaultValue={p.rukapay_collection_wallet_id || ""}
+                  placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                  className="font-mono text-xs"
+                />
+                <span className="block text-[11px] text-slate-400">
+                  ESCROW wallet credited when repayments are collected. Leave empty
+                  to use the disbursement wallet.
                 </span>
               </label>
               <label className="sm:col-span-2 flex items-center gap-2 text-xs text-slate-700">
@@ -398,9 +454,15 @@ export default function PartnerDetailPage({
                 <dd className="truncate">{providerLabel}</dd>
               </div>
               <div className="sm:col-span-2">
-                <dt className="text-xs text-slate-400">RukaPay escrow wallet</dt>
+                <dt className="text-xs text-slate-400">Disbursement wallet</dt>
                 <dd className="truncate font-mono text-xs">
                   {p.rukapay_escrow_wallet_id || "—"}
+                </dd>
+              </div>
+              <div className="sm:col-span-2">
+                <dt className="text-xs text-slate-400">Collection wallet</dt>
+                <dd className="truncate font-mono text-xs">
+                  {p.rukapay_collection_wallet_id || p.rukapay_escrow_wallet_id || "—"}
                 </dd>
               </div>
               <div>

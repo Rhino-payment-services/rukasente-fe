@@ -127,6 +127,7 @@ export default function NewPartnerPage() {
     primary_color: "#4f46e5",
     payment_provider_id: "",
     rukapay_escrow_wallet_id: "",
+    rukapay_collection_wallet_id: "",
     product_loan_enabled: false,
     rukapay_merchant_code: "",
     rukapay_merchant_id: "",
@@ -183,6 +184,8 @@ export default function NewPartnerPage() {
           payment_provider_id: form.payment_provider_id || null,
           rukapay_escrow_wallet_id:
             form.rukapay_escrow_wallet_id.trim() || null,
+          rukapay_collection_wallet_id:
+            form.rukapay_collection_wallet_id.trim() || null,
           product_loan_enabled: form.product_loan_enabled,
           rukapay_merchant_code: form.rukapay_merchant_code.trim() || null,
           rukapay_merchant_id: form.rukapay_merchant_id.trim() || null,
@@ -227,6 +230,8 @@ export default function NewPartnerPage() {
         payment_provider_id: form.payment_provider_id || null,
         rukapay_escrow_wallet_id:
           form.rukapay_escrow_wallet_id.trim() || null,
+        rukapay_collection_wallet_id:
+          form.rukapay_collection_wallet_id.trim() || null,
         product_loan_enabled: form.product_loan_enabled,
         rukapay_merchant_code: form.rukapay_merchant_code.trim() || null,
         rukapay_merchant_id: form.rukapay_merchant_id.trim() || null,
@@ -235,8 +240,8 @@ export default function NewPartnerPage() {
         allowed_ips,
         ip_whitelist_enabled: form.ip_whitelist_enabled,
       });
-      toast.success("Partner created — generate API credentials next");
-      router.push(`/partners/${p.id}`);
+      toast.success("Partner created — configure wallets next");
+      router.push(`/partners/${p.id}/wallets`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to create partner");
     }
@@ -370,7 +375,7 @@ export default function NewPartnerPage() {
               <Section
                 icon={Wallet}
                 title="Payment rail"
-                description="Disbursement provider and RukaPay escrow wallet for this company."
+                description="Disbursement and collection wallets plus payment provider for this company."
               >
                 <div className="grid gap-4">
                   <Field label="Payment provider" optional>
@@ -393,9 +398,8 @@ export default function NewPartnerPage() {
                     </select>
                   </Field>
                   <Field
-                    label="RukaPay escrow wallet ID"
-                    optional
-                    hint="UUID of an ESCROW wallet under the shared RukaSente ApiPartner on RukaPay. Required for non-internal lending companies before disbursement."
+                    label="Disbursement wallet ID"
+                    hint="Required for non-internal lending companies. ESCROW wallet debited when loans are disbursed."
                   >
                     <Input
                       value={form.rukapay_escrow_wallet_id}
@@ -403,6 +407,22 @@ export default function NewPartnerPage() {
                         setForm((f) => ({
                           ...f,
                           rukapay_escrow_wallet_id: e.target.value,
+                        }))
+                      }
+                      placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                      className={cn(inputClass, "font-mono text-xs")}
+                    />
+                  </Field>
+                  <Field
+                    label="Collection wallet ID"
+                    hint="Required. Must differ from disbursement. ESCROW wallet credited when repayments are collected."
+                  >
+                    <Input
+                      value={form.rukapay_collection_wallet_id}
+                      onChange={(e) =>
+                        setForm((f) => ({
+                          ...f,
+                          rukapay_collection_wallet_id: e.target.value,
                         }))
                       }
                       placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"

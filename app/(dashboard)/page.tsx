@@ -16,7 +16,7 @@ import {
   formatUgx,
   useDashboardStats,
 } from "@/hooks/use-dashboard-stats";
-import { useEscrowBalance } from "@/hooks/use-escrow-balance";
+import { useWalletBalances } from "@/hooks/use-escrow-balance";
 import { GreetingSection } from "@/components/dashboard/greeting-section";
 import { KpiStrip, type KPIItem } from "@/components/dashboard/kpi-strip";
 import { AnalyticsCharts } from "@/components/dashboard/analytics-charts";
@@ -33,34 +33,65 @@ function formatCount(n: number | null | undefined): string {
 export default function OverviewPage() {
   const { data: me } = useMe();
   const stats = useDashboardStats();
-  const escrowQ = useEscrowBalance();
+  const walletQ = useWalletBalances();
 
   const topStats: KPIItem[] = [];
   if (me) {
-    if (escrowQ.isLoading) {
-      topStats.push({
-        title: "RukaPay wallet balance",
-        value: "—",
-        subtitle: me.is_platform
-          ? "Main escrow available"
-          : "Linked escrow available",
-        icon: Banknote,
-        tone: "emerald",
-      });
-    } else if (escrowQ.data?.configured) {
-      const available = escrowQ.data.available;
-      topStats.push({
-        title: "RukaPay wallet balance",
-        value:
-          available == null || escrowQ.isError
-            ? "—"
-            : formatUgx(Number(available)),
-        subtitle: me.is_platform
-          ? "Main escrow available"
-          : "Linked escrow available",
-        icon: Banknote,
-        tone: "emerald",
-      });
+    const disbursement = walletQ.data?.disbursement;
+    const collection = walletQ.data?.collection;
+
+    if (walletQ.isLoading) {
+      topStats.push(
+        {
+          title: "Disbursement wallet",
+          value: "—",
+          subtitle: me.is_platform
+            ? "Main disbursement available"
+            : "Linked disbursement available",
+          icon: Banknote,
+          tone: "emerald",
+        },
+        {
+          title: "Collection wallet",
+          value: "—",
+          subtitle: me.is_platform
+            ? "Main collection available"
+            : "Linked collection available",
+          icon: Wallet,
+          tone: "blue",
+        },
+      );
+    } else {
+      if (disbursement?.configured) {
+        const available = disbursement.available;
+        topStats.push({
+          title: "Disbursement wallet",
+          value:
+            available == null || walletQ.isError
+              ? "—"
+              : formatUgx(Number(available)),
+          subtitle: me.is_platform
+            ? "Main disbursement available"
+            : "Linked disbursement available",
+          icon: Banknote,
+          tone: "emerald",
+        });
+      }
+      if (collection?.configured) {
+        const available = collection.available;
+        topStats.push({
+          title: "Collection wallet",
+          value:
+            available == null || walletQ.isError
+              ? "—"
+              : formatUgx(Number(available)),
+          subtitle: me.is_platform
+            ? "Main collection available"
+            : "Linked collection available",
+          icon: Wallet,
+          tone: "blue",
+        });
+      }
     }
   }
   if (stats.canBorrowers) {
@@ -139,7 +170,11 @@ export default function OverviewPage() {
       {topStats.length ? (
         <KpiStrip
           items={topStats}
-          loading={stats.isLoading && !escrowQ.data?.configured}
+          loading={
+            stats.isLoading &&
+            !walletQ.data?.disbursement?.configured &&
+            !walletQ.data?.collection?.configured
+          }
         />
       ) : null}
       {stats.canApps || stats.canScoring ? (

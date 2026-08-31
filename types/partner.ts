@@ -10,6 +10,7 @@ export type Partner = {
   currency?: string;
   payment_provider_id?: string | null;
   rukapay_escrow_wallet_id?: string | null;
+  rukapay_collection_wallet_id?: string | null;
   product_loan_enabled?: boolean;
   rukapay_merchant_id?: string | null;
   rukapay_merchant_code?: string | null;
@@ -39,6 +40,7 @@ export type PartnerCreatePayload = {
   currency?: string;
   payment_provider_id?: string | null;
   rukapay_escrow_wallet_id?: string | null;
+  rukapay_collection_wallet_id?: string | null;
   product_loan_enabled?: boolean;
   rukapay_merchant_id?: string | null;
   rukapay_merchant_code?: string | null;
@@ -59,6 +61,7 @@ export type PartnerUpdatePayload = Partial<
   ip_whitelist_enabled?: boolean;
   payment_provider_id?: string | null;
   rukapay_escrow_wallet_id?: string | null;
+  rukapay_collection_wallet_id?: string | null;
 };
 
 export type RegisterLendingCompanyPayload = {
@@ -70,6 +73,7 @@ export type RegisterLendingCompanyPayload = {
   currency?: string;
   payment_provider_id?: string | null;
   rukapay_escrow_wallet_id?: string | null;
+  rukapay_collection_wallet_id?: string | null;
   product_loan_enabled?: boolean;
   rukapay_merchant_id?: string | null;
   rukapay_merchant_code?: string | null;
@@ -185,6 +189,109 @@ export type PartnerAccessTokenCreated = {
   expires_at: string;
   warning?: string;
 };
+
+export type PartnerWalletRuleEvaluation = {
+  all_passed: boolean;
+  results: PartnerWalletRuleResult[];
+};
+
+export type PartnerWalletSnapshot = {
+  wallet_id?: string;
+  configured: boolean;
+  verified: boolean;
+  available?: number;
+  frozen?: number;
+  balance?: number;
+  currency?: string;
+  wallet_role?: string;
+};
+
+export type PartnerWalletRuleResult = {
+  rule_id: string;
+  rule_type: string;
+  wallet_role: string;
+  passed: boolean;
+  message: string;
+};
+
+export type PartnerWalletSetup = {
+  partner_id: string;
+  ready: boolean;
+  disbursement: PartnerWalletSnapshot;
+  collection: PartnerWalletSnapshot;
+  wallets_separate: boolean;
+  rule_results: PartnerWalletRuleResult[];
+  blocking_issues: string[];
+};
+
+export type PartnerWalletVerifySnapshot = {
+  wallet_id: string;
+  valid: boolean;
+  available?: number;
+  frozen?: number;
+  balance?: number;
+  currency?: string;
+  is_active: boolean;
+  is_suspended: boolean;
+};
+
+export type PartnerWalletVerifyResult = {
+  disbursement?: PartnerWalletVerifySnapshot;
+  collection?: PartnerWalletVerifySnapshot;
+  wallets_separate: boolean;
+};
+
+export type PartnerEscrowWalletOption = {
+  id: string;
+  description?: string;
+  currency: string;
+  balance: number;
+  frozen: number;
+  available_balance: number;
+  is_default: boolean;
+  is_active: boolean;
+};
+
+export type PartnerWalletRule = {
+  id: string;
+  partner_id: string;
+  wallet_role: "disbursement" | "collection" | string;
+  rule_type: string;
+  operator: string;
+  value: string;
+  description: string;
+  is_active: boolean;
+  last_synced_reserve?: number | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type PartnerWalletRuleCreatePayload = {
+  wallet_role: string;
+  rule_type: string;
+  operator: string;
+  value: string;
+  description?: string;
+  is_active?: boolean;
+};
+
+export const PARTNER_WALLET_RULE_TYPES = [
+  "MIN_AVAILABLE_BALANCE",
+  "RESERVE_FLOOR",
+] as const;
+
+export const PARTNER_WALLET_ROLES = [
+  { value: "disbursement", label: "Disbursement" },
+  { value: "collection", label: "Collection" },
+] as const;
+
+export const PARTNER_WALLET_OPERATORS = [
+  { value: "GREATER_THAN_OR_EQUAL", label: "≥" },
+  { value: "GREATER_THAN", label: ">" },
+  { value: "LESS_THAN_OR_EQUAL", label: "≤" },
+  { value: "LESS_THAN", label: "<" },
+  { value: "EQUAL", label: "=" },
+] as const;
 
 export type PaginatedPartners = {
   items: Partner[];

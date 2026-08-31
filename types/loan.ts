@@ -196,6 +196,36 @@ export type LoanAccount = {
   schedule?: LoanScheduleItem[];
 };
 
+/** Computed loan terms returned by GET /loan-applications/:id/offer.
+ * Available both pre-disbursement (estimated) and post-disbursement (contracted). */
+export type LoanOfferResponse = {
+  application_id: string;
+  application_number: string;
+  status: string;
+  loan_kind?: string;
+  requested_amount: number;
+  principal: number;
+  currency: string;
+  tenor_days: number;
+  interest_type: string;
+  interest_rate: number;
+  interest_calculation_method?: string;
+  compounding_frequency?: string;
+  interest_amount: number;
+  processing_fee: number;
+  processing_fee_mode: "deduct_from_disbursement" | "add_to_repayable";
+  total_repayable: number;
+  disburse_amount: number;
+  down_payment_amount?: number;
+  estimated_due_date?: string;
+  due_date_basis: string;
+  contracted: boolean;
+  product_name?: string;
+  product_label?: string;
+  merchant_code?: string;
+  terms_summary?: string;
+};
+
 export type LoanScheduleItem = {
   installment: number;
   due_date?: string;

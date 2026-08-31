@@ -9,6 +9,7 @@ import {
   LoanApplication,
   LoanApplicationReview,
   LoanLedgerEntry,
+  LoanOfferResponse,
   LoanProduct,
   LoanProductCreatePayload,
   LoanProductEligibilityRule,
@@ -334,6 +335,23 @@ export function useLoanAccount(applicationId?: string) {
       try {
         const res = await apiClient.get(`/admin/loan-applications/${applicationId}/account`);
         return unwrapEnvelope<LoanAccount>(res);
+      } catch (err) {
+        if (isNotFoundError(err)) return null;
+        throw err;
+      }
+    },
+  });
+}
+
+export function useLoanOffer(applicationId?: string) {
+  return useQuery({
+    queryKey: ["loan-offer", applicationId],
+    enabled: !!applicationId,
+    retry: false,
+    queryFn: async () => {
+      try {
+        const res = await apiClient.get(`/admin/loan-applications/${applicationId}/offer`);
+        return unwrapEnvelope<LoanOfferResponse>(res);
       } catch (err) {
         if (isNotFoundError(err)) return null;
         throw err;

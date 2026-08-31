@@ -15,6 +15,7 @@ import {
   useLoanApplication,
   useLoanApplicationReviews,
   useLoanLedger,
+  useLoanOffer,
   useLoanRepayments,
   useRetryDisbursement,
   useReviewLoanApplication,
@@ -79,6 +80,7 @@ export default function LoanApplicationDetailPage({
   const appQ = useLoanApplication(id);
   const reviewsQ = useLoanApplicationReviews(id);
   const accountQ = useLoanAccount(id);
+  const offerQ = useLoanOffer(id);
   const repaymentsQ = useLoanRepayments(id);
   const ledgerQ = useLoanLedger(id);
   const review = useReviewLoanApplication(id);
@@ -173,6 +175,7 @@ export default function LoanApplicationDetailPage({
 
   const app = appQ.data;
   const account = accountQ.data;
+  const offer = offerQ.data;
   const currency = account?.currency || app?.currency || "UGX";
   const showDisburseFailure =
     !!app && FAILED_DISBURSE_STATUSES.has(String(app.status || "").toLowerCase());
@@ -357,6 +360,62 @@ export default function LoanApplicationDetailPage({
           )}
         </CardContent>
       </Card>
+
+      {offer ? (
+        <Card className="gap-0 border-slate-200/80 bg-white py-0 shadow-sm">
+          <CardContent className="px-4 py-4">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm font-semibold text-slate-900">Loan terms</p>
+              {offer.contracted ? (
+                <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
+                  Contracted
+                </span>
+              ) : (
+                <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">
+                  Estimated
+                </span>
+              )}
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <Metric
+                label="Principal"
+                value={formatMoney(offer.principal, offer.currency)}
+              />
+              <Metric
+                label="Interest"
+                value={formatMoney(offer.interest_amount, offer.currency)}
+                hint={`${offer.interest_rate}% · ${offer.tenor_days}d`}
+              />
+              <Metric
+                label="Processing fee"
+                value={
+                  offer.processing_fee > 0
+                    ? formatMoney(offer.processing_fee, offer.currency)
+                    : "No fee"
+                }
+                hint={
+                  offer.processing_fee > 0
+                    ? offer.processing_fee_mode === "deduct_from_disbursement"
+                      ? "Deducted at disbursement"
+                      : "Added to repayable"
+                    : undefined
+                }
+              />
+              <Metric
+                label="Total repayable"
+                value={formatMoney(offer.total_repayable, offer.currency)}
+                hint={
+                  offer.processing_fee_mode === "deduct_from_disbursement" &&
+                  offer.processing_fee > 0
+                    ? `Borrower receives ${formatMoney(offer.disburse_amount, offer.currency)}`
+                    : undefined
+                }
+                emphasize
+              />
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card className="gap-0 border-slate-200/80 bg-white py-0 shadow-sm">
         <CardContent className="px-4 py-4">
@@ -642,6 +701,38 @@ export default function LoanApplicationDetailPage({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-[1px]">
           <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-4 shadow-xl">
             <h2 className="text-lg font-semibold text-slate-900">Review action</h2>
+            {offer ? (
+              <div className="mt-2 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-xs text-slate-700">
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                  <span className="text-slate-500">Principal</span>
+                  <span className="font-medium">{formatMoney(offer.principal, offer.currency)}</span>
+                  <span className="text-slate-500">Interest</span>
+                  <span className="font-medium">{formatMoney(offer.interest_amount, offer.currency)}</span>
+                  {offer.processing_fee > 0 ? (
+                    <>
+                      <span className="text-slate-500">Processing fee</span>
+                      <span className="font-medium">
+                        {formatMoney(offer.processing_fee, offer.currency)}
+                        {" "}
+                        <span className="text-slate-400">
+                          ({offer.processing_fee_mode === "deduct_from_disbursement"
+                            ? "deducted at disbursement"
+                            : "added to repayable"})
+                        </span>
+                      </span>
+                    </>
+                  ) : null}
+                  <span className="text-slate-500">Total repayable</span>
+                  <span className="font-semibold text-slate-900">{formatMoney(offer.total_repayable, offer.currency)}</span>
+                  {offer.processing_fee_mode === "deduct_from_disbursement" && offer.processing_fee > 0 ? (
+                    <>
+                      <span className="text-slate-500">Borrower receives</span>
+                      <span className="font-medium">{formatMoney(offer.disburse_amount, offer.currency)}</span>
+                    </>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
             <form className="mt-3 space-y-3" onSubmit={submitReview}>
               <select
                 className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-[rgba(8,22,61,0.25)]"
@@ -686,7 +777,7 @@ export default function LoanApplicationDetailPage({
           <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-4 shadow-xl">
             <h2 className="text-lg font-semibold text-slate-900">Record repayment</h2>
             <p className="mt-1 text-xs text-slate-500">
-              Debits the borrower&apos;s RukaPay wallet into RukaSente escrow. Outstanding:{" "}
+              Debits the borrower&apos;s RukaPay wallet into the partner collection wallet. Outstanding:{" "}
               <span className="font-medium text-slate-800">
                 {formatMoney(account.outstanding_balance, currency)}
               </span>
