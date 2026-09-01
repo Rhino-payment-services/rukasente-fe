@@ -6,9 +6,14 @@ import { ArrowRight, CheckCircle2, CircleAlert, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CompactLoading } from "@/components/ui/loading";
 import { formatUgx } from "@/hooks/use-dashboard-stats";
+import { useMe } from "@/hooks/use-me";
 import { usePermissions } from "@/hooks/use-permissions";
-import { usePlatformPartnerWallets } from "@/hooks/use-partner-wallets";
-import type { PartnerWalletSetupListItem } from "@/types/partner";
+import { usePartner } from "@/hooks/use-partners";
+import {
+  usePartnerWalletSetup,
+  usePlatformPartnerWallets,
+} from "@/hooks/use-partner-wallets";
+import type { PartnerWalletSetupListItem, PartnerWalletSnapshot } from "@/types/partner";
 
 function ReadinessBadge({ ready }: { ready: boolean }) {
   return (
@@ -32,7 +37,7 @@ function WalletAccountCell({
   snap,
   roleLabel,
 }: {
-  snap: PartnerWalletSetupListItem["disbursement"];
+  snap: PartnerWalletSnapshot;
   roleLabel: string;
 }) {
   const configured = snap.configured;
@@ -116,6 +121,64 @@ function PlatformPartnerRow({ item }: { item: PartnerWalletSetupListItem }) {
   );
 }
 
+function PartnerOwnWalletsView({ partnerId }: { partnerId: string }) {
+  const partnerQ = usePartner(partnerId);
+  const setupQ = usePartnerWalletSetup(partnerId);
+  const setup = setupQ.data;
+
+  if (partnerQ.isLoading || setupQ.isLoading) {
+    return <CompactLoading message="Loading wallet accounts…" />;
+  }
+
+  if (setupQ.isError) {
+    return (
+      <p className="text-sm text-rose-600">
+        Failed to load wallet accounts. Contact your administrator if this persists.
+      </p>
+    );
+  }
+
+  if (!setup) {
+    return <p className="text-sm text-slate-500">Wallet setup not available.</p>;
+  }
+
+  const partnerName = partnerQ.data?.name ?? "Your company";
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm">
+        <div>
+          <p className="font-medium text-slate-900">{partnerName}</p>
+          <p className="text-xs text-slate-500">
+            RukaPay ESCROW accounts used for loan disbursements and repayments.
+          </p>
+        </div>
+        <ReadinessBadge ready={setup.ready} />
+      </div>
+
+      {setup.blocking_issues?.length ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <p className="font-medium">Setup notes</p>
+          <ul className="mt-1 list-disc pl-5 text-xs">
+            {setup.blocking_issues.map((issue) => (
+              <li key={issue}>{issue}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      <div className="grid gap-3 md:grid-cols-2">
+        <div className="rounded-xl border border-slate-200 bg-white p-4">
+          <WalletAccountCell snap={setup.disbursement} roleLabel="Disbursement account" />
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-white p-4">
+          <WalletAccountCell snap={setup.collection} roleLabel="Collection account" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function PlatformWalletsView() {
   const walletsQ = usePlatformPartnerWallets();
   const [showInternal, setShowInternal] = useState(true);
@@ -194,11 +257,13 @@ function PlatformWalletsView() {
 
 export default function WalletsPage() {
   const { isPlatform } = usePermissions();
+  const { data: me } = useMe();
+  const partnerId = me?.partner_id ?? null;
 
-  if (!isPlatform) {
+  if (!isPlatform && !partnerId) {
     return (
       <div className="rounded-xl border border-slate-200 bg-white px-4 py-8 text-center text-sm text-slate-500">
-        Wallet management is only available to platform administrators.
+        Wallet accounts are not available for your account.
       </div>
     );
   }
@@ -215,14 +280,19 @@ export default function WalletsPage() {
               Disbursement & collection wallets
             </h1>
             <p className="text-xs text-slate-500">
-              Review disbursement and collection accounts (RukaPay ESCROW) for each
-              lending company.
+              {isPlatform
+                ? "Review disbursement and collection accounts (RukaPay ESCROW) for each lending company."
+                : "Your company’s disbursement and collection accounts on RukaPay."}
             </p>
           </div>
         </div>
       </div>
 
-      <PlatformWalletsView />
+      {isPlatform ? (
+        <PlatformWalletsView />
+      ) : (
+        <PartnerOwnWalletsView partnerId={partnerId!} />
+      )}
     </div>
   );
 }

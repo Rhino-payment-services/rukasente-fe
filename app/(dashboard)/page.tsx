@@ -36,7 +36,8 @@ export default function OverviewPage() {
   const walletQ = useWalletBalances();
 
   const topStats: KPIItem[] = [];
-  if (me?.is_platform) {
+  const showWalletKpis = Boolean(me?.is_platform || me?.partner_id);
+  if (showWalletKpis) {
     const disbursement = walletQ.data?.disbursement;
     const collection = walletQ.data?.collection;
 

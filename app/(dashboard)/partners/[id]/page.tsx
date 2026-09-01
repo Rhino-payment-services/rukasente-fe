@@ -27,6 +27,7 @@ import {
 } from "@/hooks/use-partners";
 import { usePartnerWalletSetup } from "@/hooks/use-partner-wallets";
 import { formatUgx } from "@/hooks/use-dashboard-stats";
+import { useMe } from "@/hooks/use-me";
 import { usePermissions } from "@/hooks/use-permissions";
 import { hasPermission, Perm } from "@/lib/permissions";
 import type { PartnerCredentialCreated } from "@/types/partner";
@@ -49,7 +50,10 @@ export default function PartnerDetailPage({
 }) {
   const { id } = use(params);
   const { data: session } = useSession();
+  const { data: me } = useMe();
   const { isPlatform } = usePermissions();
+  const canViewWallets =
+    isPlatform || Boolean(me?.partner_id && me.partner_id === id);
   const canUpdate = hasPermission(session?.user?.permissions, Perm.PartnerUpdate);
   const canLogs = hasPermission(session?.user?.permissions, Perm.PartnerViewLogs);
   const canManageCreds = hasPermission(
@@ -58,7 +62,7 @@ export default function PartnerDetailPage({
   );
 
   const partnerQ = usePartner(id);
-  const walletSetupQ = usePartnerWalletSetup(isPlatform ? id : undefined);
+  const walletSetupQ = usePartnerWalletSetup(canViewWallets ? id : undefined);
   const statsQ = usePartnerStats(id);
   const credsQ = usePartnerCredentials(id);
   const grantsQ = usePartnerAPIGrants(id);
@@ -156,9 +160,11 @@ export default function PartnerDetailPage({
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
-          {isPlatform ? (
+          {canViewWallets ? (
             <Button asChild variant="outline" size="sm" className="h-8 rounded-lg">
-              <Link href={`/partners/${id}/wallets`}>Wallet setup</Link>
+              <Link href={`/partners/${id}/wallets`}>
+                {isPlatform ? "Wallet setup" : "View wallets"}
+              </Link>
             </Button>
           ) : null}
           <Button asChild variant="outline" size="sm" className="h-8 rounded-lg">
@@ -187,11 +193,11 @@ export default function PartnerDetailPage({
         </div>
       </div>
 
-      {isPlatform ? (
+      {canViewWallets ? (
         <Card className={walletSetupQ.data?.ready ? "border-emerald-200" : "border-amber-200"}>
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center justify-between text-sm">
-              <span>Wallet setup</span>
+              <span>Disbursement & collection wallets</span>
               <Badge variant={walletSetupQ.data?.ready ? "success" : "warning"}>
                 {walletSetupQ.data?.ready ? "Ready" : "Incomplete"}
               </Badge>
@@ -217,7 +223,9 @@ export default function PartnerDetailPage({
               </ul>
             ) : null}
             <Button asChild size="sm" variant="outline" className="mt-1 h-8">
-              <Link href={`/partners/${id}/wallets`}>Configure wallets & rules</Link>
+              <Link href={`/partners/${id}/wallets`}>
+                {isPlatform ? "Configure wallets" : "View wallet details"}
+              </Link>
             </Button>
           </CardContent>
         </Card>
@@ -488,6 +496,12 @@ export default function PartnerDetailPage({
                   <dd className="mt-1">
                     <Button asChild type="button" size="sm" variant="outline" className="h-7 text-xs">
                       <Link href={`/partners/${id}/wallets`}>Manage wallets</Link>
+                    </Button>
+                  </dd>
+                ) : canViewWallets ? (
+                  <dd className="mt-1">
+                    <Button asChild type="button" size="sm" variant="outline" className="h-7 text-xs">
+                      <Link href={`/partners/${id}/wallets`}>View wallets</Link>
                     </Button>
                   </dd>
                 ) : null}

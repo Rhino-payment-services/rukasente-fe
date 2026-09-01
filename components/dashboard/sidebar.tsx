@@ -164,7 +164,7 @@ function buildSections(isPlatform: boolean): NavSection[] {
           href: "/wallets",
           label: "Wallets",
           icon: WalletCards,
-          platformOnly: true,
+          perm: Perm.PartnerView,
         },
         {
           href: "/backups",

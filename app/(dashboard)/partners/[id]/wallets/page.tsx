@@ -11,6 +11,7 @@ import {
   findWalletOption,
 } from "@/components/partners/wallet-picker-cards";
 import { CompactLoading } from "@/components/ui/loading";
+import { useMe } from "@/hooks/use-me";
 import { usePartner } from "@/hooks/use-partners";
 import { usePermissions } from "@/hooks/use-permissions";
 import { formatUgx } from "@/hooks/use-dashboard-stats";
@@ -109,13 +110,80 @@ function VerifySummaryRow({
   );
 }
 
+function WalletSnapshotCard({
+  title,
+  hint,
+  snap,
+}: {
+  title: string;
+  hint: string;
+  snap: PartnerWalletSnapshot | undefined;
+}) {
+  const configured = snap?.configured;
+  const verified = snap?.verified;
+  return (
+    <Card>
+      <CardContent className="space-y-2 pt-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-semibold text-slate-900">{title}</h2>
+            <p className="text-xs text-slate-500">{hint}</p>
+          </div>
+          {configured ? (
+            <span
+              className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                verified
+                  ? "bg-emerald-50 text-emerald-700"
+                  : "bg-amber-50 text-amber-800"
+              }`}
+            >
+              {verified ? "Verified" : "Unverified"}
+            </span>
+          ) : (
+            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600">
+              Not set
+            </span>
+          )}
+        </div>
+        {configured && snap?.wallet_id ? (
+          <p className="font-mono text-xs text-slate-500">
+            Account ···{snap.wallet_id.slice(-8)}
+          </p>
+        ) : null}
+        <dl className="grid grid-cols-3 gap-3 text-xs">
+          <div>
+            <dt className="text-slate-500">Available</dt>
+            <dd className="font-semibold tabular-nums text-slate-900">
+              {snap?.available != null ? formatUgx(Number(snap.available)) : "—"}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-slate-500">Frozen</dt>
+            <dd className="font-semibold tabular-nums text-slate-900">
+              {snap?.frozen != null ? formatUgx(Number(snap.frozen)) : "—"}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-slate-500">Balance</dt>
+            <dd className="font-semibold tabular-nums text-slate-900">
+              {snap?.balance != null ? formatUgx(Number(snap.balance)) : "—"}
+            </dd>
+          </div>
+        </dl>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function PartnerWalletsPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
+  const { data: me } = useMe();
   const { isPlatform } = usePermissions();
+  const canAccess = isPlatform || me?.partner_id === id;
   const partnerQ = usePartner(id);
   const setupQ = usePartnerWalletSetup(id);
   const optionsQ = useEscrowWalletOptions();
@@ -268,11 +336,70 @@ export default function PartnerWalletsPage({
     }
   }
 
-  if (!isPlatform) {
+  if (!canAccess) {
     return (
       <p className="text-sm text-slate-500">
-        Wallet management is only available to platform administrators.
+        You do not have access to view these wallet accounts.
       </p>
+    );
+  }
+
+  if (!isPlatform) {
+    if (partnerQ.isLoading || setupQ.isLoading) {
+      return <CompactLoading message="Loading wallet accounts…" />;
+    }
+    if (!partner) {
+      return <p className="text-sm text-destructive">Partner not found.</p>;
+    }
+
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <Wallet className="size-5 text-[#08163d]" />
+              <h1 className="text-2xl font-semibold text-slate-900">
+                Disbursement & collection wallets
+              </h1>
+              {setup ? <ReadinessBadge ready={setup.ready} /> : null}
+            </div>
+            <p className="mt-1 text-sm text-muted-foreground">
+              RukaPay ESCROW accounts for{" "}
+              <span className="font-medium text-slate-800">{partner.name}</span>.
+              Contact RukaSente support to change wallet configuration.
+            </p>
+          </div>
+          <Button asChild variant="outline">
+            <Link href="/wallets">Back to wallets</Link>
+          </Button>
+        </div>
+
+        {setup?.blocking_issues?.length ? (
+          <Card className="border-amber-200 bg-amber-50/50">
+            <CardContent className="pt-4 text-sm text-amber-900">
+              <p className="font-medium">Setup notes</p>
+              <ul className="mt-2 list-disc pl-5">
+                {setup.blocking_issues.map((issue) => (
+                  <li key={issue}>{issue}</li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+        ) : null}
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <WalletSnapshotCard
+            title="Disbursement account"
+            hint="Debited when loans are paid out to borrowers."
+            snap={setup?.disbursement}
+          />
+          <WalletSnapshotCard
+            title="Collection account"
+            hint="Credited when loan repayments are collected."
+            snap={setup?.collection}
+          />
+        </div>
+      </div>
     );
   }
 
