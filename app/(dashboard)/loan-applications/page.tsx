@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import {
   Search,
   RotateCcw,
@@ -11,6 +12,7 @@ import {
   Ban,
   ClipboardList,
   Plus,
+  Download,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -21,6 +23,7 @@ import {
   DetailSection,
 } from "@/components/dashboard/detail-fields";
 import { TableViewButton } from "@/components/dashboard/table-view-button";
+import { LoanExportDialog } from "@/components/dashboard/loan-export-dialog";
 import { useLoanApplications } from "@/hooks/use-loan";
 import type { LoanApplication } from "@/types/loan";
 import { cn } from "@/lib/utils";
@@ -76,10 +79,12 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export default function LoanApplicationsPage() {
+  const searchParams = useSearchParams();
   const { can } = usePermissions();
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
   const [page, setPage] = useState(1);
+  const [exportOpen, setExportOpen] = useState(false);
   const pageSize = 20;
   const [viewApplication, setViewApplication] = useState<LoanApplication | null>(
     null
@@ -95,6 +100,12 @@ export default function LoanApplicationsPage() {
   const totalPages = appsQ.data?.total_pages ?? 0;
   const rangeStart = total === 0 ? 0 : (page - 1) * pageSize + 1;
   const rangeEnd = Math.min(page * pageSize, total);
+
+  useEffect(() => {
+    if (searchParams.get("export") === "1") {
+      setExportOpen(true);
+    }
+  }, [searchParams]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -150,6 +161,16 @@ export default function LoanApplicationsPage() {
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-8 rounded-lg border-slate-200 px-2.5 text-xs"
+            onClick={() => setExportOpen(true)}
+          >
+            <Download className="size-3.5" />
+            Export
+          </Button>
           <Button
             asChild
             size="sm"
@@ -464,6 +485,11 @@ export default function LoanApplicationsPage() {
           </>
         ) : null}
       </DetailsDrawer>
+      <LoanExportDialog
+        open={exportOpen}
+        onOpenChange={setExportOpen}
+        initialStatus={status}
+      />
     </div>
   );
 }

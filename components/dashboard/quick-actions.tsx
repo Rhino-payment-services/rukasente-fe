@@ -63,7 +63,7 @@ const actions: QuickAction[] = [
   },
   {
     label: "Export Report",
-    href: "/loan-applications",
+    href: "/loan-applications?export=1",
     icon: Download,
     anyOf: [Perm.LoanApplicationView],
   },
