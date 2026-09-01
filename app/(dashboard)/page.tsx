@@ -37,54 +37,53 @@ export default function OverviewPage() {
 
   const topStats: KPIItem[] = [];
   const showWalletKpis = Boolean(me?.is_platform || me?.partner_id);
-  if (showWalletKpis) {
-    const disbursement = walletQ.data?.disbursement;
-    const collection = walletQ.data?.collection;
+  const disbursement = walletQ.data?.disbursement;
+  const collection = walletQ.data?.collection;
+  const bothWalletsConfigured = Boolean(
+    disbursement?.configured && collection?.configured
+  );
 
+  if (showWalletKpis) {
     if (walletQ.isLoading) {
       topStats.push(
         {
           title: "Disbursement wallet",
           value: "—",
-          subtitle: "Main disbursement available",
+          subtitle: "Available balance",
           icon: Banknote,
           tone: "emerald",
         },
         {
           title: "Collection wallet",
           value: "—",
-          subtitle: "Main collection available",
+          subtitle: "Available balance",
           icon: Wallet,
           tone: "blue",
         },
       );
-    } else {
-      if (disbursement?.configured) {
-        const available = disbursement.available;
-        topStats.push({
+    } else if (bothWalletsConfigured) {
+      topStats.push(
+        {
           title: "Disbursement wallet",
           value:
-            available == null || walletQ.isError
+            disbursement?.available == null || walletQ.isError
               ? "—"
-              : formatUgx(Number(available)),
-          subtitle: "Main disbursement available",
+              : formatUgx(Number(disbursement.available)),
+          subtitle: "Available balance",
           icon: Banknote,
           tone: "emerald",
-        });
-      }
-      if (collection?.configured) {
-        const available = collection.available;
-        topStats.push({
+        },
+        {
           title: "Collection wallet",
           value:
-            available == null || walletQ.isError
+            collection?.available == null || walletQ.isError
               ? "—"
-              : formatUgx(Number(available)),
-          subtitle: "Main collection available",
+              : formatUgx(Number(collection.available)),
+          subtitle: "Available balance",
           icon: Wallet,
           tone: "blue",
-        });
-      }
+        },
+      );
     }
   }
   if (stats.canBorrowers) {
@@ -163,11 +162,7 @@ export default function OverviewPage() {
       {topStats.length ? (
         <KpiStrip
           items={topStats}
-          loading={
-            stats.isLoading &&
-            !walletQ.data?.disbursement?.configured &&
-            !walletQ.data?.collection?.configured
-          }
+          loading={stats.isLoading && !bothWalletsConfigured && !walletQ.isLoading}
         />
       ) : null}
       {stats.canApps || stats.canScoring ? (

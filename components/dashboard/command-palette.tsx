@@ -38,7 +38,7 @@ const LINKS = [
   { href: "/scoring/eligibility", label: "Eligibility", icon: FileText, group: "Analytics" },
   { href: "/partners", label: "Lending companies", icon: Link2, group: "Integrations", platformOnly: true },
   { href: "/wallets", label: "Wallets", icon: Wallet, group: "System", platformOnly: true },
-  { href: "/backups", label: "Backups", icon: Database, group: "System" },
+  { href: "/backups", label: "Backups", icon: Database, group: "System", platformOnly: true },
   { href: "/payment-providers", label: "Payment providers", icon: Cable, group: "Integrations", platformOnly: true },
   { href: "/integrations", label: "API endpoints", icon: Plug, group: "Integrations" },
 ] as const;

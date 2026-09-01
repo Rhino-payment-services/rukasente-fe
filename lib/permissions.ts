@@ -207,5 +207,8 @@ export function isPlatformOnlyPermission(key: string): boolean {
     "partner.update",
     "partner.credentials.manage",
     "integration.manage",
+    "backup.create",
+    "backup.view",
+    "backup.delete",
   ].includes(key);
 }

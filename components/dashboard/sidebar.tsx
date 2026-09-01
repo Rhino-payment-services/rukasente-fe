@@ -171,6 +171,7 @@ function buildSections(isPlatform: boolean): NavSection[] {
           label: "Backups",
           icon: Database,
           perm: Perm.BackupView,
+          platformOnly: true,
         },
         {
           href: "/integrations",

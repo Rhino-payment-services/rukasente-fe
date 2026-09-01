@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { CompactLoading } from "@/components/ui/loading";
+import { usePermissions } from "@/hooks/use-permissions";
 import {
   useBackups,
   useCreateBackup,
@@ -43,10 +44,11 @@ function formatBytes(bytes: number) {
 
 export default function BackupsPage() {
   const { data: session } = useSession();
+  const { isPlatform } = usePermissions();
   const permissions = session?.user?.permissions ?? [];
-  const canView = hasPermission(permissions, Perm.BackupView);
-  const canCreate = hasPermission(permissions, Perm.BackupCreate);
-  const canDelete = hasPermission(permissions, Perm.BackupDelete);
+  const canView = isPlatform && hasPermission(permissions, Perm.BackupView);
+  const canCreate = isPlatform && hasPermission(permissions, Perm.BackupCreate);
+  const canDelete = isPlatform && hasPermission(permissions, Perm.BackupDelete);
 
   const listQ = useBackups();
   const create = useCreateBackup();
@@ -95,7 +97,9 @@ export default function BackupsPage() {
   if (!canView) {
     return (
       <div className="rounded-xl border border-slate-200 bg-white px-4 py-8 text-center text-sm text-slate-500">
-        You do not have permission to view backups.
+        {isPlatform
+          ? "You do not have permission to view backups."
+          : "Database backups are only available to platform administrators."}
       </div>
     );
   }

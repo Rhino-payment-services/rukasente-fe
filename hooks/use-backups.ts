@@ -3,11 +3,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { unwrapEnvelope } from "@/lib/api-envelope";
+import { useMe } from "@/hooks/use-me";
 import type { BackupListResponse, BackupMeta, BackupTablesResponse } from "@/types/backup";
 
 export function useBackups() {
+  const { data: me } = useMe();
   return useQuery({
     queryKey: ["backups"],
+    enabled: Boolean(me?.is_platform),
     queryFn: async () => {
       const res = await apiClient.get("/admin/backups");
       const data = unwrapEnvelope<BackupListResponse>(res);
@@ -17,8 +20,10 @@ export function useBackups() {
 }
 
 export function useBackupTables() {
+  const { data: me } = useMe();
   return useQuery({
     queryKey: ["backup-tables"],
+    enabled: Boolean(me?.is_platform),
     queryFn: async () => {
       const res = await apiClient.get("/admin/backups/tables");
       const data = unwrapEnvelope<BackupTablesResponse>(res);
