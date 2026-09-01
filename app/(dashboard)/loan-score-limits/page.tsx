@@ -1,6 +1,7 @@
 "use client";
 
 import { NoAccess } from "@/components/auth/no-access";
+import { formatUgx } from "@/hooks/use-dashboard-stats";
 import { usePermissions } from "@/hooks/use-permissions";
 import { Perm } from "@/lib/permissions";
 
@@ -69,13 +70,6 @@ const emptyForm = (): FormState => ({
 });
 
 const SCORE_MAX = 1000;
-
-function formatMoney(n: number) {
-  if (!Number.isFinite(n) || n <= 0) return "UGX 0";
-  if (n >= 1_000_000_000) return `UGX ${(n / 1_000_000_000).toFixed(1)}B`;
-  if (n >= 1_000_000) return `UGX ${(n / 1_000_000).toFixed(1)}M`;
-  return `UGX ${Math.round(n).toLocaleString()}`;
-}
 
 function bandLabel(min: number, max: number) {
   const mid = (min + max) / 2;
@@ -147,7 +141,7 @@ export default function LoanScoreLimitsPage() {
         String(item.min_score).includes(q) ||
         String(item.max_score).includes(q) ||
         String(item.maximum_loan_amount).includes(q) ||
-        formatMoney(item.maximum_loan_amount).toLowerCase().includes(q) ||
+        formatUgx(item.maximum_loan_amount).toLowerCase().includes(q) ||
         bandLabel(item.min_score, item.max_score).toLowerCase().includes(q)
       );
     });
@@ -224,7 +218,7 @@ export default function LoanScoreLimitsPage() {
   const onDelete = async (row: CreditScoreLoanLimit) => {
     if (
       !window.confirm(
-        `Delete score band ${row.min_score}–${row.max_score} (${formatMoney(row.maximum_loan_amount)})?`
+        `Delete score band ${row.min_score}–${row.max_score} (${formatUgx(row.maximum_loan_amount)})?`
       )
     ) {
       return;
@@ -283,7 +277,7 @@ export default function LoanScoreLimitsPage() {
         />
         <ScoringStatCard
           label="Highest cap"
-          value={formatMoney(topCap)}
+          value={formatUgx(topCap)}
           hint="Largest max loan across bands"
           tone="info"
         />
@@ -339,7 +333,7 @@ export default function LoanScoreLimitsPage() {
                           </span>
                         </div>
                         <span className="text-sm font-semibold text-[#08163d]">
-                          {formatMoney(band.maximum_loan_amount)}
+                          {formatUgx(band.maximum_loan_amount)}
                         </span>
                       </div>
                       <div className="h-2 overflow-hidden rounded-full bg-slate-200/80">
@@ -465,7 +459,7 @@ export default function LoanScoreLimitsPage() {
                         </td>
                         <td className="px-3 py-2 align-middle text-slate-700">
                           <p className="font-medium text-slate-900">
-                            {formatMoney(row.maximum_loan_amount)}
+                            {formatUgx(row.maximum_loan_amount)}
                           </p>
                           <p className="text-[11px] text-slate-400">
                             Cap for this score range
@@ -612,7 +606,7 @@ export default function LoanScoreLimitsPage() {
                 </strong>{" "}
                 ({bandLabel(previewMin, previewMax)}) → max{" "}
                 <strong className="text-slate-900">
-                  {formatMoney(previewAmount)}
+                  {formatUgx(previewAmount)}
                 </strong>
                 {!form.is_active ? " · inactive" : null}
               </div>
@@ -690,7 +684,7 @@ export default function LoanScoreLimitsPage() {
                 fields={[
                   {
                     label: "Maximum loan amount",
-                    value: formatMoney(viewLimit.maximum_loan_amount),
+                    value: formatUgx(viewLimit.maximum_loan_amount),
                     fullWidth: true,
                   },
                 ]}

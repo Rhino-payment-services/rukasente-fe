@@ -486,12 +486,6 @@ export function useDashboardStats() {
 }
 
 export function formatUgx(amount: number): string {
-  if (!Number.isFinite(amount) || amount <= 0) return "UGX 0";
-  if (amount >= 1_000_000_000) {
-    return `UGX ${(amount / 1_000_000_000).toFixed(1)}B`;
-  }
-  if (amount >= 1_000_000) {
-    return `UGX ${(amount / 1_000_000).toFixed(1)}M`;
-  }
+  if (!Number.isFinite(amount)) return "UGX —";
   return `UGX ${Math.round(amount).toLocaleString()}`;
 }
