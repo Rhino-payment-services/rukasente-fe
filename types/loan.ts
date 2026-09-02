@@ -323,7 +323,38 @@ export type LoanProductCreatePayload = Omit<
   "id" | "created_at" | "updated_at" | "duration_days"
 >;
 
-export type LoanProductUpdatePayload = Partial<LoanProductCreatePayload>;
+export type LoanProductUpdatePayload = Partial<
+  Omit<LoanProductCreatePayload, "code">
+>;
+
+/** Maps create-shaped form data to PATCH fields (excludes immutable `code`). */
+export function toLoanProductUpdatePayload(
+  payload: LoanProductCreatePayload
+): LoanProductUpdatePayload {
+  return {
+    name: payload.name,
+    description: payload.description,
+    currency: payload.currency,
+    min_amount: payload.min_amount,
+    max_amount: payload.max_amount,
+    min_tenor_days: payload.min_tenor_days,
+    max_tenor_days: payload.max_tenor_days,
+    interest_type: payload.interest_type,
+    interest_rate: payload.interest_rate,
+    interest_calculation_method: payload.interest_calculation_method,
+    compounding_frequency: payload.compounding_frequency,
+    processing_fee_type: payload.processing_fee_type,
+    processing_fee_value: payload.processing_fee_value,
+    processing_fee_mode: payload.processing_fee_mode,
+    late_fee_type: payload.late_fee_type,
+    late_fee_value: payload.late_fee_value,
+    grace_period_days: payload.grace_period_days,
+    pre_approval_enabled: payload.pre_approval_enabled,
+    pre_approval_min_amount: payload.pre_approval_min_amount,
+    requires_manual_review: payload.requires_manual_review,
+    requires_guarantor: payload.requires_guarantor,
+  };
+}
 
 export const LOAN_RULE_TYPES: LoanRuleType[] = [
   "CREDIT_SCORE",

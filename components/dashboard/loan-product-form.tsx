@@ -1421,6 +1421,12 @@ export function LoanProductForm({
                 </dd>
               </div>
               <div className="flex justify-between gap-3">
+                <dt className="text-slate-400">Guarantor</dt>
+                <dd className="font-medium text-slate-800">
+                  {form.requires_guarantor ? "Required" : "Not required"}
+                </dd>
+              </div>
+              <div className="flex justify-between gap-3">
                 <dt className="text-slate-400">Pre-approval</dt>
                 <dd className="text-right font-medium text-slate-800">
                   {form.pre_approval_enabled

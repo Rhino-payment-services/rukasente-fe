@@ -27,6 +27,7 @@ import { LoanExportDialog } from "@/components/dashboard/loan-export-dialog";
 import { useLoanApplications } from "@/hooks/use-loan";
 import type { LoanApplication } from "@/types/loan";
 import { cn } from "@/lib/utils";
+import { ugandaPhoneLocalDisplay } from "@/lib/uganda-phone";
 import { NoAccess } from "@/components/auth/no-access";
 import { usePermissions } from "@/hooks/use-permissions";
 import { Perm } from "@/lib/permissions";
@@ -417,6 +418,38 @@ export default function LoanApplicationsPage() {
                 ]}
               />
             </DetailSection>
+            {viewApplication.guarantor_phone || viewApplication.guarantor_full_name ? (
+              <DetailSection title="Guarantor">
+                <DetailGrid
+                  fields={[
+                    {
+                      label: "Full name",
+                      value: viewApplication.guarantor_full_name || "—",
+                    },
+                    {
+                      label: "Phone",
+                      value: viewApplication.guarantor_phone
+                        ? ugandaPhoneLocalDisplay(viewApplication.guarantor_phone)
+                        : "—",
+                      mono: true,
+                    },
+                    {
+                      label: "Network",
+                      value: viewApplication.guarantor_network || "—",
+                    },
+                    {
+                      label: "Validated",
+                      value: formatDate(viewApplication.guarantor_validated_at),
+                    },
+                    {
+                      label: "Relationship",
+                      value: viewApplication.guarantor_relationship || "—",
+                      fullWidth: true,
+                    },
+                  ]}
+                />
+              </DetailSection>
+            ) : null}
             <DetailSection title="Decision & disbursement">
               <DetailGrid
                 fields={[

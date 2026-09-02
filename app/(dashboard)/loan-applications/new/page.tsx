@@ -35,6 +35,8 @@ import {
 } from "@/hooks/use-loan";
 import { GuarantorValidateResponse } from "@/types/loan";
 import { cn } from "@/lib/utils";
+import { ugandaPhonesMatch, ugandaPhoneLocalDisplay } from "@/lib/uganda-phone";
+import { namesLikelySamePerson } from "@/lib/person-name";
 
 const selectClass =
   "h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus-visible:ring-2 focus-visible:ring-main-500/30 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400";
@@ -141,11 +143,29 @@ export default function NewLoanApplicationPage() {
       toast.error("Enter a valid guarantor phone number");
       return;
     }
+    if (
+      selectedBorrower.phone &&
+      ugandaPhonesMatch(phone, selectedBorrower.phone)
+    ) {
+      toast.error("The applicant cannot be their own guarantor");
+      setGuarantorValidation(null);
+      return;
+    }
     try {
       const result = await validateGuarantor.mutateAsync({
         phone,
         borrower_profile_id: selectedBorrower.id,
       });
+      if (
+        selectedBorrower.full_name &&
+        namesLikelySamePerson(result.full_name, selectedBorrower.full_name)
+      ) {
+        toast.error(
+          "The guarantor name matches the applicant — use a different guarantor"
+        );
+        setGuarantorValidation(null);
+        return;
+      }
       setGuarantorValidation(result);
       toast.success(`Guarantor validated: ${result.full_name}`);
     } catch (err) {
@@ -200,6 +220,24 @@ export default function NewLoanApplicationPage() {
     }
     if (guarantorRequired && !guarantorValidation?.validation_id) {
       toast.error("Validate the guarantor phone before submitting");
+      return;
+    }
+    if (
+      guarantorRequired &&
+      selectedBorrower.phone &&
+      guarantorValidation?.phone &&
+      ugandaPhonesMatch(guarantorValidation.phone, selectedBorrower.phone)
+    ) {
+      toast.error("The applicant cannot be their own guarantor");
+      return;
+    }
+    if (
+      guarantorRequired &&
+      selectedBorrower.full_name &&
+      guarantorValidation?.full_name &&
+      namesLikelySamePerson(guarantorValidation.full_name, selectedBorrower.full_name)
+    ) {
+      toast.error("The guarantor name matches the applicant — use a different guarantor");
       return;
     }
 

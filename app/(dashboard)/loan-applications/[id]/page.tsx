@@ -23,6 +23,7 @@ import {
 import { hasPermission, Perm } from "@/lib/permissions";
 import { usePermissions } from "@/hooks/use-permissions";
 import { toast } from "sonner";
+import { ugandaPhoneLocalDisplay } from "@/lib/uganda-phone";
 
 const RETRYABLE_DISBURSE_STATUSES = new Set([
   "disbursement_failed",
@@ -293,31 +294,6 @@ export default function LoanApplicationDetailPage({
               />
               <Detail label="Tenor" value={`${app.requested_tenor_days} days`} />
               <Detail label="Purpose" value={app.purpose || "—"} />
-              {app.guarantor_phone ? (
-                <>
-                  <Detail
-                    label="Guarantor"
-                    value={app.guarantor_full_name || "—"}
-                    hint={app.guarantor_phone}
-                  />
-                  <Detail
-                    label="Guarantor network"
-                    value={app.guarantor_network || "—"}
-                  />
-                  <Detail
-                    label="Guarantor relationship"
-                    value={app.guarantor_relationship || "—"}
-                  />
-                  <Detail
-                    label="Guarantor validated"
-                    value={
-                      app.guarantor_validated_at
-                        ? formatDate(app.guarantor_validated_at)
-                        : "—"
-                    }
-                  />
-                </>
-              ) : null}
               {app.loan_kind === "product" ? (
                 <>
                   <Detail
@@ -385,6 +361,46 @@ export default function LoanApplicationDetailPage({
           )}
         </CardContent>
       </Card>
+
+      {app && (app.guarantor_phone || app.guarantor_full_name) ? (
+        <Card className="gap-0 border-sky-100 bg-sky-50/30 py-0 shadow-sm">
+          <CardContent className="px-4 py-4">
+            <h2 className="text-sm font-semibold text-sky-900">Guarantor</h2>
+            <p className="mt-0.5 text-xs text-slate-600">
+              MNO-validated guarantor snapshot at application time
+            </p>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <Detail
+                label="Full name"
+                value={app.guarantor_full_name || "—"}
+              />
+              <Detail
+                label="Phone"
+                value={
+                  app.guarantor_phone
+                    ? ugandaPhoneLocalDisplay(app.guarantor_phone)
+                    : "—"
+                }
+              />
+              <Detail label="Network" value={app.guarantor_network || "—"} />
+              <Detail
+                label="Validated at"
+                value={
+                  app.guarantor_validated_at
+                    ? formatDate(app.guarantor_validated_at)
+                    : "—"
+                }
+              />
+              {app.guarantor_relationship ? (
+                <Detail
+                  label="Relationship"
+                  value={app.guarantor_relationship}
+                />
+              ) : null}
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {offer ? (
         <Card className="gap-0 border-slate-200/80 bg-white py-0 shadow-sm">

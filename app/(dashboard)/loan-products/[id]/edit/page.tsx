@@ -71,12 +71,13 @@ export default function EditLoanProductPage({
         </div>
       ) : productQ.data ? (
         <LoanProductForm
+          key={id}
           initial={productQ.data}
           isSaving={update.isPending}
           onCancel={() => router.push("/loan-products")}
           onSaveDraft={async (payload) => {
             try {
-              await update.mutateAsync({ ...payload, is_active: false });
+              await update.mutateAsync(payload);
               toast.success("Product saved as inactive draft");
               router.push("/loan-products");
             } catch (err) {

@@ -493,6 +493,10 @@ export default function LoanProductsPage() {
                     value: formatDetailValue(viewProduct.requires_manual_review),
                   },
                   {
+                    label: "Guarantor",
+                    value: formatDetailValue(viewProduct.requires_guarantor),
+                  },
+                  {
                     label: "Description",
                     value: viewProduct.description || "—",
                     fullWidth: true,

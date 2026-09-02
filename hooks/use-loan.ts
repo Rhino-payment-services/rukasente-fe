@@ -20,6 +20,7 @@ import {
   ProductStats,
   Paginated,
   GuarantorValidateResponse,
+  toLoanProductUpdatePayload,
 } from "@/types/loan";
 import { usePermissions } from "@/hooks/use-permissions";
 import { Perm } from "@/lib/permissions";
@@ -67,8 +68,14 @@ export function useCreateLoanProduct() {
 export function useUpdateLoanProduct(id: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: LoanProductUpdatePayload) => {
-      const res = await apiClient.patch(`/admin/loan-products/${id}`, payload);
+    mutationFn: async (
+      payload: LoanProductCreatePayload | LoanProductUpdatePayload
+    ) => {
+      const body =
+        "code" in payload && typeof payload.code === "string"
+          ? toLoanProductUpdatePayload(payload as LoanProductCreatePayload)
+          : (payload as LoanProductUpdatePayload);
+      const res = await apiClient.patch(`/admin/loan-products/${id}`, body);
       return unwrapEnvelope<LoanProduct>(res);
     },
     onSuccess: () => {
