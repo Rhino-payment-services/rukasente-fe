@@ -19,6 +19,7 @@ import {
   CreditScoreLoanLimit,
   ProductStats,
   Paginated,
+  GuarantorValidateResponse,
 } from "@/types/loan";
 import { usePermissions } from "@/hooks/use-permissions";
 import { Perm } from "@/lib/permissions";
@@ -427,6 +428,15 @@ export function useBorrowerLoanProducts(rukapayUserId: string) {
   });
 }
 
+export function useValidateGuarantor() {
+  return useMutation({
+    mutationFn: async (payload: { phone: string; borrower_profile_id?: string }) => {
+      const res = await apiClient.post("/admin/guarantors/validate", payload);
+      return unwrapEnvelope<GuarantorValidateResponse>(res);
+    },
+  });
+}
+
 export function useCreateBorrowerLoanApplication() {
   const qc = useQueryClient();
   return useMutation({
@@ -437,6 +447,8 @@ export function useCreateBorrowerLoanApplication() {
       requested_tenor_days: number;
       purpose: string;
       submission_channel: "web" | "internal_admin" | "api";
+      guarantor_validation_id?: string;
+      guarantor_relationship?: string;
     }) => {
       // Go through the Next.js internal proxy (holds X-Internal-API-Key).
       const res = await axios.post("/api/internal/loan-applications", payload);

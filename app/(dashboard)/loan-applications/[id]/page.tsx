@@ -293,6 +293,31 @@ export default function LoanApplicationDetailPage({
               />
               <Detail label="Tenor" value={`${app.requested_tenor_days} days`} />
               <Detail label="Purpose" value={app.purpose || "—"} />
+              {app.guarantor_phone ? (
+                <>
+                  <Detail
+                    label="Guarantor"
+                    value={app.guarantor_full_name || "—"}
+                    hint={app.guarantor_phone}
+                  />
+                  <Detail
+                    label="Guarantor network"
+                    value={app.guarantor_network || "—"}
+                  />
+                  <Detail
+                    label="Guarantor relationship"
+                    value={app.guarantor_relationship || "—"}
+                  />
+                  <Detail
+                    label="Guarantor validated"
+                    value={
+                      app.guarantor_validated_at
+                        ? formatDate(app.guarantor_validated_at)
+                        : "—"
+                    }
+                  />
+                </>
+              ) : null}
               {app.loan_kind === "product" ? (
                 <>
                   <Detail

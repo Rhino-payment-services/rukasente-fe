@@ -31,7 +31,9 @@ import {
 import {
   useCreateBorrowerLoanApplication,
   useLoanProducts,
+  useValidateGuarantor,
 } from "@/hooks/use-loan";
+import { GuarantorValidateResponse } from "@/types/loan";
 import { cn } from "@/lib/utils";
 
 const selectClass =
@@ -74,6 +76,7 @@ export default function NewLoanApplicationPage() {
   const router = useRouter();
   const productsQ = useLoanProducts({ page: 1, page_size: 100, active: "true" });
   const createApp = useCreateBorrowerLoanApplication();
+  const validateGuarantor = useValidateGuarantor();
 
   const [borrowerQuery, setBorrowerQuery] = useState("");
   const debouncedQuery = useDebouncedValue(borrowerQuery.trim(), 350);
@@ -84,6 +87,10 @@ export default function NewLoanApplicationPage() {
   const [amount, setAmount] = useState("");
   const [tenorDays, setTenorDays] = useState("");
   const [purpose, setPurpose] = useState("");
+  const [guarantorPhone, setGuarantorPhone] = useState("");
+  const [guarantorRelationship, setGuarantorRelationship] = useState("");
+  const [guarantorValidation, setGuarantorValidation] =
+    useState<GuarantorValidateResponse | null>(null);
 
   const products = useMemo(
     () => (productsQ.data?.items ?? []).filter((p) => p.is_active),
@@ -99,9 +106,14 @@ export default function NewLoanApplicationPage() {
   const showResults =
     !selectedBorrower && debouncedQuery.length >= 2 && borrowerQuery.trim().length >= 2;
   const loanSectionEnabled = Boolean(selectedBorrower?.rukapay_user_id);
+  const guarantorRequired = Boolean(selectedProduct?.requires_guarantor);
+  const guarantorReady = !guarantorRequired || Boolean(guarantorValidation?.valid);
 
   function onSelectProduct(id: string) {
     setProductId(id);
+    setGuarantorPhone("");
+    setGuarantorRelationship("");
+    setGuarantorValidation(null);
     const p = products.find((x) => x.id === id);
     if (p && !tenorDays) {
       setTenorDays(String(p.max_tenor_days || p.min_tenor_days || 30));
@@ -114,6 +126,40 @@ export default function NewLoanApplicationPage() {
     setProductId("");
     setAmount("");
     setTenorDays("");
+    setGuarantorPhone("");
+    setGuarantorRelationship("");
+    setGuarantorValidation(null);
+  }
+
+  async function onValidateGuarantor() {
+    if (!selectedBorrower?.id) {
+      toast.error("Select a borrower first");
+      return;
+    }
+    const phone = guarantorPhone.trim();
+    if (phone.length < 9) {
+      toast.error("Enter a valid guarantor phone number");
+      return;
+    }
+    try {
+      const result = await validateGuarantor.mutateAsync({
+        phone,
+        borrower_profile_id: selectedBorrower.id,
+      });
+      setGuarantorValidation(result);
+      toast.success(`Guarantor validated: ${result.full_name}`);
+    } catch (err) {
+      let message = "Guarantor validation failed";
+      if (axios.isAxiosError(err)) {
+        message =
+          (err.response?.data as { error?: { message?: string } } | undefined)?.error
+            ?.message || err.message;
+      } else if (err instanceof Error) {
+        message = err.message;
+      }
+      setGuarantorValidation(null);
+      toast.error(message);
+    }
   }
 
   async function onSubmit(e: FormEvent) {
@@ -152,6 +198,10 @@ export default function NewLoanApplicationPage() {
       );
       return;
     }
+    if (guarantorRequired && !guarantorValidation?.validation_id) {
+      toast.error("Validate the guarantor phone before submitting");
+      return;
+    }
 
     try {
       const app = await createApp.mutateAsync({
@@ -161,6 +211,8 @@ export default function NewLoanApplicationPage() {
         requested_tenor_days: tenorNum,
         purpose: purpose.trim(),
         submission_channel: "internal_admin",
+        guarantor_validation_id: guarantorValidation?.validation_id,
+        guarantor_relationship: guarantorRelationship.trim() || undefined,
       });
       toast.success(`Application ${app.application_number} created`);
       router.push(`/loan-applications/${app.id}`);
@@ -448,10 +500,62 @@ export default function NewLoanApplicationPage() {
                 </fieldset>
               </section>
 
+              {loanSectionEnabled && guarantorRequired ? (
+                <section className="space-y-3 rounded-2xl border border-sky-100 bg-sky-50/40 p-4">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-sky-800">
+                    Guarantor (required)
+                  </div>
+                  <p className="text-xs text-slate-600">
+                    Validate the guarantor via mobile money name enquiry. They do not need a
+                    RukaPay account.
+                  </p>
+                  <div className="grid gap-3 md:grid-cols-[1fr_auto]">
+                    <Field label="Guarantor phone" hint="e.g. 0700123456">
+                      <Input
+                        value={guarantorPhone}
+                        onChange={(e) => {
+                          setGuarantorPhone(e.target.value);
+                          setGuarantorValidation(null);
+                        }}
+                        placeholder="0700123456"
+                        className="h-10 rounded-xl border-slate-200"
+                      />
+                    </Field>
+                    <div className="flex items-end">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-10 rounded-xl"
+                        onClick={() => void onValidateGuarantor()}
+                        disabled={validateGuarantor.isPending || guarantorPhone.trim().length < 9}
+                      >
+                        {validateGuarantor.isPending ? "Validating…" : "Validate"}
+                      </Button>
+                    </div>
+                  </div>
+                  <Field label="Relationship" hint="Optional">
+                    <Input
+                      value={guarantorRelationship}
+                      onChange={(e) => setGuarantorRelationship(e.target.value)}
+                      placeholder="Spouse, colleague…"
+                      className="h-10 rounded-xl border-slate-200"
+                    />
+                  </Field>
+                  {guarantorValidation?.valid ? (
+                    <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 px-4 py-3 text-sm">
+                      <p className="font-medium text-emerald-900">{guarantorValidation.full_name}</p>
+                      <p className="mt-1 text-xs text-emerald-800">
+                        {guarantorValidation.network} · {guarantorValidation.phone_display || guarantorValidation.phone}
+                      </p>
+                    </div>
+                  ) : null}
+                </section>
+              ) : null}
+
               <div className="flex flex-wrap items-center gap-3 border-t border-slate-100 pt-4">
                 <Button
                   type="submit"
-                  disabled={createApp.isPending || !loanSectionEnabled}
+                  disabled={createApp.isPending || !loanSectionEnabled || !guarantorReady}
                   className="h-10 rounded-xl bg-main-600 px-5 text-white hover:bg-main-700"
                 >
                   {createApp.isPending ? "Creating…" : "Create application"}

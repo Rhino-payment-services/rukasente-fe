@@ -32,6 +32,7 @@ export type LoanProduct = {
   pre_approval_enabled: boolean;
   pre_approval_min_amount: number;
   requires_manual_review: boolean;
+  requires_guarantor: boolean;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -138,8 +139,23 @@ export type LoanApplication = {
   due_date?: string;
   repaid_at?: string;
   overdue_since?: string;
+  guarantor_phone?: string;
+  guarantor_full_name?: string;
+  guarantor_network?: string;
+  guarantor_relationship?: string;
+  guarantor_validated_at?: string;
   created_at: string;
   updated_at: string;
+};
+
+export type GuarantorValidateResponse = {
+  valid: boolean;
+  phone: string;
+  phone_display: string;
+  full_name: string;
+  network: string;
+  validation_id: string;
+  expires_at: string;
 };
 
 export type LoanApplicationReview = {

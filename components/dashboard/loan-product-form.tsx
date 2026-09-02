@@ -97,6 +97,7 @@ type FormState = {
   pre_approval_enabled: boolean;
   pre_approval_min_amount: string;
   requires_manual_review: boolean;
+  requires_guarantor: boolean;
   is_active: boolean;
 };
 
@@ -307,6 +308,7 @@ function defaultForm(initial?: Partial<LoanProduct>): FormState {
     pre_approval_enabled: Boolean(initial?.pre_approval_enabled),
     pre_approval_min_amount: String(initial?.pre_approval_min_amount ?? 0),
     requires_manual_review: Boolean(initial?.requires_manual_review),
+    requires_guarantor: Boolean(initial?.requires_guarantor),
     is_active: initial?.is_active ?? true,
   };
 }
@@ -406,6 +408,7 @@ export function LoanProductForm({
       pre_approval_enabled: form.pre_approval_enabled,
       pre_approval_min_amount: Number(form.pre_approval_min_amount) || 0,
       requires_manual_review: form.requires_manual_review,
+      requires_guarantor: form.requires_guarantor,
       is_active: form.is_active,
     };
   }, [form, isCompound]);
@@ -1232,6 +1235,31 @@ export function LoanProductForm({
                       </span>
                       <span className="mt-0.5 block text-[12px] text-slate-500">
                         Staff must approve applications before disbursement.
+                      </span>
+                    </span>
+                  </label>
+                  <label
+                    className={cn(
+                      "flex cursor-pointer items-start gap-3 rounded-2xl border px-4 py-4 transition-colors",
+                      form.requires_guarantor
+                        ? "border-sky-200 bg-sky-50/70"
+                        : "border-slate-200 bg-white hover:border-slate-300"
+                    )}
+                  >
+                    <input
+                      type="checkbox"
+                      className="mt-1 size-4 rounded border-slate-300"
+                      checked={form.requires_guarantor}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, requires_guarantor: e.target.checked }))
+                      }
+                    />
+                    <span>
+                      <span className="block text-sm font-medium text-slate-900">
+                        Requires guarantor
+                      </span>
+                      <span className="mt-0.5 block text-[12px] text-slate-500">
+                        Applicants must validate a guarantor via MNO name enquiry before submit.
                       </span>
                     </span>
                   </label>
