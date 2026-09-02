@@ -224,7 +224,7 @@ export default function NewLoanApplicationPage() {
     }
     if (
       guarantorRequired &&
-      selectedBorrower.phone &&
+      selectedBorrower?.phone &&
       guarantorValidation?.phone &&
       ugandaPhonesMatch(guarantorValidation.phone, selectedBorrower.phone)
     ) {
@@ -233,7 +233,7 @@ export default function NewLoanApplicationPage() {
     }
     if (
       guarantorRequired &&
-      selectedBorrower.full_name &&
+      selectedBorrower?.full_name &&
       guarantorValidation?.full_name &&
       namesLikelySamePerson(guarantorValidation.full_name, selectedBorrower.full_name)
     ) {
