@@ -264,6 +264,7 @@ export function useLoanApplications(params?: {
   status?: string;
   product_id?: string;
   borrower_id?: string;
+  search?: string;
 }) {
   const { can } = usePermissions();
   return useQuery({
@@ -273,6 +274,7 @@ export function useLoanApplications(params?: {
       const res = await apiClient.get("/admin/loan-applications", { params });
       return unwrapEnvelope<Paginated<LoanApplication>>(res);
     },
+    placeholderData: (prev) => prev,
   });
 }
 

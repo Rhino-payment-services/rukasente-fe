@@ -79,6 +79,15 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+function useDebouncedValue<T>(value: T, delayMs: number) {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const id = window.setTimeout(() => setDebounced(value), delayMs);
+    return () => window.clearTimeout(id);
+  }, [value, delayMs]);
+  return debounced;
+}
+
 export default function LoanApplicationsPage() {
   const searchParams = useSearchParams();
   const { can } = usePermissions();
@@ -90,10 +99,12 @@ export default function LoanApplicationsPage() {
   const [viewApplication, setViewApplication] = useState<LoanApplication | null>(
     null
   );
+  const debouncedSearch = useDebouncedValue(search.trim(), 350);
   const appsQ = useLoanApplications({
     page,
     page_size: pageSize,
     status: status || undefined,
+    search: debouncedSearch || undefined,
   });
 
   const items = appsQ.data?.items ?? [];
@@ -108,21 +119,9 @@ export default function LoanApplicationsPage() {
     }
   }, [searchParams]);
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return items;
-    return items.filter((a) => {
-      return (
-        a.application_number?.toLowerCase().includes(q) ||
-        a.borrower_name?.toLowerCase().includes(q) ||
-        a.borrower_phone?.toLowerCase().includes(q) ||
-        a.borrower_email?.toLowerCase().includes(q) ||
-        a.product_name?.toLowerCase().includes(q) ||
-        a.product_code?.toLowerCase().includes(q) ||
-        a.status?.toLowerCase().includes(q)
-      );
-    });
-  }, [items, search]);
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch]);
 
   const stats = useMemo(() => {
     const submitted = items.filter((a) => a.status === "submitted").length;
@@ -208,7 +207,7 @@ export default function LoanApplicationsPage() {
           <div>
             <p className="text-sm font-semibold text-slate-900">Search & Filters</p>
             <p className="text-xs text-slate-500">
-              Filter by status (server). Search filters the current page only.
+              Search and status filter the full list.
             </p>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row">
@@ -217,7 +216,7 @@ export default function LoanApplicationsPage() {
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search this page…"
+                placeholder="Search applications, borrowers, products…"
                 className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50/60 pl-10 pr-3 text-sm text-slate-700 outline-none transition focus:border-[rgba(8,22,61,0.25)] focus:bg-white focus:ring-4 focus:ring-[rgba(8,22,61,0.05)]"
               />
             </div>
@@ -260,7 +259,7 @@ export default function LoanApplicationsPage() {
             <p className="p-6 text-sm text-rose-600">
               {(appsQ.error as Error).message}
             </p>
-          ) : filtered.length === 0 ? (
+          ) : items.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-2 px-6 py-16 text-center">
               <div className="flex size-12 items-center justify-center rounded-2xl bg-slate-50 text-slate-400">
                 <FileText className="size-5" />
@@ -300,7 +299,7 @@ export default function LoanApplicationsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((app) => (
+                  {items.map((app) => (
                     <ApplicationRow
                       key={app.id}
                       app={app}
@@ -315,7 +314,6 @@ export default function LoanApplicationsPage() {
             <div className="flex items-center justify-between gap-3 border-t border-slate-100 px-4 py-2.5 text-xs text-slate-500">
               <span>
                 Showing {rangeStart}–{rangeEnd} of {total}
-                {search.trim() ? ` (${filtered.length} match on this page)` : ""}
               </span>
               <div className="flex gap-2">
                 <Button
