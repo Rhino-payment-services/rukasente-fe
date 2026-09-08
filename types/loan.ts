@@ -146,6 +146,30 @@ export type LoanApplication = {
   guarantor_validated_at?: string;
   created_at: string;
   updated_at: string;
+  crb?: LoanApplicationCRBStatus;
+  cap?: LoanApplicationCAPStatus;
+};
+
+export type LoanApplicationCRBStatus = {
+  status: "not_checked" | "pending" | "succeeded" | "failed" | "expired" | string;
+  can_approve: boolean;
+  checked_at?: string;
+  expires_at?: string;
+  metropol_reference?: string;
+  message?: string;
+};
+
+export type LoanApplicationCRBReport = {
+  status?: LoanApplicationCRBStatus;
+  metropol_reference?: string;
+  report: unknown;
+};
+
+export type LoanApplicationCAPStatus = {
+  status: "none" | "succeeded" | "failed" | string;
+  application_reference?: string;
+  created_at?: string;
+  message?: string;
 };
 
 export type GuarantorValidateResponse = {
