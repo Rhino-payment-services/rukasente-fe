@@ -957,8 +957,8 @@ export function LoanProductForm({
                   {!isCompound ? (
                     <Field
                       label="Interest type"
-                      hint="Flat = rate% of principal for the loan. Percentage = annualized (× tenor days ÷ 365) — short tenors may round near zero."
-                      tooltip="Flat charges rate% of principal once for the tenor. Percentage uses P × rate/100 × days/365. For short loans like 7 days at 0.5%, use flat if you want 0.5% of principal."
+                      hint="Under SIMPLE, rate% is of principal for the loan (tenor does not change interest). Use COMPOUND for time-based interest."
+                      tooltip="SIMPLE always charges P × rate/100 once for the loan, whether type is flat or percentage. Percentage no longer annualizes (× days ÷ 365). Choose COMPOUND if you need interest that grows with tenor."
                     >
                       <select
                         className={selectClass}
