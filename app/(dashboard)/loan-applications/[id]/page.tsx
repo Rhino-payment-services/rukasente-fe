@@ -509,17 +509,30 @@ export default function LoanApplicationDetailPage({
               </p>
             ) : null}
             {app.cap && app.cap.status !== "none" ? (
-              <div className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50/60 px-3 py-2 text-xs text-emerald-900">
-                <span className="font-medium">Loan CAP: </span>
-                {app.cap.status === "succeeded"
-                  ? `Created successfully${
-                      app.cap.application_reference
-                        ? ` (${app.cap.application_reference})`
-                        : ""
-                    }`
-                  : app.cap.message || app.cap.status}
-                {app.cap.created_at ? (
-                  <span className="text-emerald-700/80"> · {formatDate(app.cap.created_at)}</span>
+              <div className="mt-3 space-y-1 rounded-xl border border-emerald-100 bg-emerald-50/60 px-3 py-2 text-xs text-emerald-900">
+                <div>
+                  <span className="font-medium">Loan CAP: </span>
+                  {app.cap.status === "succeeded"
+                    ? "Created successfully"
+                    : app.cap.message || app.cap.status}
+                  {app.cap.created_at ? (
+                    <span className="text-emerald-700/80">
+                      {" "}
+                      · {formatDate(app.cap.created_at)}
+                    </span>
+                  ) : null}
+                </div>
+                {app.cap.application_reference ? (
+                  <p className="text-emerald-800/90">
+                    Our CAP ref:{" "}
+                    <span className="font-mono">{app.cap.application_reference}</span>
+                  </p>
+                ) : null}
+                {app.cap.metropol_cap_reference ? (
+                  <p className="text-emerald-800/90">
+                    Metropol CAP ref:{" "}
+                    <span className="font-mono">{app.cap.metropol_cap_reference}</span>
+                  </p>
                 ) : null}
               </div>
             ) : null}
@@ -1082,6 +1095,7 @@ export default function LoanApplicationDetailPage({
               : "Full Metropol CRB report for manual review"
           }
           widthClassName="max-w-3xl sm:max-w-4xl lg:max-w-5xl"
+          contentClassName="!space-y-0 !overflow-hidden !p-0"
           footer={
             <Button
               type="button"

@@ -168,6 +168,7 @@ export type LoanApplicationCRBReport = {
 export type LoanApplicationCAPStatus = {
   status: "none" | "succeeded" | "failed" | string;
   application_reference?: string;
+  metropol_cap_reference?: string;
   created_at?: string;
   message?: string;
 };
