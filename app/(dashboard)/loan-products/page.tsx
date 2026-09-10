@@ -497,6 +497,10 @@ export default function LoanProductsPage() {
                     value: formatDetailValue(viewProduct.requires_guarantor),
                   },
                   {
+                    label: "Approve without CRB",
+                    value: formatDetailValue(viewProduct.allow_approve_without_crb),
+                  },
+                  {
                     label: "Description",
                     value: viewProduct.description || "—",
                     fullWidth: true,

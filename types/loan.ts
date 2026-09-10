@@ -33,6 +33,7 @@ export type LoanProduct = {
   pre_approval_min_amount: number;
   requires_manual_review: boolean;
   requires_guarantor: boolean;
+  allow_approve_without_crb: boolean;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -146,6 +147,7 @@ export type LoanApplication = {
   guarantor_validated_at?: string;
   created_at: string;
   updated_at: string;
+  allow_approve_without_crb?: boolean;
   crb?: LoanApplicationCRBStatus;
   cap?: LoanApplicationCAPStatus;
 };
@@ -378,6 +380,7 @@ export function toLoanProductUpdatePayload(
     pre_approval_min_amount: payload.pre_approval_min_amount,
     requires_manual_review: payload.requires_manual_review,
     requires_guarantor: payload.requires_guarantor,
+    allow_approve_without_crb: payload.allow_approve_without_crb,
   };
 }
 
