@@ -98,6 +98,7 @@ type FormState = {
   pre_approval_min_amount: string;
   requires_manual_review: boolean;
   requires_guarantor: boolean;
+  allow_approve_without_crb: boolean;
   is_active: boolean;
 };
 
@@ -309,6 +310,7 @@ function defaultForm(initial?: Partial<LoanProduct>): FormState {
     pre_approval_min_amount: String(initial?.pre_approval_min_amount ?? 0),
     requires_manual_review: Boolean(initial?.requires_manual_review),
     requires_guarantor: Boolean(initial?.requires_guarantor),
+    allow_approve_without_crb: Boolean(initial?.allow_approve_without_crb),
     is_active: initial?.is_active ?? true,
   };
 }
@@ -409,6 +411,7 @@ export function LoanProductForm({
       pre_approval_min_amount: Number(form.pre_approval_min_amount) || 0,
       requires_manual_review: form.requires_manual_review,
       requires_guarantor: form.requires_guarantor,
+      allow_approve_without_crb: form.allow_approve_without_crb,
       is_active: form.is_active,
     };
   }, [form, isCompound]);
@@ -1266,6 +1269,35 @@ export function LoanProductForm({
                   <label
                     className={cn(
                       "flex cursor-pointer items-start gap-3 rounded-2xl border px-4 py-4 transition-colors",
+                      form.allow_approve_without_crb
+                        ? "border-violet-200 bg-violet-50/70"
+                        : "border-slate-200 bg-white hover:border-slate-300"
+                    )}
+                  >
+                    <input
+                      type="checkbox"
+                      className="mt-1 size-4 rounded border-slate-300"
+                      checked={form.allow_approve_without_crb}
+                      onChange={(e) =>
+                        setForm((f) => ({
+                          ...f,
+                          allow_approve_without_crb: e.target.checked,
+                        }))
+                      }
+                    />
+                    <span>
+                      <span className="block text-sm font-medium text-slate-900">
+                        Allow approve without CRB
+                      </span>
+                      <span className="mt-0.5 block text-[12px] text-slate-500">
+                        Staff can approve applications without running a Metropol CRB check
+                        first. CAP is skipped unless a valid CRB is already attached.
+                      </span>
+                    </span>
+                  </label>
+                  <label
+                    className={cn(
+                      "flex cursor-pointer items-start gap-3 rounded-2xl border px-4 py-4 transition-colors",
                       form.is_active
                         ? "border-emerald-200 bg-emerald-50/70"
                         : "border-slate-200 bg-white hover:border-slate-300"
@@ -1424,6 +1456,12 @@ export function LoanProductForm({
                 <dt className="text-slate-400">Guarantor</dt>
                 <dd className="font-medium text-slate-800">
                   {form.requires_guarantor ? "Required" : "Not required"}
+                </dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt className="text-slate-400">CRB</dt>
+                <dd className="font-medium text-slate-800">
+                  {form.allow_approve_without_crb ? "Optional" : "Required"}
                 </dd>
               </div>
               <div className="flex justify-between gap-3">

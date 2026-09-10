@@ -120,7 +120,8 @@ export default function LoanApplicationDetailPage({
   const canDisburse = hasPermission(permissions, Perm.LoanDisburse);
 
   const crb = crbQ.data ?? appQ.data?.crb;
-  const canApproveByCRB = !!crb?.can_approve;
+  const allowApproveWithoutCRB = !!appQ.data?.allow_approve_without_crb;
+  const canApproveByCRB = !!crb?.can_approve || allowApproveWithoutCRB;
   const crbStatus = String(crb?.status || "not_checked");
 
   async function submitRetryDisburse() {
@@ -158,7 +159,9 @@ export default function LoanApplicationDetailPage({
       await review.mutateAsync({ action, notes });
       toast.success(
         action === "approved"
-          ? "Loan approved and Metropol CAP created"
+          ? allowApproveWithoutCRB && !crb?.can_approve
+            ? "Loan approved (CRB/CAP skipped)"
+            : "Loan approved and Metropol CAP created"
           : "Review submitted"
       );
       setOpen(false);
@@ -459,11 +462,14 @@ export default function LoanApplicationDetailPage({
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <h2 className="text-sm font-semibold text-violet-950">
-                  CRB verification (required before approve)
+                  {allowApproveWithoutCRB
+                    ? "CRB verification (optional for this product)"
+                    : "CRB verification (required before approve)"}
                 </h2>
                 <p className="mt-0.5 text-xs text-slate-600">
-                  Pull the Metropol CRB report, review it manually, then approve. CAP is
-                  created automatically on approve.
+                  {allowApproveWithoutCRB
+                    ? "This product allows approve without CRB. You can still pull a Metropol report for review; CAP is skipped when approving without CRB."
+                    : "Pull the Metropol CRB report, review it manually, then approve. CAP is created automatically on approve."}
                 </p>
               </div>
               <span
@@ -496,7 +502,13 @@ export default function LoanApplicationDetailPage({
               <Detail label="Expires at" value={formatDate(crb?.expires_at)} />
               <Detail
                 label="Can approve"
-                value={canApproveByCRB ? "Yes" : "No — CRB required"}
+                value={
+                  crb?.can_approve
+                    ? "Yes"
+                    : allowApproveWithoutCRB
+                      ? "Yes — CRB optional for product"
+                      : "No — CRB required"
+                }
               />
             </div>
             {crb?.message ? (
@@ -985,7 +997,13 @@ export default function LoanApplicationDetailPage({
                     "CRB verification is mandatory before loan approval. Get the CRB report first."}
                 </div>
               ) : null}
-              {action === "approved" && canApproveByCRB ? (
+              {action === "approved" && allowApproveWithoutCRB && !crb?.can_approve ? (
+                <div className="rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-xs text-violet-900">
+                  This product allows approve without CRB. Approving now will skip Metropol CAP
+                  creation. Run CRB first if you want CAP created on approve.
+                </div>
+              ) : null}
+              {action === "approved" && crb?.can_approve ? (
                 <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
                   CRB report is available. Approving will create the Metropol CAP, then mark the
                   loan approved.
