@@ -25,6 +25,7 @@ import {
   useRetryDisbursement,
   useReviewLoanApplication,
   useRunLoanApplicationCRB,
+  useSyncRepaymentWallet,
 } from "@/hooks/use-loan";
 import { hasPermission, Perm } from "@/lib/permissions";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -93,6 +94,8 @@ export default function LoanApplicationDetailPage({
   const review = useReviewLoanApplication(id);
   const retryDisburse = useRetryDisbursement(id);
   const repay = useInitiateLoanRepayment(id);
+  const syncWallet = useSyncRepaymentWallet(id);
+  const [parentWalletId, setParentWalletId] = useState("");
   const crbQ = useLoanApplicationCRB(id);
   const runCRB = useRunLoanApplicationCRB(id);
   const [open, setOpen] = useState(false);
@@ -215,6 +218,7 @@ export default function LoanApplicationDetailPage({
       const idempotencyKey = `admin-repay-${id}-${crypto.randomUUID()}`;
       await repay.mutateAsync({
         amount,
+        wallet_id: parentWalletId || undefined,
         idempotency_key: idempotencyKey,
       });
       toast.success("Repayment recorded");
@@ -222,9 +226,24 @@ export default function LoanApplicationDetailPage({
       setRepayAmount("");
       setRepayError("");
     } catch (err) {
-      // Surface the backend's real message (e.g. insufficient wallet balance on
-      // the RukaPay collection) inline on this modal instead of a generic failure.
       setRepayError(apiErrorMessage(err, "Failed to record repayment"));
+    }
+  }
+
+  async function submitSyncParentWallet() {
+    if (!canRepay) {
+      toast.error("You do not have permission to sync the parent wallet.");
+      return;
+    }
+    try {
+      const out = await syncWallet.mutateAsync();
+      setParentWalletId(out.repayment_wallet_id || "");
+      setRepayError("");
+      toast.success("Parent RukaPay wallet linked. You can post repayment.");
+    } catch (err) {
+      const msg = apiErrorMessage(err, "Failed to sync parent wallet");
+      setRepayError(msg);
+      toast.error(msg);
     }
   }
 
@@ -238,6 +257,10 @@ export default function LoanApplicationDetailPage({
     !!app &&
     canDisburse &&
     RETRYABLE_DISBURSE_STATUSES.has(String(app.status || "").toLowerCase());
+  const paysToMerchantKind =
+    String(app?.loan_kind || "").toLowerCase() === "school" ||
+    String(app?.loan_kind || "").toLowerCase() === "product";
+  const canSyncParentWallet = !!app && canRepay && paysToMerchantKind;
   const disburseErrorText =
     app?.disbursement_error?.trim() ||
     (showDisburseFailure ? app?.decision_reason?.trim() : "") ||
@@ -300,6 +323,19 @@ export default function LoanApplicationDetailPage({
               Record repayment
             </Button>
           ) : null}
+          {canSyncParentWallet ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-8 rounded-lg text-xs"
+              onClick={() => void submitSyncParentWallet()}
+              disabled={syncWallet.isPending}
+            >
+              <RefreshCw className={`size-3.5 ${syncWallet.isPending ? "animate-spin" : ""}`} />
+              {syncWallet.isPending ? "Syncing…" : "Sync parent wallet"}
+            </Button>
+          ) : null}
           <Button
             type="button"
             size="sm"
@@ -348,6 +384,29 @@ export default function LoanApplicationDetailPage({
               />
               <Detail label="Tenor" value={`${app.requested_tenor_days} days`} />
               <Detail label="Purpose" value={app.purpose || "—"} />
+              {app.loan_kind === "school" ? (
+                <>
+                  <Detail
+                    label="Loan kind"
+                    value="School loan"
+                    hint="Paid to the school’s RukaPay merchant, not the parent"
+                  />
+                  <Detail
+                    label="School"
+                    value={app.school_name || "—"}
+                    hint={app.school_location || app.school_id || undefined}
+                  />
+                  <Detail
+                    label="Student"
+                    value={app.student_name || "—"}
+                    hint={app.student_number || undefined}
+                  />
+                  <Detail
+                    label="Merchant destination"
+                    value={app.disbursement_merchant_code || app.disbursement_merchant_id || "—"}
+                  />
+                </>
+              ) : null}
               {app.loan_kind === "product" ? (
                 <>
                   <Detail
@@ -673,9 +732,11 @@ export default function LoanApplicationDetailPage({
           ) : !account ? (
             <p className="text-sm text-slate-500">
               No loan account yet. It appears after disbursement
-              {app?.loan_kind === "product"
-                ? " to the partner merchant."
-                : " to the borrower's RukaPay wallet."}
+              {app?.loan_kind === "school"
+                ? " to the school merchant."
+                : app?.loan_kind === "product"
+                  ? " to the partner merchant."
+                  : " to the borrower's RukaPay wallet."}
             </p>
           ) : (
             <div className="space-y-4">
@@ -1049,6 +1110,12 @@ export default function LoanApplicationDetailPage({
                 {formatMoney(account.outstanding_balance, currency)}
               </span>
             </p>
+            {paysToMerchantKind ? (
+              <p className="mt-1 text-xs text-slate-500">
+                School/product loans are paid to the merchant. Repayment must come from the parent wallet.
+                {parentWalletId ? " Parent wallet is linked." : " Sync the parent wallet if repayment fails."}
+              </p>
+            ) : null}
             <form className="mt-3 space-y-3" onSubmit={submitRepayment}>
               <div>
                 <label className="mb-1 block text-[11px] font-medium text-slate-500">
@@ -1077,10 +1144,21 @@ export default function LoanApplicationDetailPage({
                   {repayError}
                 </div>
               ) : null}
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                {paysToMerchantKind ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-9 rounded-xl"
+                    disabled={syncWallet.isPending || repay.isPending}
+                    onClick={() => void submitSyncParentWallet()}
+                  >
+                    {syncWallet.isPending ? "Syncing…" : "Sync parent wallet"}
+                  </Button>
+                ) : null}
                 <Button
                   type="submit"
-                  disabled={repay.isPending}
+                  disabled={repay.isPending || syncWallet.isPending}
                   className="h-9 rounded-xl bg-[#08163d] text-white hover:bg-[#06102a]"
                 >
                   {repay.isPending ? "Posting..." : "Post repayment"}

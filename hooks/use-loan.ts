@@ -33,6 +33,7 @@ export function useLoanProducts(params?: {
   active?: string;
   currency?: string;
   search?: string;
+  approval_status?: string;
 }) {
   const { can } = usePermissions();
   return useQuery({
@@ -83,6 +84,27 @@ export function useUpdateLoanProduct(id: string) {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["loan-products"] });
       void qc.invalidateQueries({ queryKey: ["loan-product", id] });
+    },
+  });
+}
+
+export function useReviewLoanProduct() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: {
+      id: string;
+      decision: "approved" | "rejected";
+      reason?: string;
+    }) => {
+      const res = await apiClient.post(`/admin/loan-products/${payload.id}/approval`, {
+        decision: payload.decision,
+        reason: payload.reason,
+      });
+      return unwrapEnvelope<LoanProduct>(res);
+    },
+    onSuccess: (_data, vars) => {
+      void qc.invalidateQueries({ queryKey: ["loan-products"] });
+      void qc.invalidateQueries({ queryKey: ["loan-product", vars.id] });
     },
   });
 }
@@ -478,6 +500,27 @@ export function useInitiateLoanRepayment(applicationId: string) {
       void qc.invalidateQueries({ queryKey: ["loan-ledger", applicationId] });
       void qc.invalidateQueries({ queryKey: ["loan-application", applicationId] });
       void qc.invalidateQueries({ queryKey: ["loan-applications"] });
+    },
+  });
+}
+
+export function useSyncRepaymentWallet(applicationId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const res = await apiClient.post(
+        `/admin/loan-applications/${applicationId}/sync-repayment-wallet`,
+        {},
+      );
+      return unwrapEnvelope<{
+        repayment_wallet_id: string;
+        wallet_type?: string;
+        borrower_profile_id: string;
+      }>(res);
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["loan-application", applicationId] });
+      void qc.invalidateQueries({ queryKey: ["loan-account", applicationId] });
     },
   });
 }
