@@ -8,17 +8,24 @@ import { ArrowLeft, RefreshCw } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CompactLoading } from "@/components/ui/loading";
+import { DetailsDrawer } from "@/components/ui/details-drawer";
+import { CRBReportDrawerBody } from "@/components/dashboard/crb-report-drawer-body";
 import { LoanStatusBadge } from "@/components/dashboard/loan-status-badge";
 import {
   useInitiateLoanRepayment,
   useLoanAccount,
   useLoanApplication,
+  useLoanApplicationCRB,
+  useLoanApplicationCRBReport,
   useLoanApplicationReviews,
   useLoanLedger,
   useLoanOffer,
   useLoanRepayments,
+  useMetropolReportByReference,
   useRetryDisbursement,
   useReviewLoanApplication,
+  useRunLoanApplicationCRB,
+  useSyncRepaymentWallet,
 } from "@/hooks/use-loan";
 import { hasPermission, Perm } from "@/lib/permissions";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -87,6 +94,10 @@ export default function LoanApplicationDetailPage({
   const review = useReviewLoanApplication(id);
   const retryDisburse = useRetryDisbursement(id);
   const repay = useInitiateLoanRepayment(id);
+  const syncWallet = useSyncRepaymentWallet(id);
+  const [parentWalletId, setParentWalletId] = useState("");
+  const crbQ = useLoanApplicationCRB(id);
+  const runCRB = useRunLoanApplicationCRB(id);
   const [open, setOpen] = useState(false);
   const [action, setAction] = useState("sent_to_review");
   const [notes, setNotes] = useState("");
@@ -94,6 +105,14 @@ export default function LoanApplicationDetailPage({
   const [repayAmount, setRepayAmount] = useState("");
   const [repayError, setRepayError] = useState("");
   const [showLedger, setShowLedger] = useState(false);
+  const [crbReportOpen, setCrbReportOpen] = useState(false);
+  const [crbReference, setCrbReference] = useState("");
+
+  const crbReportQ = useLoanApplicationCRBReport(id, crbReportOpen);
+  const reportRefForLive =
+    (crbReportQ.data?.metropol_reference || crbQ.data?.metropol_reference || crbReference).trim() ||
+    undefined;
+  const liveMetropolReportQ = useMetropolReportByReference(reportRefForLive, crbReportOpen && !!reportRefForLive);
 
   const permissions =
     livePerms.length > 0 ? livePerms : session?.user?.permissions ?? [];
@@ -102,6 +121,11 @@ export default function LoanApplicationDetailPage({
   const canDecline = hasPermission(permissions, Perm.LoanApplicationDecline);
   const canRepay = hasPermission(permissions, Perm.LoanRepayment);
   const canDisburse = hasPermission(permissions, Perm.LoanDisburse);
+
+  const crb = crbQ.data ?? appQ.data?.crb;
+  const allowApproveWithoutCRB = !!appQ.data?.allow_approve_without_crb;
+  const canApproveByCRB = !!crb?.can_approve || allowApproveWithoutCRB;
+  const crbStatus = String(crb?.status || "not_checked");
 
   async function submitRetryDisburse() {
     if (!canDisburse) {
@@ -126,17 +150,50 @@ export default function LoanApplicationDetailPage({
       toast.error("You do not have approve permission.");
       return;
     }
+    if (action === "approved" && !canApproveByCRB) {
+      toast.error(crb?.message || "Complete a successful CRB check before approving.");
+      return;
+    }
     if (action === "declined" && !canDecline) {
       toast.error("You do not have decline permission.");
       return;
     }
     try {
       await review.mutateAsync({ action, notes });
-      toast.success("Review submitted");
+      toast.success(
+        action === "approved"
+          ? allowApproveWithoutCRB && !crb?.can_approve
+            ? "Loan approved (CRB/CAP skipped)"
+            : "Loan approved and Metropol CAP created"
+          : "Review submitted"
+      );
       setOpen(false);
       setNotes("");
     } catch (err) {
-      toast.error((err as Error).message || "Failed to submit review");
+      toast.error(apiErrorMessage(err, "Failed to submit review"));
+    }
+  }
+
+  async function submitCRBCheck() {
+    if (!canReview) {
+      toast.error("You do not have permission to run CRB checks.");
+      return;
+    }
+    const reference = crbReference.trim();
+    if (!reference) {
+      toast.error("Enter the Metropol report reference first.");
+      return;
+    }
+    try {
+      const status = await runCRB.mutateAsync({ reference });
+      if (status.can_approve) {
+        toast.success("CRB report attached");
+        setCrbReportOpen(true);
+      } else {
+        toast.error(status.message || "CRB check failed");
+      }
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Failed to run CRB check"));
     }
   }
 
@@ -161,6 +218,7 @@ export default function LoanApplicationDetailPage({
       const idempotencyKey = `admin-repay-${id}-${crypto.randomUUID()}`;
       await repay.mutateAsync({
         amount,
+        wallet_id: parentWalletId || undefined,
         idempotency_key: idempotencyKey,
       });
       toast.success("Repayment recorded");
@@ -168,9 +226,24 @@ export default function LoanApplicationDetailPage({
       setRepayAmount("");
       setRepayError("");
     } catch (err) {
-      // Surface the backend's real message (e.g. insufficient wallet balance on
-      // the RukaPay collection) inline on this modal instead of a generic failure.
       setRepayError(apiErrorMessage(err, "Failed to record repayment"));
+    }
+  }
+
+  async function submitSyncParentWallet() {
+    if (!canRepay) {
+      toast.error("You do not have permission to sync the parent wallet.");
+      return;
+    }
+    try {
+      const out = await syncWallet.mutateAsync();
+      setParentWalletId(out.repayment_wallet_id || "");
+      setRepayError("");
+      toast.success("Parent RukaPay wallet linked. You can post repayment.");
+    } catch (err) {
+      const msg = apiErrorMessage(err, "Failed to sync parent wallet");
+      setRepayError(msg);
+      toast.error(msg);
     }
   }
 
@@ -184,6 +257,10 @@ export default function LoanApplicationDetailPage({
     !!app &&
     canDisburse &&
     RETRYABLE_DISBURSE_STATUSES.has(String(app.status || "").toLowerCase());
+  const paysToMerchantKind =
+    String(app?.loan_kind || "").toLowerCase() === "school" ||
+    String(app?.loan_kind || "").toLowerCase() === "product";
+  const canSyncParentWallet = !!app && canRepay && paysToMerchantKind;
   const disburseErrorText =
     app?.disbursement_error?.trim() ||
     (showDisburseFailure ? app?.decision_reason?.trim() : "") ||
@@ -246,6 +323,19 @@ export default function LoanApplicationDetailPage({
               Record repayment
             </Button>
           ) : null}
+          {canSyncParentWallet ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-8 rounded-lg text-xs"
+              onClick={() => void submitSyncParentWallet()}
+              disabled={syncWallet.isPending}
+            >
+              <RefreshCw className={`size-3.5 ${syncWallet.isPending ? "animate-spin" : ""}`} />
+              {syncWallet.isPending ? "Syncing…" : "Sync parent wallet"}
+            </Button>
+          ) : null}
           <Button
             type="button"
             size="sm"
@@ -294,6 +384,29 @@ export default function LoanApplicationDetailPage({
               />
               <Detail label="Tenor" value={`${app.requested_tenor_days} days`} />
               <Detail label="Purpose" value={app.purpose || "—"} />
+              {app.loan_kind === "school" ? (
+                <>
+                  <Detail
+                    label="Loan kind"
+                    value="School loan"
+                    hint="Paid to the school’s RukaPay merchant, not the parent"
+                  />
+                  <Detail
+                    label="School"
+                    value={app.school_name || "—"}
+                    hint={app.school_location || app.school_id || undefined}
+                  />
+                  <Detail
+                    label="Student"
+                    value={app.student_name || "—"}
+                    hint={app.student_number || undefined}
+                  />
+                  <Detail
+                    label="Merchant destination"
+                    value={app.disbursement_merchant_code || app.disbursement_merchant_id || "—"}
+                  />
+                </>
+              ) : null}
               {app.loan_kind === "product" ? (
                 <>
                   <Detail
@@ -402,6 +515,155 @@ export default function LoanApplicationDetailPage({
         </Card>
       ) : null}
 
+      {app ? (
+        <Card className="gap-0 border-violet-100 bg-violet-50/30 py-0 shadow-sm">
+          <CardContent className="px-4 py-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-semibold text-violet-950">
+                  {allowApproveWithoutCRB
+                    ? "CRB verification (optional for this product)"
+                    : "CRB verification (required before approve)"}
+                </h2>
+                <p className="mt-0.5 text-xs text-slate-600">
+                  {allowApproveWithoutCRB
+                    ? "This product allows approve without CRB. You can still pull a Metropol report for review; CAP is skipped when approving without CRB."
+                    : "Pull the Metropol CRB report, review it manually, then approve. CAP is created automatically on approve."}
+                </p>
+              </div>
+              <span
+                className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium ${
+                  crbStatus === "succeeded"
+                    ? "bg-emerald-50 text-emerald-800"
+                    : crbStatus === "failed" || crbStatus === "expired"
+                      ? "bg-rose-50 text-rose-800"
+                      : crbStatus === "pending"
+                        ? "bg-amber-50 text-amber-800"
+                        : "bg-slate-100 text-slate-700"
+                }`}
+              >
+                {crbStatus === "not_checked"
+                  ? "CRB Not Checked"
+                  : crbStatus === "pending"
+                    ? "CRB Check in Progress"
+                    : crbStatus === "failed"
+                      ? "CRB Check Failed"
+                      : crbStatus === "expired"
+                        ? "CRB Report Expired"
+                        : crbStatus === "succeeded"
+                          ? "CRB Report Available"
+                          : crbStatus}
+              </span>
+            </div>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <Detail label="Status" value={crbStatus.replace(/_/g, " ")} />
+              <Detail label="Checked at" value={formatDate(crb?.checked_at)} />
+              <Detail label="Expires at" value={formatDate(crb?.expires_at)} />
+              <Detail
+                label="Can approve"
+                value={
+                  crb?.can_approve
+                    ? "Yes"
+                    : allowApproveWithoutCRB
+                      ? "Yes — CRB optional for product"
+                      : "No — CRB required"
+                }
+              />
+            </div>
+            {crb?.message ? (
+              <p className="mt-3 text-xs text-slate-600">{crb.message}</p>
+            ) : null}
+            {crb?.metropol_reference ? (
+              <p className="mt-1 text-xs text-slate-500">
+                Report reference:{" "}
+                <span className="font-mono text-slate-800">{crb.metropol_reference}</span>
+              </p>
+            ) : null}
+            {app.cap && app.cap.status !== "none" ? (
+              <div className="mt-3 space-y-1 rounded-xl border border-emerald-100 bg-emerald-50/60 px-3 py-2 text-xs text-emerald-900">
+                <div>
+                  <span className="font-medium">Loan CAP: </span>
+                  {app.cap.status === "succeeded"
+                    ? "Created successfully"
+                    : app.cap.message || app.cap.status}
+                  {app.cap.created_at ? (
+                    <span className="text-emerald-700/80">
+                      {" "}
+                      · {formatDate(app.cap.created_at)}
+                    </span>
+                  ) : null}
+                </div>
+                {app.cap.application_reference ? (
+                  <p className="text-emerald-800/90">
+                    Our CAP ref:{" "}
+                    <span className="font-mono">{app.cap.application_reference}</span>
+                  </p>
+                ) : null}
+                {app.cap.metropol_cap_reference ? (
+                  <p className="text-emerald-800/90">
+                    Metropol CAP ref:{" "}
+                    <span className="font-mono">{app.cap.metropol_cap_reference}</span>
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+            {canReview ? (
+              <div className="mt-4 space-y-2">
+                <label className="block text-[11px] font-medium text-slate-500">
+                  Metropol report reference
+                </label>
+                <input
+                  type="text"
+                  className="h-10 w-full max-w-md rounded-xl border border-slate-200 bg-white px-3 font-mono text-sm outline-none focus:border-[rgba(8,22,61,0.25)]"
+                  placeholder="e.g. J7M9-BZVI-20231128"
+                  value={crbReference}
+                  onChange={(e) => setCrbReference(e.target.value)}
+                />
+                <p className="text-[11px] text-slate-500">
+                  Enter the reference from Metropol, then attach the report (uses GET
+                  /admin/metropol/report).
+                </p>
+              </div>
+            ) : null}
+            <div className="mt-4 flex flex-wrap gap-2">
+              {canReview ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  className="h-8 rounded-lg bg-[#08163d] text-xs text-white hover:bg-[#06102a]"
+                  disabled={runCRB.isPending || !crbReference.trim()}
+                  onClick={() => void submitCRBCheck()}
+                >
+                  {runCRB.isPending
+                    ? "Fetching report…"
+                    : crbStatus === "failed" || crbStatus === "expired"
+                      ? "Retry with reference"
+                      : crbStatus === "succeeded"
+                        ? "Re-attach CRB report"
+                        : "Get CRB report"}
+                </Button>
+              ) : null}
+              {crbStatus === "succeeded" ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-8 rounded-lg text-xs"
+                  onClick={() => {
+                    if (crb?.metropol_reference) {
+                      setCrbReference(crb.metropol_reference);
+                    }
+                    setCrbReportOpen(true);
+                  }}
+                >
+                  View full CRB report
+                </Button>
+              ) : null}
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+
       {offer ? (
         <Card className="gap-0 border-slate-200/80 bg-white py-0 shadow-sm">
           <CardContent className="px-4 py-4">
@@ -470,9 +732,11 @@ export default function LoanApplicationDetailPage({
           ) : !account ? (
             <p className="text-sm text-slate-500">
               No loan account yet. It appears after disbursement
-              {app?.loan_kind === "product"
-                ? " to the partner merchant."
-                : " to the borrower's RukaPay wallet."}
+              {app?.loan_kind === "school"
+                ? " to the school merchant."
+                : app?.loan_kind === "product"
+                  ? " to the partner merchant."
+                  : " to the borrower's RukaPay wallet."}
             </p>
           ) : (
             <div className="space-y-4">
@@ -785,6 +1049,27 @@ export default function LoanApplicationDetailPage({
                 {canDecline ? <option value="declined">Decline</option> : null}
                 <option value="cancelled">Cancel</option>
               </select>
+              {action === "approved" && !canApproveByCRB ? (
+                <div
+                  role="alert"
+                  className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900"
+                >
+                  {crb?.message ||
+                    "CRB verification is mandatory before loan approval. Get the CRB report first."}
+                </div>
+              ) : null}
+              {action === "approved" && allowApproveWithoutCRB && !crb?.can_approve ? (
+                <div className="rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-xs text-violet-900">
+                  This product allows approve without CRB. Approving now will skip Metropol CAP
+                  creation. Run CRB first if you want CAP created on approve.
+                </div>
+              ) : null}
+              {action === "approved" && crb?.can_approve ? (
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
+                  CRB report is available. Approving will create the Metropol CAP, then mark the
+                  loan approved.
+                </div>
+              ) : null}
               <textarea
                 className="min-h-[90px] w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-[rgba(8,22,61,0.25)]"
                 placeholder="Notes"
@@ -794,8 +1079,10 @@ export default function LoanApplicationDetailPage({
               <div className="flex items-center gap-2">
                 <Button
                   type="submit"
-                  disabled={review.isPending}
-                  className="h-9 rounded-xl bg-[#08163d] text-white hover:bg-[#06102a]"
+                  disabled={
+                    review.isPending || (action === "approved" && !canApproveByCRB)
+                  }
+                  className="h-9 rounded-xl bg-[#08163d] text-white hover:bg-[#06102a] disabled:opacity-50"
                 >
                   {review.isPending ? "Submitting..." : "Submit"}
                 </Button>
@@ -823,6 +1110,12 @@ export default function LoanApplicationDetailPage({
                 {formatMoney(account.outstanding_balance, currency)}
               </span>
             </p>
+            {paysToMerchantKind ? (
+              <p className="mt-1 text-xs text-slate-500">
+                School/product loans are paid to the merchant. Repayment must come from the parent wallet.
+                {parentWalletId ? " Parent wallet is linked." : " Sync the parent wallet if repayment fails."}
+              </p>
+            ) : null}
             <form className="mt-3 space-y-3" onSubmit={submitRepayment}>
               <div>
                 <label className="mb-1 block text-[11px] font-medium text-slate-500">
@@ -851,10 +1144,21 @@ export default function LoanApplicationDetailPage({
                   {repayError}
                 </div>
               ) : null}
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                {paysToMerchantKind ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-9 rounded-xl"
+                    disabled={syncWallet.isPending || repay.isPending}
+                    onClick={() => void submitSyncParentWallet()}
+                  >
+                    {syncWallet.isPending ? "Syncing…" : "Sync parent wallet"}
+                  </Button>
+                ) : null}
                 <Button
                   type="submit"
-                  disabled={repay.isPending}
+                  disabled={repay.isPending || syncWallet.isPending}
                   className="h-9 rounded-xl bg-[#08163d] text-white hover:bg-[#06102a]"
                 >
                   {repay.isPending ? "Posting..." : "Post repayment"}
@@ -874,6 +1178,56 @@ export default function LoanApplicationDetailPage({
             </form>
           </div>
         </div>
+      ) : null}
+
+      {crbReportOpen ? (
+        <DetailsDrawer
+          open={crbReportOpen}
+          onClose={() => setCrbReportOpen(false)}
+          title="CRB report"
+          description={
+            reportRefForLive
+              ? `Metropol reference ${reportRefForLive} · full report for manual review`
+              : "Full Metropol CRB report for manual review"
+          }
+          widthClassName="max-w-3xl sm:max-w-4xl lg:max-w-5xl"
+          contentClassName="!space-y-0 !overflow-hidden !p-0"
+          footer={
+            <Button
+              type="button"
+              variant="outline"
+              className="h-9 flex-1 rounded-xl text-xs"
+              onClick={() => setCrbReportOpen(false)}
+            >
+              Close
+            </Button>
+          }
+        >
+          {crbReportQ.isLoading || liveMetropolReportQ.isLoading ? (
+            <CompactLoading message="Loading CRB report…" />
+          ) : (
+            <CRBReportDrawerBody
+              report={
+                liveMetropolReportQ.data ??
+                crbReportQ.data?.report ??
+                null
+              }
+            />
+          )}
+          {liveMetropolReportQ.isError && !crbReportQ.data?.report ? (
+            <p className="text-sm text-rose-700">
+              {apiErrorMessage(
+                liveMetropolReportQ.error,
+                "Failed to load Metropol report. Ensure you have metropol.test permission, or open again after attaching the report."
+              )}
+            </p>
+          ) : null}
+          {crbReportQ.isError && !liveMetropolReportQ.data ? (
+            <p className="mt-2 text-sm text-rose-700">
+              {apiErrorMessage(crbReportQ.error, "Failed to load stored CRB report")}
+            </p>
+          ) : null}
+        </DetailsDrawer>
       ) : null}
     </div>
   );

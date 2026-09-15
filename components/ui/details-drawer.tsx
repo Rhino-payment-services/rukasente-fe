@@ -15,6 +15,8 @@ export type DetailsDrawerProps = {
   children: React.ReactNode;
   footer?: React.ReactNode;
   widthClassName?: string;
+  /** Extra classes for the scrollable body (default includes padding + overflow). */
+  contentClassName?: string;
 };
 
 export function DetailsDrawer({
@@ -25,6 +27,7 @@ export function DetailsDrawer({
   children,
   footer,
   widthClassName = "max-w-md",
+  contentClassName,
 }: DetailsDrawerProps) {
   const mounted = useClientMounted();
   const titleId = useId();
@@ -92,7 +95,12 @@ export function DetailsDrawer({
           </Button>
         </div>
 
-        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4">
+        <div
+          className={cn(
+            "min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4",
+            contentClassName
+          )}
+        >
           {children}
         </div>
 

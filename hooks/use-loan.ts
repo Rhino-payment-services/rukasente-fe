@@ -7,6 +7,8 @@ import { unwrapEnvelope } from "@/lib/api-envelope";
 import {
   LoanAccount,
   LoanApplication,
+  LoanApplicationCRBReport,
+  LoanApplicationCRBStatus,
   LoanApplicationReview,
   LoanLedgerEntry,
   LoanOfferResponse,
@@ -31,6 +33,7 @@ export function useLoanProducts(params?: {
   active?: string;
   currency?: string;
   search?: string;
+  approval_status?: string;
 }) {
   const { can } = usePermissions();
   return useQuery({
@@ -81,6 +84,27 @@ export function useUpdateLoanProduct(id: string) {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["loan-products"] });
       void qc.invalidateQueries({ queryKey: ["loan-product", id] });
+    },
+  });
+}
+
+export function useReviewLoanProduct() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: {
+      id: string;
+      decision: "approved" | "rejected";
+      reason?: string;
+    }) => {
+      const res = await apiClient.post(`/admin/loan-products/${payload.id}/approval`, {
+        decision: payload.decision,
+        reason: payload.reason,
+      });
+      return unwrapEnvelope<LoanProduct>(res);
+    },
+    onSuccess: (_data, vars) => {
+      void qc.invalidateQueries({ queryKey: ["loan-products"] });
+      void qc.invalidateQueries({ queryKey: ["loan-product", vars.id] });
     },
   });
 }
@@ -311,6 +335,61 @@ export function useReviewLoanApplication(id: string) {
       void qc.invalidateQueries({ queryKey: ["loan-application", id] });
       void qc.invalidateQueries({ queryKey: ["loan-applications"] });
       void qc.invalidateQueries({ queryKey: ["loan-application-reviews", id] });
+      void qc.invalidateQueries({ queryKey: ["loan-application-crb", id] });
+      void qc.invalidateQueries({ queryKey: ["loan-application-crb-report", id] });
+    },
+  });
+}
+
+export function useLoanApplicationCRB(id?: string) {
+  return useQuery({
+    queryKey: ["loan-application-crb", id],
+    enabled: !!id,
+    queryFn: async () => {
+      const res = await apiClient.get(`/admin/loan-applications/${id}/crb`);
+      return unwrapEnvelope<LoanApplicationCRBStatus>(res);
+    },
+  });
+}
+
+export function useLoanApplicationCRBReport(id?: string, enabled = false) {
+  return useQuery({
+    queryKey: ["loan-application-crb-report", id],
+    enabled: !!id && enabled,
+    queryFn: async () => {
+      const res = await apiClient.get(`/admin/loan-applications/${id}/crb/report`);
+      return unwrapEnvelope<LoanApplicationCRBReport>(res);
+    },
+  });
+}
+
+export function useRunLoanApplicationCRB(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: { reference: string }) => {
+      const res = await apiClient.post(`/admin/loan-applications/${id}/crb-check`, payload);
+      return unwrapEnvelope<LoanApplicationCRBStatus>(res);
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["loan-application", id] });
+      void qc.invalidateQueries({ queryKey: ["loan-application-crb", id] });
+      void qc.invalidateQueries({ queryKey: ["loan-application-crb-report", id] });
+      void qc.invalidateQueries({ queryKey: ["loan-applications"] });
+    },
+  });
+}
+
+/** Live Metropol report by reference (GET /admin/metropol/report?reference=...). */
+export function useMetropolReportByReference(reference?: string, enabled = false) {
+  return useQuery({
+    queryKey: ["metropol-report", reference],
+    enabled: !!reference && enabled,
+    queryFn: async () => {
+      const res = await apiClient.get("/admin/metropol/report", {
+        params: { reference },
+      });
+      const data = unwrapEnvelope<{ http_status?: number; metropol?: unknown }>(res);
+      return data.metropol ?? data;
     },
   });
 }
@@ -421,6 +500,27 @@ export function useInitiateLoanRepayment(applicationId: string) {
       void qc.invalidateQueries({ queryKey: ["loan-ledger", applicationId] });
       void qc.invalidateQueries({ queryKey: ["loan-application", applicationId] });
       void qc.invalidateQueries({ queryKey: ["loan-applications"] });
+    },
+  });
+}
+
+export function useSyncRepaymentWallet(applicationId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const res = await apiClient.post(
+        `/admin/loan-applications/${applicationId}/sync-repayment-wallet`,
+        {},
+      );
+      return unwrapEnvelope<{
+        repayment_wallet_id: string;
+        wallet_type?: string;
+        borrower_profile_id: string;
+      }>(res);
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["loan-application", applicationId] });
+      void qc.invalidateQueries({ queryKey: ["loan-account", applicationId] });
     },
   });
 }
