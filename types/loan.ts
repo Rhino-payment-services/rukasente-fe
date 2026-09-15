@@ -1,3 +1,5 @@
+export type LoanKind = "cash" | "product" | "school";
+
 export type InterestCalculationMethod = "SIMPLE" | "COMPOUND";
 
 export type CompoundingFrequency =
@@ -26,6 +28,11 @@ export type LoanProduct = {
   processing_fee_value: number;
   /** How the processing fee is applied at disbursement / repayment. */
   processing_fee_mode: "deduct_from_disbursement" | "add_to_repayable";
+  processing_fee_enabled?: boolean;
+  /** Who books the fee: RukaSente or a payment aggregator (RukaPay today). */
+  processing_fee_processor?: "platform" | "aggregator" | string;
+  processing_fee_aggregator?: string;
+  processing_fee_paid_by?: "borrower" | "partner" | string;
   late_fee_type: "fixed" | "percentage";
   late_fee_value: number;
   grace_period_days: number;
@@ -34,10 +41,40 @@ export type LoanProduct = {
   requires_manual_review: boolean;
   requires_guarantor: boolean;
   allow_approve_without_crb: boolean;
+  loan_kind?: LoanKind | string;
   is_active: boolean;
+  partner_id?: string | null;
+  partner_name?: string;
+  approval_status?: ProductApprovalStatus | string;
+  approved_at?: string | null;
+  pending_changes?: LoanProductPendingChanges | null;
   created_at: string;
   updated_at: string;
 };
+
+export type ProductApprovalStatus = "pending" | "approved" | "rejected" | "none";
+
+export type LoanProductApprovalSnapshot = {
+  product?: Partial<LoanProduct>;
+  eligibility_rules?: LoanProductEligibilityRule[];
+  pre_approval_rules?: LoanProductPreApprovalRule[];
+};
+
+export type LoanProductPendingChanges = {
+  id: string;
+  action: "create" | "update" | string;
+  status: string;
+  proposed_payload: LoanProductApprovalSnapshot;
+  previous_payload?: LoanProductApprovalSnapshot;
+  requested_by_staff_user_id: string;
+  reviewed_by_staff_user_id?: string | null;
+  reviewed_at?: string | null;
+  rejection_reason?: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type LoanProductApprovalDecision = "approved" | "rejected";
 
 export type LoanRuleType =
   | "CREDIT_SCORE"
@@ -114,7 +151,12 @@ export type LoanApplication = {
   requested_tenor_days: number;
   currency: string;
   purpose: string;
-  loan_kind?: "cash" | "product" | string;
+  loan_kind?: LoanKind | string;
+  school_id?: string;
+  school_name?: string;
+  school_location?: string;
+  student_name?: string;
+  student_number?: string;
   partner_product_ref?: string;
   product_label?: string;
   down_payment_amount?: number;
@@ -257,6 +299,10 @@ export type LoanOfferResponse = {
   interest_amount: number;
   processing_fee: number;
   processing_fee_mode: "deduct_from_disbursement" | "add_to_repayable";
+  processing_fee_enabled?: boolean;
+  processing_fee_processor?: string;
+  processing_fee_aggregator?: string;
+  processing_fee_paid_by?: string;
   total_repayable: number;
   disburse_amount: number;
   down_payment_amount?: number;
@@ -373,6 +419,10 @@ export function toLoanProductUpdatePayload(
     processing_fee_type: payload.processing_fee_type,
     processing_fee_value: payload.processing_fee_value,
     processing_fee_mode: payload.processing_fee_mode,
+    processing_fee_enabled: payload.processing_fee_enabled,
+    processing_fee_processor: payload.processing_fee_processor,
+    processing_fee_aggregator: payload.processing_fee_aggregator,
+    processing_fee_paid_by: payload.processing_fee_paid_by,
     late_fee_type: payload.late_fee_type,
     late_fee_value: payload.late_fee_value,
     grace_period_days: payload.grace_period_days,
@@ -381,6 +431,7 @@ export function toLoanProductUpdatePayload(
     requires_manual_review: payload.requires_manual_review,
     requires_guarantor: payload.requires_guarantor,
     allow_approve_without_crb: payload.allow_approve_without_crb,
+    loan_kind: payload.loan_kind,
   };
 }
 
@@ -403,3 +454,20 @@ export const LOAN_RULE_OPERATORS: { value: LoanRuleOperator; label: string }[] =
   { value: "LESS_THAN", label: "<" },
   { value: "EQUAL", label: "=" },
 ];
+
+/** Prefers the pending proposal when editing a product awaiting RukaSente review. */
+export function proposedLoanProduct(product: LoanProduct): LoanProduct {
+  const proposed = product.pending_changes?.proposed_payload?.product;
+  if (!proposed) return product;
+  return {
+    ...product,
+    ...proposed,
+    id: product.id,
+    code: product.code,
+    is_active: product.is_active,
+    approval_status: product.approval_status,
+    pending_changes: product.pending_changes,
+    partner_id: product.partner_id,
+    partner_name: product.partner_name,
+  };
+}

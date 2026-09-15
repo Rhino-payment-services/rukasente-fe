@@ -19,6 +19,7 @@ import {
   PanelLeftClose,
   Search,
   X,
+  ClipboardCheck,
   Database,
   UserPlus,
   type LucideIcon,
@@ -80,6 +81,13 @@ function buildSections(isPlatform: boolean): NavSection[] {
           label: "Loan products",
           icon: WalletCards,
           perm: Perm.LoanProductView,
+        },
+        {
+          href: "/loan-products/approvals",
+          label: "Product approvals",
+          icon: ClipboardCheck,
+          perm: Perm.LoanProductApprove,
+          platformOnly: true,
         },
         {
           href: "/borrowers",

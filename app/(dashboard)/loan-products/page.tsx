@@ -68,6 +68,23 @@ function StatusPill({ active }: { active: boolean }) {
   );
 }
 
+function ApprovalPill({ status }: { status?: string }) {
+  const value = (status || "approved").toLowerCase();
+  const styles =
+    value === "pending"
+      ? "border-amber-200 bg-amber-50 text-amber-800"
+      : value === "rejected"
+        ? "border-rose-200 bg-rose-50 text-rose-700"
+        : "border-emerald-200 bg-emerald-50 text-emerald-700";
+  const label =
+    value === "pending" ? "Pending" : value === "rejected" ? "Rejected" : "Approved";
+  return (
+    <span className={cn("inline-flex rounded-full border px-2 py-0.5 text-[11px] font-medium capitalize", styles)}>
+      {label}
+    </span>
+  );
+}
+
 function ReviewPill({ required }: { required: boolean }) {
   return (
     <span
@@ -84,9 +101,10 @@ function ReviewPill({ required }: { required: boolean }) {
 }
 
 export default function LoanProductsPage() {
-  const { can } = usePermissions();
+  const { can, isPlatform } = usePermissions();
   const [search, setSearch] = useState("");
   const [activeFilter, setActiveFilter] = useState("");
+  const [approvalFilter, setApprovalFilter] = useState("");
   const [interestFilter, setInterestFilter] = useState("all");
   const [reviewFilter, setReviewFilter] = useState("all");
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
@@ -97,6 +115,7 @@ export default function LoanProductsPage() {
     page_size: 100,
     search: search || undefined,
     active: activeFilter || undefined,
+    approval_status: approvalFilter || undefined,
   });
   const setStatus = useSetLoanProductStatus();
   const deleteProduct = useDeleteLoanProduct();
@@ -129,6 +148,7 @@ export default function LoanProductsPage() {
   function resetFilters() {
     setSearch("");
     setActiveFilter("");
+    setApprovalFilter("");
     setInterestFilter("all");
     setReviewFilter("all");
   }
@@ -174,9 +194,15 @@ export default function LoanProductsPage() {
           <p className="mt-0.5 line-clamp-1 text-xs text-slate-500">
             Configure lending products, rates, tenors, and eligibility rules for
             RukaSente.{" "}
-            <Link href="/loan-score-limits" className="text-main-700 underline-offset-2 hover:underline">
-              Manage score loan limits
-            </Link>
+            {isPlatform && can(Perm.LoanProductApprove) ? (
+              <Link href="/loan-products/approvals" className="text-main-700 underline-offset-2 hover:underline">
+                Review pending approvals
+              </Link>
+            ) : (
+              <Link href="/loan-score-limits" className="text-main-700 underline-offset-2 hover:underline">
+                Manage score loan limits
+              </Link>
+            )}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
@@ -265,7 +291,7 @@ export default function LoanProductsPage() {
               className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50/60 pl-10 pr-3 text-sm text-slate-700 outline-none transition focus:border-[rgba(8,22,61,0.25)] focus:bg-white focus:ring-4 focus:ring-[rgba(8,22,61,0.05)]"
             />
           </div>
-          <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
             <FilterSelect
               label="Status"
               value={activeFilter}
@@ -274,6 +300,17 @@ export default function LoanProductsPage() {
                 { value: "", label: "All statuses" },
                 { value: "true", label: "Active" },
                 { value: "false", label: "Inactive" },
+              ]}
+            />
+            <FilterSelect
+              label="Approval"
+              value={approvalFilter}
+              onChange={setApprovalFilter}
+              options={[
+                { value: "", label: "All approvals" },
+                { value: "pending", label: "Pending" },
+                { value: "approved", label: "Approved" },
+                { value: "rejected", label: "Rejected" },
               ]}
             />
             <FilterSelect
@@ -351,6 +388,14 @@ export default function LoanProductsPage() {
                     <th className="min-w-[90px] px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">
                       Status
                     </th>
+                    <th className="min-w-[90px] px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                      Approval
+                    </th>
+                    {isPlatform ? (
+                      <th className="hidden min-w-[120px] px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400 lg:table-cell">
+                        Partner
+                      </th>
+                    ) : null}
                     <th className="hidden min-w-[100px] px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400 lg:table-cell">
                       Review
                     </th>
@@ -378,6 +423,8 @@ export default function LoanProductsPage() {
                               {product.code}
                               <span className="mx-1 text-slate-300">·</span>
                               {product.currency}
+                              <span className="mx-1 text-slate-300">·</span>
+                              <span className="capitalize">{product.loan_kind || "cash"}</span>
                             </p>
                           </div>
                         </div>
@@ -410,6 +457,14 @@ export default function LoanProductsPage() {
                       <td className="px-3 py-2 align-middle text-slate-700">
                         <StatusPill active={product.is_active} />
                       </td>
+                      <td className="px-3 py-2 align-middle">
+                        <ApprovalPill status={product.approval_status} />
+                      </td>
+                      {isPlatform ? (
+                        <td className="hidden px-3 py-2 align-middle text-[12px] text-slate-600 lg:table-cell">
+                          {product.partner_name || "RukaSente"}
+                        </td>
+                      ) : null}
                       <td className="hidden px-3 py-2 align-middle lg:table-cell">
                         <ReviewPill required={product.requires_manual_review} />
                       </td>
@@ -432,6 +487,7 @@ export default function LoanProductsPage() {
                               setOpenMenuId(o ? product.id : null)
                             }
                             product={product}
+                            canActivate={isPlatform}
                             onToggleStatus={() => {
                               setOpenMenuId(null);
                               void toggleStatus(product);
@@ -488,6 +544,17 @@ export default function LoanProductsPage() {
                   { label: "Code", value: viewProduct.code, mono: true },
                   { label: "Currency", value: viewProduct.currency },
                   { label: "Status", value: viewProduct.is_active ? "Active" : "Inactive" },
+                  { label: "Approval", value: viewProduct.approval_status || "—" },
+                  { label: "Partner", value: viewProduct.partner_name || "—" },
+                  {
+                    label: "Loan type",
+                    value:
+                      viewProduct.loan_kind === "school"
+                        ? "School (RukaShule)"
+                        : viewProduct.loan_kind === "product"
+                          ? "Product (shop merchant)"
+                          : "Cash",
+                  },
                   {
                     label: "Manual review",
                     value: formatDetailValue(viewProduct.requires_manual_review),
@@ -542,6 +609,17 @@ export default function LoanProductsPage() {
                     value: `${viewProduct.processing_fee_value} (${viewProduct.processing_fee_type})`,
                   },
                   { label: "Fee mode", value: viewProduct.processing_fee_mode },
+                  {
+                    label: "Processed by",
+                    value:
+                      viewProduct.processing_fee_processor === "platform"
+                        ? "RukaSente"
+                        : `Aggregator (${viewProduct.processing_fee_aggregator || "rukapay"})`,
+                  },
+                  {
+                    label: "Paid by",
+                    value: viewProduct.processing_fee_paid_by || "borrower",
+                  },
                   {
                     label: "Late fee",
                     value: `${viewProduct.late_fee_value} (${viewProduct.late_fee_type})`,
@@ -650,12 +728,14 @@ function ProductActions({
   open,
   onOpenChange,
   product,
+  canActivate,
   onToggleStatus,
   onDelete,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   product: LoanProduct;
+  canActivate: boolean;
   onToggleStatus: () => void;
   onDelete: () => void;
 }) {
@@ -686,12 +766,16 @@ function ProductActions({
       icon: ListChecks,
       href: `/loan-products/${product.id}/preapproval-rules`,
     },
-    {
-      label: product.is_active ? "Deactivate" : "Activate",
-      icon: Power,
-      onClick: onToggleStatus,
-      danger: product.is_active,
-    },
+    ...(canActivate
+      ? [
+          {
+            label: product.is_active ? "Deactivate" : "Activate",
+            icon: Power,
+            onClick: onToggleStatus,
+            danger: product.is_active,
+          },
+        ]
+      : []),
     {
       label: "Delete",
       icon: Trash2,

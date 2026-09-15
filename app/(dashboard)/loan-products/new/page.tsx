@@ -6,11 +6,13 @@ import { ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { LoanProductForm } from "@/components/dashboard/loan-product-form";
 import { useCreateLoanProduct } from "@/hooks/use-loan";
+import { usePermissions } from "@/hooks/use-permissions";
 import { toast } from "sonner";
 
 export default function NewLoanProductPage() {
   const router = useRouter();
   const create = useCreateLoanProduct();
+  const { isPlatform } = usePermissions();
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 pb-10">
@@ -59,11 +61,16 @@ export default function NewLoanProductPage() {
 
       <LoanProductForm
         isSaving={create.isPending}
+        requiresApproval={!isPlatform}
         onCancel={() => router.push("/loan-products")}
         onSubmit={async (payload) => {
           try {
             await create.mutateAsync(payload);
-            toast.success("Loan product created");
+            toast.success(
+              isPlatform
+                ? "Loan product created"
+                : "Sent for RukaSente approval"
+            );
             router.push("/loan-products");
           } catch (err) {
             toast.error((err as Error).message || "Failed to create product");

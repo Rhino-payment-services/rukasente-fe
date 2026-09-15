@@ -58,6 +58,7 @@ export const Perm = {
   LoanProductView: "loan.product.view",
   LoanProductUpdate: "loan.product.update",
   LoanProductActivate: "loan.product.activate",
+  LoanProductApprove: "loan.product.approve",
   LoanProductDelete: "loan.product.delete",
   LoanProductRuleCreate: "loan.product.rule.create",
   LoanProductRuleUpdate: "loan.product.rule.update",
@@ -140,6 +141,7 @@ export const PERMISSION_GROUPS: { title: string; keys: string[] }[] = [
       Perm.LoanProductView,
       Perm.LoanProductUpdate,
       Perm.LoanProductActivate,
+      Perm.LoanProductApprove,
       Perm.LoanProductDelete,
       Perm.LoanApplicationCreate,
       Perm.LoanApplicationView,
@@ -210,5 +212,6 @@ export function isPlatformOnlyPermission(key: string): boolean {
     "backup.create",
     "backup.view",
     "backup.delete",
+    "loan.product.approve",
   ].includes(key);
 }

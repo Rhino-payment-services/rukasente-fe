@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { CompactLoading } from "@/components/ui/loading";
 import { LoanProductForm } from "@/components/dashboard/loan-product-form";
 import { useLoanProduct, useUpdateLoanProduct } from "@/hooks/use-loan";
+import { usePermissions } from "@/hooks/use-permissions";
+import { proposedLoanProduct } from "@/types/loan";
 import { toast } from "sonner";
 
 export default function EditLoanProductPage({
@@ -19,6 +21,13 @@ export default function EditLoanProductPage({
   const router = useRouter();
   const productQ = useLoanProduct(id);
   const update = useUpdateLoanProduct(id);
+  const { isPlatform } = usePermissions();
+  const product = productQ.data;
+  const formInitial = product ? proposedLoanProduct(product) : undefined;
+  const showLiveSummary =
+    !isPlatform &&
+    product?.approval_status === "pending" &&
+    product.pending_changes?.action === "update";
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 pb-10">
@@ -69,16 +78,20 @@ export default function EditLoanProductPage({
         <div className="rounded-2xl border border-slate-200/80 bg-white p-10 shadow-sm">
           <CompactLoading />
         </div>
-      ) : productQ.data ? (
+      ) : formInitial ? (
         <LoanProductForm
           key={id}
-          initial={productQ.data}
+          initial={formInitial}
+          liveProduct={showLiveSummary ? product : null}
+          requiresApproval={!isPlatform}
           isSaving={update.isPending}
           onCancel={() => router.push("/loan-products")}
           onSaveDraft={async (payload) => {
             try {
               await update.mutateAsync(payload);
-              toast.success("Product saved as inactive draft");
+              toast.success(
+                isPlatform ? "Product saved as inactive draft" : "Proposal updated and sent for approval"
+              );
               router.push("/loan-products");
             } catch (err) {
               toast.error((err as Error).message || "Failed to save draft");
@@ -87,7 +100,9 @@ export default function EditLoanProductPage({
           onSubmit={async (payload) => {
             try {
               await update.mutateAsync(payload);
-              toast.success("Loan product updated");
+              toast.success(
+                isPlatform ? "Loan product updated" : "Sent for RukaSente approval"
+              );
               router.push("/loan-products");
             } catch (err) {
               toast.error((err as Error).message || "Failed to update product");

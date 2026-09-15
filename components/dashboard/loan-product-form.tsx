@@ -26,6 +26,7 @@ import { toast } from "sonner";
 import {
   CompoundingFrequency,
   InterestCalculationMethod,
+  LoanKind,
   LoanProduct,
   LoanProductCreatePayload,
 } from "@/types/loan";
@@ -33,6 +34,8 @@ import {
 type Props = {
   initial?: Partial<LoanProduct>;
   isSaving?: boolean;
+  requiresApproval?: boolean;
+  liveProduct?: Partial<LoanProduct> | null;
   onSubmit: (payload: LoanProductCreatePayload) => Promise<void>;
   onCancel?: () => void;
   onSaveDraft?: (payload: LoanProductCreatePayload) => Promise<void>;
@@ -91,6 +94,10 @@ type FormState = {
   processing_fee_type: "fixed" | "percentage";
   processing_fee_value: string;
   processing_fee_mode: "deduct_from_disbursement" | "add_to_repayable";
+  processing_fee_enabled: boolean;
+  processing_fee_processor: "platform" | "aggregator";
+  processing_fee_aggregator: string;
+  processing_fee_paid_by: "borrower" | "partner";
   late_fee_type: "fixed" | "percentage";
   late_fee_value: string;
   grace_period_days: string;
@@ -99,6 +106,7 @@ type FormState = {
   requires_manual_review: boolean;
   requires_guarantor: boolean;
   allow_approve_without_crb: boolean;
+  loan_kind: LoanKind;
   is_active: boolean;
 };
 
@@ -279,7 +287,7 @@ function CurrencySelect({
   );
 }
 
-function defaultForm(initial?: Partial<LoanProduct>): FormState {
+function defaultForm(initial?: Partial<LoanProduct>, requiresApproval?: boolean): FormState {
   return {
     code: initial?.code ?? "",
     name: initial?.name ?? "",
@@ -303,6 +311,16 @@ function defaultForm(initial?: Partial<LoanProduct>): FormState {
       "deduct_from_disbursement") as
       | "deduct_from_disbursement"
       | "add_to_repayable",
+    processing_fee_enabled: initial?.processing_fee_enabled !== false,
+    processing_fee_processor:
+      initial?.processing_fee_processor === "platform" ? "platform" : "aggregator",
+    processing_fee_aggregator: initial?.processing_fee_aggregator || "rukapay",
+    processing_fee_paid_by:
+      initial?.processing_fee_paid_by === "partner"
+        ? "partner"
+        : initial?.processing_fee_mode === "add_to_repayable"
+          ? "partner"
+          : "borrower",
     late_fee_type: (initial?.late_fee_type ?? "percentage") as "fixed" | "percentage",
     late_fee_value: String(initial?.late_fee_value ?? 0),
     grace_period_days: String(initial?.grace_period_days ?? 0),
@@ -311,20 +329,25 @@ function defaultForm(initial?: Partial<LoanProduct>): FormState {
     requires_manual_review: Boolean(initial?.requires_manual_review),
     requires_guarantor: Boolean(initial?.requires_guarantor),
     allow_approve_without_crb: Boolean(initial?.allow_approve_without_crb),
-    is_active: initial?.is_active ?? true,
+    loan_kind: (initial?.loan_kind === "product" || initial?.loan_kind === "school"
+      ? initial.loan_kind
+      : "cash") as LoanKind,
+    is_active: requiresApproval ? false : (initial?.is_active ?? true),
   };
 }
 
 export function LoanProductForm({
   initial,
   isSaving,
+  requiresApproval,
+  liveProduct,
   onSubmit,
   onCancel,
   onSaveDraft,
 }: Props) {
   const isEdit = Boolean(initial?.id);
   const [step, setStep] = useState(0);
-  const [form, setForm] = useState<FormState>(() => defaultForm(initial));
+  const [form, setForm] = useState<FormState>(() => defaultForm(initial, requiresApproval));
   const [codeLocked, setCodeLocked] = useState(!isEdit);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [touched, setTouched] = useState<Partial<Record<keyof FormState, boolean>>>({});
@@ -341,7 +364,11 @@ export function LoanProductForm({
       if (!raw) return;
       const parsed = JSON.parse(raw) as { form?: FormState; step?: number; savedAt?: number };
       if (parsed.form) {
-        setForm(parsed.form);
+        const kind =
+          parsed.form.loan_kind === "product" || parsed.form.loan_kind === "school"
+            ? parsed.form.loan_kind
+            : "cash";
+        setForm({ ...parsed.form, loan_kind: kind });
         setCodeLocked(false);
       }
       if (typeof parsed.step === "number") setStep(Math.min(Math.max(parsed.step, 0), 3));
@@ -402,8 +429,17 @@ export function LoanProductForm({
       interest_calculation_method: form.interest_calculation_method,
       compounding_frequency: isCompound ? form.compounding_frequency : undefined,
       processing_fee_type: form.processing_fee_type,
-      processing_fee_value: Number(form.processing_fee_value) || 0,
+      processing_fee_value: form.processing_fee_enabled
+        ? Number(form.processing_fee_value) || 0
+        : 0,
       processing_fee_mode: form.processing_fee_mode,
+      processing_fee_enabled: form.processing_fee_enabled,
+      processing_fee_processor: form.processing_fee_processor,
+      processing_fee_aggregator:
+        form.processing_fee_processor === "aggregator"
+          ? form.processing_fee_aggregator || "rukapay"
+          : "",
+      processing_fee_paid_by: form.processing_fee_paid_by,
       late_fee_type: form.late_fee_type,
       late_fee_value: Number(form.late_fee_value) || 0,
       grace_period_days: Number(form.grace_period_days) || 0,
@@ -412,6 +448,7 @@ export function LoanProductForm({
       requires_manual_review: form.requires_manual_review,
       requires_guarantor: form.requires_guarantor,
       allow_approve_without_crb: form.allow_approve_without_crb,
+      loan_kind: form.loan_kind,
       is_active: form.is_active,
     };
   }, [form, isCompound]);
@@ -613,6 +650,13 @@ export function LoanProductForm({
 
   return (
     <form className="space-y-6" onSubmit={handleSubmit} onKeyDown={onFormKeyDown}>
+      {requiresApproval ? (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          {isEdit
+            ? "Changes are sent to RukaSente for approval. Borrowers keep seeing the current live terms until a platform admin approves."
+            : "This product is sent to RukaSente for approval. It stays inactive and off the catalog until a platform admin approves it."}
+        </div>
+      ) : null}
       {/* Horizontal stepper */}
       <nav aria-label="Product setup progress" className="rounded-2xl border border-slate-200/80 bg-white px-4 py-5 shadow-sm sm:px-6">
         <ol className="flex items-center">
@@ -762,6 +806,37 @@ export function LoanProductForm({
                       setErrors((err) => ({ ...err, currency: undefined }));
                     }}
                   />
+                </Field>
+
+                <Field
+                  label="Loan type"
+                  hint="School loans pay a RukaShule merchant, not the parent"
+                  tooltip="Cash credits the borrower wallet. Product pays the partner’s linked shop merchant. School pays the school the parent selects at apply."
+                >
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    {(
+                      [
+                        { value: "cash", label: "Cash", hint: "To borrower wallet" },
+                        { value: "product", label: "Product", hint: "Shop merchant" },
+                        { value: "school", label: "School", hint: "RukaShule merchant" },
+                      ] as const
+                    ).map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setForm((f) => ({ ...f, loan_kind: opt.value }))}
+                        className={cn(
+                          "rounded-xl border px-3 py-3 text-left transition-colors",
+                          form.loan_kind === opt.value
+                            ? "border-[#08163d] bg-[rgba(8,22,61,0.06)]"
+                            : "border-slate-200 bg-white hover:border-slate-300"
+                        )}
+                      >
+                        <span className="block text-sm font-medium text-slate-900">{opt.label}</span>
+                        <span className="mt-0.5 block text-[11px] text-slate-500">{opt.hint}</span>
+                      </button>
+                    ))}
+                  </div>
                 </Field>
 
                 <Field
@@ -1047,13 +1122,30 @@ export function LoanProductForm({
 
                 <div className="grid gap-4 lg:grid-cols-2">
                   <div className="space-y-4 rounded-2xl border border-slate-100 bg-slate-50/70 p-5">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
-                      Processing fee
-                    </p>
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+                        Processing fee
+                      </p>
+                      <label className="flex items-center gap-2 text-sm text-slate-600">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 rounded border-slate-300"
+                          checked={form.processing_fee_enabled}
+                          onChange={(e) =>
+                            setForm((f) => ({
+                              ...f,
+                              processing_fee_enabled: e.target.checked,
+                            }))
+                          }
+                        />
+                        Enabled
+                      </label>
+                    </div>
                     <div className="grid gap-4 sm:grid-cols-2">
                       <Field label="Type">
                         <select
                           className={selectClass}
+                          disabled={!form.processing_fee_enabled}
                           value={form.processing_fee_type}
                           onChange={(e) =>
                             setForm((f) => ({
@@ -1079,6 +1171,7 @@ export function LoanProductForm({
                           type="number"
                           step="0.01"
                           min={0}
+                          disabled={!form.processing_fee_enabled}
                           className={cn(
                             inputClass,
                             fieldError("processing_fee_value") && "border-rose-300"
@@ -1094,30 +1187,103 @@ export function LoanProductForm({
                       </Field>
                     </div>
                     <Field
+                      label="Processed by"
+                      tooltip="RukaSente keeps the fee on the loan books. Aggregator sends it in the disbursement payload so RukaPay (or another collector) books platform revenue."
+                    >
+                      <select
+                        className={selectClass}
+                        disabled={!form.processing_fee_enabled}
+                        value={form.processing_fee_processor}
+                        onChange={(e) =>
+                          setForm((f) => ({
+                            ...f,
+                            processing_fee_processor: e.target.value as
+                              | "platform"
+                              | "aggregator",
+                          }))
+                        }
+                      >
+                        <option value="aggregator">Aggregator</option>
+                        <option value="platform">RukaSente</option>
+                      </select>
+                    </Field>
+                    {form.processing_fee_processor === "aggregator" ? (
+                      <Field
+                        label="Aggregator"
+                        hint="RukaPay today. Other collectors can be added later without changing the product model."
+                      >
+                        <select
+                          className={selectClass}
+                          disabled={!form.processing_fee_enabled}
+                          value={form.processing_fee_aggregator}
+                          onChange={(e) =>
+                            setForm((f) => ({
+                              ...f,
+                              processing_fee_aggregator: e.target.value,
+                            }))
+                          }
+                        >
+                          <option value="rukapay">RukaPay</option>
+                        </select>
+                      </Field>
+                    ) : null}
+                    <Field
                       label="How is this fee applied?"
-                      tooltip="Deduct reduces cash received at disbursement and settles the fee to RukaPay. Add to repayable keeps full disbursement and increases debt."
+                      tooltip="Deduct reduces cash received at disbursement. Add to repayable keeps full disbursement and increases what the borrower owes."
                       hint={
                         form.processing_fee_mode === "deduct_from_disbursement"
-                          ? "Borrower receives principal minus fee. Fee is taken at disbursement (not added to repayable); interest is collected later on repayment."
-                          : "Borrower receives full principal. Fee is added to what they repay."
+                          ? "Borrower receives principal minus fee. When processed by RukaPay, that fee is platform revenue."
+                          : "Borrower receives full principal. When processed by RukaPay, the lending partner is charged the fee as platform revenue."
                       }
                     >
                       <select
                         className={selectClass}
+                        disabled={!form.processing_fee_enabled}
                         value={form.processing_fee_mode}
-                        onChange={(e) =>
+                        onChange={(e) => {
+                          const mode = e.target.value as
+                            | "deduct_from_disbursement"
+                            | "add_to_repayable";
                           setForm((f) => ({
                             ...f,
-                            processing_fee_mode: e.target.value as
-                              | "deduct_from_disbursement"
-                              | "add_to_repayable",
-                          }))
-                        }
+                            processing_fee_mode: mode,
+                            processing_fee_paid_by:
+                              mode === "add_to_repayable" ? "partner" : "borrower",
+                          }));
+                        }}
                       >
                         <option value="deduct_from_disbursement">
                           Deduct from amount received
                         </option>
                         <option value="add_to_repayable">Add to amount to repay</option>
+                      </select>
+                    </Field>
+                    <Field
+                      label="Who pays the fee?"
+                      hint={
+                        form.processing_fee_paid_by === "borrower"
+                          ? "Taken from the amount the borrower receives."
+                          : "Charged to the lending partner at disbursement; the borrower still owes it if it was added to repayable."
+                      }
+                    >
+                      <select
+                        className={selectClass}
+                        disabled={!form.processing_fee_enabled}
+                        value={form.processing_fee_paid_by}
+                        onChange={(e) =>
+                          setForm((f) => ({
+                            ...f,
+                            processing_fee_paid_by: e.target.value as "borrower" | "partner",
+                          }))
+                        }
+                      >
+                        <option value="borrower">Borrower</option>
+                        <option
+                          value="partner"
+                          disabled={form.processing_fee_mode === "deduct_from_disbursement"}
+                        >
+                          Lending partner
+                        </option>
                       </select>
                     </Field>
                   </div>
@@ -1295,6 +1461,7 @@ export function LoanProductForm({
                       </span>
                     </span>
                   </label>
+                  {!requiresApproval ? (
                   <label
                     className={cn(
                       "flex cursor-pointer items-start gap-3 rounded-2xl border px-4 py-4 transition-colors",
@@ -1318,6 +1485,7 @@ export function LoanProductForm({
                       </span>
                     </span>
                   </label>
+                  ) : null}
                 </div>
               </div>
             ) : null}
@@ -1366,7 +1534,15 @@ export function LoanProductForm({
                     disabled={isSaving || draftSaving}
                     className="h-10 rounded-xl bg-[#08163d] px-5 text-white hover:bg-[#06102a]"
                   >
-                    {isSaving ? "Saving…" : isEdit ? "Save changes" : "Create product"}
+                    {isSaving
+                      ? "Saving…"
+                      : requiresApproval
+                        ? isEdit
+                          ? "Submit for approval"
+                          : "Send for RukaSente approval"
+                        : isEdit
+                          ? "Save changes"
+                          : "Create product"}
                   </Button>
                 )}
               </div>
@@ -1410,6 +1586,10 @@ export function LoanProductForm({
                 <dd className="font-medium text-slate-800">{form.currency || "—"}</dd>
               </div>
               <div className="flex justify-between gap-3">
+                <dt className="text-slate-400">Payout</dt>
+                <dd className="font-medium capitalize text-slate-800">{form.loan_kind || "cash"}</dd>
+              </div>
+              <div className="flex justify-between gap-3">
                 <dt className="text-slate-400">Loan type</dt>
                 <dd className="text-right font-medium text-slate-800">
                   {isCompound ? "Compound" : "Simple"}
@@ -1436,7 +1616,17 @@ export function LoanProductForm({
               </div>
               <div className="flex justify-between gap-3">
                 <dt className="text-slate-400">Processing fee</dt>
-                <dd className="text-right text-[12px] font-medium text-slate-800">{feePreview}</dd>
+                <dd className="text-right text-[12px] font-medium text-slate-800">
+                  {form.processing_fee_enabled ? feePreview : "Off"}
+                </dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt className="text-slate-400">Fee collector</dt>
+                <dd className="text-right text-[12px] font-medium text-slate-800">
+                  {form.processing_fee_processor === "platform"
+                    ? "RukaSente"
+                    : `Aggregator (${form.processing_fee_aggregator || "rukapay"})`}
+                </dd>
               </div>
               <div className="flex justify-between gap-3">
                 <dt className="text-slate-400">Fee mode</dt>
@@ -1473,6 +1663,37 @@ export function LoanProductForm({
                 </dd>
               </div>
             </dl>
+
+            {liveProduct ? (
+              <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">
+                  Live catalog terms
+                </p>
+                <p className="mt-1 text-[12px] text-slate-500">
+                  Borrowers currently see these limits until RukaSente approves your proposal.
+                </p>
+                <dl className="mt-3 space-y-2 text-[12px]">
+                  <div className="flex justify-between gap-3">
+                    <dt className="text-slate-400">Amount</dt>
+                    <dd className="text-right font-medium text-slate-800">
+                      {formatMoney(Number(liveProduct.min_amount) || 0, liveProduct.currency || form.currency)}
+                      {" – "}
+                      {formatMoney(Number(liveProduct.max_amount) || 0, liveProduct.currency || form.currency)}
+                    </dd>
+                  </div>
+                  <div className="flex justify-between gap-3">
+                    <dt className="text-slate-400">Tenor</dt>
+                    <dd className="font-medium text-slate-800">
+                      {liveProduct.min_tenor_days}–{liveProduct.max_tenor_days} days
+                    </dd>
+                  </div>
+                  <div className="flex justify-between gap-3">
+                    <dt className="text-slate-400">Interest</dt>
+                    <dd className="font-medium text-slate-800">{liveProduct.interest_rate ?? 0}%</dd>
+                  </div>
+                </dl>
+              </div>
+            ) : null}
 
             {!isEdit ? (
               <div className="mt-5 flex items-center gap-2 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5 text-[12px] text-slate-500">
