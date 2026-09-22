@@ -19,7 +19,7 @@ import { usePartners } from "@/hooks/use-partners";
 
 const PLATFORM_COMPANY = "__platform__";
 
-const PLATFORM_ROLE_NAMES = new Set(["system_admin", "platform_owner"]);
+const PLATFORM_ROLE_NAMES = new Set(["platform_owner"]);
 
 function isPlatformRoleName(name?: string | null) {
   return PLATFORM_ROLE_NAMES.has(String(name || "").toLowerCase());
@@ -201,7 +201,7 @@ function AddStaffForm() {
                 </select>
                 {selectedRoleIsPlatform ? (
                   <p className="text-xs text-slate-500">
-                    Platform roles (system_admin, platform_owner) are not tied to a lending
+                    Platform roles (platform_owner) are not tied to a lending
                     company.
                   </p>
                 ) : null}

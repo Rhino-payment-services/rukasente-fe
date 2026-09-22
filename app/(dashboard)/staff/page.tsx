@@ -57,7 +57,7 @@ import { usePartners } from "@/hooks/use-partners";
 /** Sentinel for platform (NULL partner_id) in the create company select. */
 const PLATFORM_COMPANY = "__platform__";
 
-const PLATFORM_ROLE_NAMES = new Set(["system_admin", "platform_owner"]);
+const PLATFORM_ROLE_NAMES = new Set(["platform_owner"]);
 
 function isPlatformRoleName(name?: string | null) {
   return PLATFORM_ROLE_NAMES.has(String(name || "").toLowerCase());
@@ -331,7 +331,7 @@ export default function StaffPage() {
       return;
     }
     if (isPlatform && addRoleIsPlatform && addCompanyId !== PLATFORM_COMPANY) {
-      setAddError("system_admin and platform_owner must use RukaSente (platform).");
+      setAddError("platform_owner must use RukaSente (platform).");
       return;
     }
 
@@ -554,7 +554,7 @@ export default function StaffPage() {
                         </select>
                         {addRoleIsPlatform ? (
                           <p className="text-xs text-slate-500">
-                            Platform roles (system_admin, platform_owner) are not tied to a
+                            Platform roles (platform_owner) are not tied to a
                             lending company.
                           </p>
                         ) : null}

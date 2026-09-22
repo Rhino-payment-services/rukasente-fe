@@ -21,6 +21,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { apiClient, clearCachedAccessToken } from "@/lib/api-client";
 import { useSidebar } from "@/components/dashboard/sidebar-context";
+import { usePermissions } from "@/hooks/use-permissions";
 import {
   useMarkAllNotificationsRead,
   useMarkNotificationRead,
@@ -61,6 +62,10 @@ export function Topbar({
   isMenuOpen: boolean;
 }) {
   const { data: session } = useSession();
+  const { isPlatform } = usePermissions();
+  const partnerLabel = isPlatform
+    ? "RukaSente Platform"
+    : session?.user?.partner?.name || "—";
   const queryClient = useQueryClient();
   const { setCommandOpen } = useSidebar();
   const [refreshing, setRefreshing] = useState(false);
@@ -182,15 +187,9 @@ export function Topbar({
       <div className="flex shrink-0 items-center gap-2 sm:gap-2.5">
         <span
           className="hidden max-w-[180px] truncate rounded-full border border-indigo-100 bg-indigo-50 px-2.5 py-1 text-[11px] font-medium text-indigo-700 sm:inline-block"
-          title={
-            session?.user?.isPlatform
-              ? "RukaSente Platform"
-              : session?.user?.partner?.name || "Tenant"
-          }
+          title={partnerLabel === "—" ? "Tenant" : partnerLabel}
         >
-          {session?.user?.isPlatform
-            ? "RukaSente Platform"
-            : session?.user?.partner?.name || "—"}
+          {partnerLabel}
         </span>
 
         <Button
