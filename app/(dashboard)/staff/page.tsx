@@ -57,6 +57,12 @@ import { usePartners } from "@/hooks/use-partners";
 /** Sentinel for platform (NULL partner_id) in the create company select. */
 const PLATFORM_COMPANY = "__platform__";
 
+const PLATFORM_ROLE_NAMES = new Set(["system_admin", "platform_owner"]);
+
+function isPlatformRoleName(name?: string | null) {
+  return PLATFORM_ROLE_NAMES.has(String(name || "").toLowerCase());
+}
+
 export default function StaffPage() {
   const { data: session } = useSession();
   const { can, isPlatform } = usePermissions();
@@ -118,8 +124,24 @@ export default function StaffPage() {
   const assignableRoles = useMemo(() => {
     const rows = roles.data ?? [];
     if (isPlatform) return rows;
-    return rows.filter((r) => r.name !== "platform_owner");
+    return rows.filter((r) => !isPlatformRoleName(r.name));
   }, [roles.data, isPlatform]);
+
+  const addRoleIsPlatform = useMemo(() => {
+    const role = assignableRoles.find((r) => r.id === addRoleId);
+    return isPlatformRoleName(role?.name);
+  }, [assignableRoles, addRoleId]);
+
+  const assignRoleIsPlatform = useMemo(() => {
+    const role = assignableRoles.find((r) => r.id === assignRoleId);
+    return isPlatformRoleName(role?.name);
+  }, [assignableRoles, assignRoleId]);
+
+  useEffect(() => {
+    if (addRoleIsPlatform) {
+      setAddCompanyId(PLATFORM_COMPANY);
+    }
+  }, [addRoleIsPlatform]);
 
   const enriched = useMemo(
     () => (data?.items ?? []).map((item) => enrichStaff(item)),
@@ -308,6 +330,10 @@ export default function StaffPage() {
       setAddError("Select a company for this staff user.");
       return;
     }
+    if (isPlatform && addRoleIsPlatform && addCompanyId !== PLATFORM_COMPANY) {
+      setAddError("system_admin and platform_owner must use RukaSente (platform).");
+      return;
+    }
 
     try {
       const created = await createStaff.mutateAsync({
@@ -315,7 +341,9 @@ export default function StaffPage() {
         full_name: addPayload.full_name.trim(),
         email: addPayload.email.trim(),
         partner_id:
-          isPlatform && addCompanyId !== PLATFORM_COMPANY ? addCompanyId : null,
+          isPlatform && !addRoleIsPlatform && addCompanyId !== PLATFORM_COMPANY
+            ? addCompanyId
+            : null,
       });
       await assignRoles.mutateAsync({ staffId: created.id, roleIds: [addRoleId] });
       setIsAddOpen(false);
@@ -509,19 +537,28 @@ export default function StaffPage() {
                       <option value="suspended">Suspended</option>
                     </select>
                     {isPlatform ? (
-                      <select
-                        className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none"
-                        value={addCompanyId}
-                        onChange={(e) => setAddCompanyId(e.target.value)}
-                      >
-                        <option value={PLATFORM_COMPANY}>RukaSente (platform)</option>
-                        {(partners.data?.items ?? []).map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.name}
-                            {p.code ? ` (${p.code})` : ""}
-                          </option>
-                        ))}
-                      </select>
+                      <div className="space-y-1">
+                        <select
+                          className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none disabled:bg-slate-50 disabled:text-slate-500"
+                          value={addRoleIsPlatform ? PLATFORM_COMPANY : addCompanyId}
+                          onChange={(e) => setAddCompanyId(e.target.value)}
+                          disabled={addRoleIsPlatform}
+                        >
+                          <option value={PLATFORM_COMPANY}>RukaSente (platform)</option>
+                          {(partners.data?.items ?? []).map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.name}
+                              {p.code ? ` (${p.code})` : ""}
+                            </option>
+                          ))}
+                        </select>
+                        {addRoleIsPlatform ? (
+                          <p className="text-xs text-slate-500">
+                            Platform roles (system_admin, platform_owner) are not tied to a
+                            lending company.
+                          </p>
+                        ) : null}
+                      </div>
                     ) : null}
                   </div>
                 ) : (
@@ -796,6 +833,9 @@ export default function StaffPage() {
                     <p className="mb-2 text-sm font-semibold text-slate-900">Role assignment</p>
                     <p className="mb-2 text-xs text-slate-500">
                       Assign one role template. Direct permissions below are optional overrides.
+                      {assignRoleIsPlatform
+                        ? " Platform roles clear company scope so the user sees all tenants."
+                        : ""}
                     </p>
                     <div className="grid max-h-56 gap-2 overflow-y-auto pr-1">
                       {assignableRoles.map((role) => (

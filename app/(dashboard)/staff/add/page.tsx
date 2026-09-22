@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Mail, Lock, User } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,12 @@ import { usePermissions } from "@/hooks/use-permissions";
 import { usePartners } from "@/hooks/use-partners";
 
 const PLATFORM_COMPANY = "__platform__";
+
+const PLATFORM_ROLE_NAMES = new Set(["system_admin", "platform_owner"]);
+
+function isPlatformRoleName(name?: string | null) {
+  return PLATFORM_ROLE_NAMES.has(String(name || "").toLowerCase());
+}
 
 export default function AddStaffPage() {
   return (
@@ -53,12 +59,23 @@ function AddStaffForm() {
   const assignableRoles = useMemo(() => {
     const rows = roles.data ?? [];
     if (isPlatform) return rows;
-    return rows.filter((role) => role.name !== "platform_owner");
+    return rows.filter((role) => !isPlatformRoleName(role.name));
   }, [roles.data, isPlatform]);
 
   const selectedRoles = useMemo(() => {
     return assignableRoles.filter((role) => role.id === selectedRoleId);
   }, [assignableRoles, selectedRoleId]);
+
+  const selectedRoleIsPlatform = useMemo(
+    () => isPlatformRoleName(selectedRoles[0]?.name),
+    [selectedRoles]
+  );
+
+  useEffect(() => {
+    if (selectedRoleIsPlatform) {
+      setCompanyId(PLATFORM_COMPANY);
+    }
+  }, [selectedRoleIsPlatform]);
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -76,7 +93,11 @@ function AddStaffForm() {
         password,
         status,
         partner_id:
-          isPlatform && companyId !== PLATFORM_COMPANY ? companyId : null,
+          isPlatform &&
+          !selectedRoleIsPlatform &&
+          companyId !== PLATFORM_COMPANY
+            ? companyId
+            : null,
       });
 
       let targetId = created.id;
@@ -163,19 +184,28 @@ function AddStaffForm() {
               <option value="suspended">Suspended</option>
             </select>
             {isPlatform ? (
-              <select
-                className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none"
-                value={companyId}
-                onChange={(e) => setCompanyId(e.target.value)}
-              >
-                <option value={PLATFORM_COMPANY}>RukaSente (platform)</option>
-                {(partners.data?.items ?? []).map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                    {p.code ? ` (${p.code})` : ""}
-                  </option>
-                ))}
-              </select>
+              <div className="space-y-1">
+                <select
+                  className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none disabled:bg-slate-50 disabled:text-slate-500"
+                  value={selectedRoleIsPlatform ? PLATFORM_COMPANY : companyId}
+                  onChange={(e) => setCompanyId(e.target.value)}
+                  disabled={selectedRoleIsPlatform}
+                >
+                  <option value={PLATFORM_COMPANY}>RukaSente (platform)</option>
+                  {(partners.data?.items ?? []).map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                      {p.code ? ` (${p.code})` : ""}
+                    </option>
+                  ))}
+                </select>
+                {selectedRoleIsPlatform ? (
+                  <p className="text-xs text-slate-500">
+                    Platform roles (system_admin, platform_owner) are not tied to a lending
+                    company.
+                  </p>
+                ) : null}
+              </div>
             ) : null}
             <div className="space-y-2">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
