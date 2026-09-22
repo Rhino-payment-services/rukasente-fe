@@ -179,6 +179,12 @@ export type LoanApplication = {
   disbursement_wallet_id?: string;
   disbursement_error?: string;
   disbursement_attempts?: number;
+  escrow_txn_id?: string;
+  reversed_at?: string;
+  reversal_txn_id?: string;
+  reversed_by_staff_user_id?: string;
+  reversed_by_name?: string;
+  reversal_reason?: string;
   due_date?: string;
   repaid_at?: string;
   overdue_since?: string;
@@ -268,6 +274,13 @@ export type LoanAccount = {
   repayment_frequency: string;
   status: string;
   display_reference?: string;
+  escrow_txn_id?: string;
+  escrow_wallet_id?: string;
+  reversed_at?: string;
+  reversal_txn_id?: string;
+  reversed_by_staff_user_id?: string;
+  reversed_by_name?: string;
+  reversal_reason?: string;
   disbursement_error?: string;
   disbursement_attempts?: number;
   approved_at?: string;
@@ -354,6 +367,37 @@ export type LoanLedgerEntry = {
   outstanding_balance_after: number;
   external_ref?: string;
   posted_at: string;
+};
+
+export type DisbursementSpendItem = {
+  kind: string;
+  direction: string;
+  amount: number;
+  currency: string;
+  description?: string;
+  counterparty?: string;
+  txn_type?: string;
+  occurred_at?: string;
+  transaction_id?: string;
+  reference?: string;
+  is_loan_disburse?: boolean;
+};
+
+export type DisbursementSpendResponse = {
+  loan_application_id: string;
+  loan_id: string;
+  loan_kind: string;
+  currency: string;
+  disbursed_at?: string;
+  disbursed_amount: number;
+  spent_amount: number;
+  remaining_estimate: number;
+  recipient_type: string;
+  recipient_label: string;
+  rukapay_user_id?: string;
+  wallet_id?: string;
+  note?: string;
+  items: DisbursementSpendItem[];
 };
 
 /** A borrower's loan account enriched with product context + repayment history. */

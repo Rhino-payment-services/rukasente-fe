@@ -11,6 +11,7 @@ import {
   LoanApplicationCRBStatus,
   LoanApplicationReview,
   LoanLedgerEntry,
+  DisbursementSpendResponse,
   LoanOfferResponse,
   LoanProduct,
   LoanProductCreatePayload,
@@ -411,6 +412,26 @@ export function useRetryDisbursement(id: string) {
   });
 }
 
+export function useReverseDisbursement(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: { reason?: string }) => {
+      const res = await apiClient.post(
+        `/admin/loan-applications/${id}/reverse-disbursement`,
+        body
+      );
+      return unwrapEnvelope<LoanApplication>(res);
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["loan-application", id] });
+      void qc.invalidateQueries({ queryKey: ["loan-applications"] });
+      void qc.invalidateQueries({ queryKey: ["loan-account", id] });
+      void qc.invalidateQueries({ queryKey: ["loan-ledger", id] });
+      void qc.invalidateQueries({ queryKey: ["loan-application-reviews", id] });
+    },
+  });
+}
+
 function isNotFoundError(err: unknown): boolean {
   return axios.isAxiosError(err) && err.response?.status === 404;
 }
@@ -477,6 +498,23 @@ export function useLoanLedger(applicationId?: string) {
         return unwrapEnvelope<LoanLedgerEntry[]>(res);
       } catch (err) {
         if (isNotFoundError(err)) return [];
+        throw err;
+      }
+    },
+  });
+}
+
+export function useLoanDisbursementSpend(applicationId?: string, enabled = true) {
+  return useQuery({
+    queryKey: ["loan-spend", applicationId],
+    enabled: !!applicationId && enabled,
+    retry: false,
+    queryFn: async () => {
+      try {
+        const res = await apiClient.get(`/admin/loan-applications/${applicationId}/spend`);
+        return unwrapEnvelope<DisbursementSpendResponse>(res);
+      } catch (err) {
+        if (isNotFoundError(err)) return null;
         throw err;
       }
     },
