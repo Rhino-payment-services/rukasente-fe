@@ -618,7 +618,10 @@ export default function LoanProductsPage() {
                   },
                   {
                     label: "Paid by",
-                    value: viewProduct.processing_fee_paid_by || "borrower",
+                    value:
+                      viewProduct.processing_fee_paid_by === "partner"
+                        ? "Lending partner"
+                        : "Borrower",
                   },
                   {
                     label: "Late fee",

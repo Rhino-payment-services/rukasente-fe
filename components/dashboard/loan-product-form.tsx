@@ -287,6 +287,15 @@ function CurrencySelect({
   );
 }
 
+function initialPaidBy(initial?: Partial<LoanProduct>): "borrower" | "partner" {
+  const mode = initial?.processing_fee_mode ?? "deduct_from_disbursement";
+  if (mode !== "add_to_repayable") return "borrower";
+  if (initial?.processing_fee_paid_by === "borrower" || initial?.processing_fee_paid_by === "partner") {
+    return initial.processing_fee_paid_by;
+  }
+  return "partner";
+}
+
 function defaultForm(initial?: Partial<LoanProduct>, requiresApproval?: boolean): FormState {
   return {
     code: initial?.code ?? "",
@@ -315,12 +324,7 @@ function defaultForm(initial?: Partial<LoanProduct>, requiresApproval?: boolean)
     processing_fee_processor:
       initial?.processing_fee_processor === "platform" ? "platform" : "aggregator",
     processing_fee_aggregator: initial?.processing_fee_aggregator || "rukapay",
-    processing_fee_paid_by:
-      initial?.processing_fee_paid_by === "partner"
-        ? "partner"
-        : initial?.processing_fee_mode === "add_to_repayable"
-          ? "partner"
-          : "borrower",
+    processing_fee_paid_by: initialPaidBy(initial),
     late_fee_type: (initial?.late_fee_type ?? "percentage") as "fixed" | "percentage",
     late_fee_value: String(initial?.late_fee_value ?? 0),
     grace_period_days: String(initial?.grace_period_days ?? 0),
@@ -1233,7 +1237,9 @@ export function LoanProductForm({
                       hint={
                         form.processing_fee_mode === "deduct_from_disbursement"
                           ? "Borrower receives principal minus fee. When processed by RukaPay, that fee is platform revenue."
-                          : "Borrower receives full principal. When processed by RukaPay, the lending partner is charged the fee as platform revenue."
+                          : form.processing_fee_paid_by === "partner"
+                            ? "Borrower receives full principal. The lending partner is charged the fee at disbursement."
+                            : "Borrower receives full principal and repays the fee with the loan."
                       }
                     >
                       <select
@@ -1247,8 +1253,12 @@ export function LoanProductForm({
                           setForm((f) => ({
                             ...f,
                             processing_fee_mode: mode,
+                            // Deduct can only be paid by the borrower. Add-to-repay keeps
+                            // the payer the user already chose.
                             processing_fee_paid_by:
-                              mode === "add_to_repayable" ? "partner" : "borrower",
+                              mode === "deduct_from_disbursement"
+                                ? "borrower"
+                                : f.processing_fee_paid_by,
                           }));
                         }}
                       >
@@ -1262,7 +1272,9 @@ export function LoanProductForm({
                       label="Who pays the fee?"
                       hint={
                         form.processing_fee_paid_by === "borrower"
-                          ? "Taken from the amount the borrower receives."
+                          ? form.processing_fee_mode === "add_to_repayable"
+                            ? "The borrower repays this fee. The lending partner is not charged at disbursement."
+                            : "Taken from the amount the borrower receives."
                           : "Charged to the lending partner at disbursement; the borrower still owes it if it was added to repayable."
                       }
                     >
@@ -1634,6 +1646,16 @@ export function LoanProductForm({
                   {form.processing_fee_mode === "deduct_from_disbursement"
                     ? "Deduct from disbursement"
                     : "Add to repayable"}
+                </dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt className="text-slate-400">Paid by</dt>
+                <dd className="text-right text-[12px] font-medium text-slate-800">
+                  {form.processing_fee_enabled
+                    ? form.processing_fee_paid_by === "partner"
+                      ? "Lending partner"
+                      : "Borrower"
+                    : "—"}
                 </dd>
               </div>
               <div className="flex justify-between gap-3">
