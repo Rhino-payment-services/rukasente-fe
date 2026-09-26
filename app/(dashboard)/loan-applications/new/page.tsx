@@ -37,6 +37,7 @@ import { GuarantorValidateResponse } from "@/types/loan";
 import { cn } from "@/lib/utils";
 import { ugandaPhonesMatch, ugandaPhoneLocalDisplay } from "@/lib/uganda-phone";
 import { namesLikelySamePerson } from "@/lib/person-name";
+import { quoteLoanRepayment } from "@/lib/loan-quote";
 
 const selectClass =
   "h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus-visible:ring-2 focus-visible:ring-main-500/30 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400";
@@ -110,6 +111,24 @@ export default function NewLoanApplicationPage() {
   const loanSectionEnabled = Boolean(selectedBorrower?.rukapay_user_id);
   const guarantorRequired = Boolean(selectedProduct?.requires_guarantor);
   const guarantorReady = !guarantorRequired || Boolean(guarantorValidation?.valid);
+  const repaymentQuote = useMemo(() => {
+    if (!selectedProduct) return null;
+    const principal = Number(amount);
+    const tenor = Number(tenorDays);
+    if (!Number.isFinite(principal) || principal <= 0) return null;
+    if (!Number.isFinite(tenor) || tenor <= 0) return null;
+    return quoteLoanRepayment({
+      principal,
+      tenorDays: tenor,
+      interestRate: selectedProduct.interest_rate,
+      interestCalculationMethod: selectedProduct.interest_calculation_method,
+      compoundingFrequency: selectedProduct.compounding_frequency,
+      processingFeeType: selectedProduct.processing_fee_type,
+      processingFeeValue: selectedProduct.processing_fee_value,
+      processingFeeMode: selectedProduct.processing_fee_mode,
+      processingFeeEnabled: selectedProduct.processing_fee_enabled,
+    });
+  }, [amount, selectedProduct, tenorDays]);
 
   function onSelectProduct(id: string) {
     setProductId(id);
@@ -632,6 +651,32 @@ export default function NewLoanApplicationPage() {
               ) : (
                 <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-8 text-center text-sm text-slate-500">
                   Search and select a borrower to preview their profile.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="gap-0 border-slate-200/80 py-0 shadow-sm">
+            <CardContent className="space-y-2 p-5 text-sm text-slate-600">
+              <h3 className="text-sm font-semibold text-slate-900">Repayment</h3>
+              {repaymentQuote && selectedProduct ? (
+                <dl className="space-y-2">
+                  <Row
+                    label="Interest"
+                    value={formatMoney(repaymentQuote.interestAmount)}
+                  />
+                  <Row
+                    label="Total repayable"
+                    value={formatMoney(repaymentQuote.totalRepayable)}
+                  />
+                  <Row
+                    label="Monthly"
+                    value={`${formatMoney(repaymentQuote.monthlyInstallment)} / mo · ${repaymentQuote.installmentCount} mo`}
+                  />
+                </dl>
+              ) : (
+                <p className="text-sm text-slate-500">
+                  Enter an amount and tenor to see interest and the monthly repayment.
                 </p>
               )}
             </CardContent>

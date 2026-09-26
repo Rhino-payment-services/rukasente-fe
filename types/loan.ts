@@ -304,6 +304,8 @@ export type LoanOfferResponse = {
   processing_fee_aggregator?: string;
   processing_fee_paid_by?: string;
   total_repayable: number;
+  installment_count?: number;
+  monthly_installment?: number;
   disburse_amount: number;
   down_payment_amount?: number;
   estimated_due_date?: string;

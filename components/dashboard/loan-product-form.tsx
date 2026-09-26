@@ -22,6 +22,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { quoteLoanRepayment } from "@/lib/loan-quote";
 import { toast } from "sonner";
 import {
   CompoundingFrequency,
@@ -642,6 +643,21 @@ export function LoanProductForm({
     setTouched((t) => ({ ...t, name: true }));
     setErrors((err) => ({ ...err, name: undefined }));
   }
+
+  const sampleQuote = useMemo(() => {
+    if (!parsed || parsed.min_amount <= 0 || parsed.max_tenor_days <= 0) return null;
+    return quoteLoanRepayment({
+      principal: parsed.min_amount,
+      tenorDays: parsed.max_tenor_days,
+      interestRate: parsed.interest_rate,
+      interestCalculationMethod: parsed.interest_calculation_method,
+      compoundingFrequency: parsed.compounding_frequency,
+      processingFeeType: parsed.processing_fee_type,
+      processingFeeValue: parsed.processing_fee_value,
+      processingFeeMode: parsed.processing_fee_mode,
+      processingFeeEnabled: parsed.processing_fee_enabled,
+    });
+  }, [parsed]);
 
   const feePreview =
     parsed && parsed.processing_fee_type === "percentage"
@@ -1612,6 +1628,22 @@ export function LoanProductForm({
                 <dt className="text-slate-400">Interest</dt>
                 <dd className="font-medium text-slate-800">{form.interest_rate || "0"}%</dd>
               </div>
+              {sampleQuote ? (
+                <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5 text-[12px] text-slate-600">
+                  <p className="font-medium text-slate-800">
+                    Sample on {formatMoney(parsed?.min_amount || 0, parsed?.currency)} for{" "}
+                    {parsed?.max_tenor_days} days
+                  </p>
+                  <p className="mt-1">
+                    Interest {formatMoney(sampleQuote.interestAmount, parsed?.currency)} · repay{" "}
+                    {formatMoney(sampleQuote.totalRepayable, parsed?.currency)}
+                  </p>
+                  <p>
+                    {sampleQuote.installmentCount} mo ~{" "}
+                    {formatMoney(sampleQuote.monthlyInstallment, parsed?.currency)}/mo
+                  </p>
+                </div>
+              ) : null}
               <div className="flex justify-between gap-3">
                 <dt className="text-slate-400">Amount range</dt>
                 <dd className="text-right text-[12px] font-medium text-slate-800">

@@ -1,12 +1,13 @@
 "use client";
 
-import { FormEvent, use, useState } from "react";
+import { FormEvent, use, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useBorrowerContext } from "@/components/providers/borrower-provider";
 import { useBorrowerLoanProducts, useCreateBorrowerLoanApplication } from "@/hooks/use-loan";
+import { quoteLoanRepayment } from "@/lib/loan-quote";
 
 export default function BorrowerApplyPage({
   params,
@@ -24,6 +25,24 @@ export default function BorrowerApplyPage({
   const [error, setError] = useState("");
 
   const product = (productsQ.data ?? []).find((p) => p.id === productId);
+  const quote = useMemo(() => {
+    if (!product) return null;
+    const principal = Number(amount);
+    const tenorDays = Number(tenor);
+    if (!Number.isFinite(principal) || principal <= 0) return null;
+    if (!Number.isFinite(tenorDays) || tenorDays <= 0) return null;
+    return quoteLoanRepayment({
+      principal,
+      tenorDays,
+      interestRate: product.interest_rate,
+      interestCalculationMethod: product.interest_calculation_method,
+      compoundingFrequency: product.compounding_frequency,
+      processingFeeType: product.processing_fee_type,
+      processingFeeValue: product.processing_fee_value,
+      processingFeeMode: product.processing_fee_mode,
+      processingFeeEnabled: product.processing_fee_enabled,
+    });
+  }, [amount, product, tenor]);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -65,6 +84,20 @@ export default function BorrowerApplyPage({
               <Input type="number" placeholder="Requested amount" value={amount} onChange={(e) => setAmount(e.target.value)} />
               <Input type="number" placeholder="Requested tenor days" value={tenor} onChange={(e) => setTenor(e.target.value)} />
               <Input placeholder="Purpose" value={purpose} onChange={(e) => setPurpose(e.target.value)} />
+              {quote ? (
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm">
+                  <p className="font-medium text-slate-900">You will repay</p>
+                  <p className="mt-1 text-slate-700">
+                    Interest {product?.currency} {quote.interestAmount.toLocaleString()} at {product?.interest_rate}%
+                  </p>
+                  <p className="text-slate-700">
+                    Total {product?.currency} {quote.totalRepayable.toLocaleString()}
+                  </p>
+                  <p className="text-slate-700">
+                    About {product?.currency} {quote.monthlyInstallment.toLocaleString()}/mo for {quote.installmentCount} mo
+                  </p>
+                </div>
+              ) : null}
               {error ? <p className="text-sm text-destructive">{error}</p> : null}
               <Button type="submit" disabled={create.isPending}>
                 {create.isPending ? "Submitting..." : "Submit application"}

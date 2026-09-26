@@ -11,6 +11,7 @@ import { CompactLoading } from "@/components/ui/loading";
 import { DetailsDrawer } from "@/components/ui/details-drawer";
 import { CRBReportDrawerBody } from "@/components/dashboard/crb-report-drawer-body";
 import { LoanStatusBadge } from "@/components/dashboard/loan-status-badge";
+import { installmentPlan } from "@/lib/loan-quote";
 import {
   useInitiateLoanRepayment,
   useLoanAccount,
@@ -715,6 +716,18 @@ export default function LoanApplicationDetailPage({
                 }
                 emphasize
               />
+              <Metric
+                label="Monthly repayment"
+                value={formatMoney(
+                  offer.monthly_installment ||
+                    installmentPlan(offer.total_repayable, offer.tenor_days).monthlyInstallment,
+                  offer.currency
+                )}
+                hint={`${
+                  offer.installment_count ||
+                  installmentPlan(offer.total_repayable, offer.tenor_days).installmentCount
+                } mo · includes interest`}
+              />
             </div>
           </CardContent>
         </Card>
@@ -1029,6 +1042,15 @@ export default function LoanApplicationDetailPage({
                   ) : null}
                   <span className="text-slate-500">Total repayable</span>
                   <span className="font-semibold text-slate-900">{formatMoney(offer.total_repayable, offer.currency)}</span>
+                  <span className="text-slate-500">Monthly</span>
+                  <span className="font-medium">
+                    {formatMoney(
+                      offer.monthly_installment ||
+                        installmentPlan(offer.total_repayable, offer.tenor_days).monthlyInstallment,
+                      offer.currency
+                    )}{" "}
+                    / mo
+                  </span>
                   {offer.processing_fee_mode === "deduct_from_disbursement" && offer.processing_fee > 0 ? (
                     <>
                       <span className="text-slate-500">Borrower receives</span>
