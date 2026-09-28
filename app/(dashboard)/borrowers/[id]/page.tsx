@@ -348,6 +348,7 @@ function LoanCard({
                       <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">#</th>
                       <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">Due</th>
                       <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">Amount due</th>
+                      <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">Interest</th>
                       <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">Paid</th>
                       <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">Status</th>
                     </tr>
@@ -364,6 +365,9 @@ function LoanCard({
                         </td>
                         <td className="px-3 py-2">
                           {formatMoney(s.amount_due ?? 0, currency)}
+                        </td>
+                        <td className="px-3 py-2">
+                          {formatMoney(s.interest ?? 0, currency)}
                         </td>
                         <td className="px-3 py-2">
                           {formatMoney(s.amount_paid ?? 0, currency)}

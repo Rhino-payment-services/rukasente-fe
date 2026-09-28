@@ -118,7 +118,7 @@ export default function BackupsPage() {
               Database backups
             </h1>
             <p className="text-xs text-slate-500">
-              Logical JSON.gz snapshots of Postgres tables stored on the server.
+              PostgreSQL dumps (pg_dump) stored on the server.
             </p>
           </div>
         </div>

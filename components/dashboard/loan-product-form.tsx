@@ -22,6 +22,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { quoteLoanRepayment } from "@/lib/loan-quote";
 import { toast } from "sonner";
 import {
   CompoundingFrequency,
@@ -287,6 +288,15 @@ function CurrencySelect({
   );
 }
 
+function initialPaidBy(initial?: Partial<LoanProduct>): "borrower" | "partner" {
+  const mode = initial?.processing_fee_mode ?? "deduct_from_disbursement";
+  if (mode !== "add_to_repayable") return "borrower";
+  if (initial?.processing_fee_paid_by === "borrower" || initial?.processing_fee_paid_by === "partner") {
+    return initial.processing_fee_paid_by;
+  }
+  return "partner";
+}
+
 function defaultForm(initial?: Partial<LoanProduct>, requiresApproval?: boolean): FormState {
   return {
     code: initial?.code ?? "",
@@ -315,12 +325,7 @@ function defaultForm(initial?: Partial<LoanProduct>, requiresApproval?: boolean)
     processing_fee_processor:
       initial?.processing_fee_processor === "platform" ? "platform" : "aggregator",
     processing_fee_aggregator: initial?.processing_fee_aggregator || "rukapay",
-    processing_fee_paid_by:
-      initial?.processing_fee_paid_by === "partner"
-        ? "partner"
-        : initial?.processing_fee_mode === "add_to_repayable"
-          ? "partner"
-          : "borrower",
+    processing_fee_paid_by: initialPaidBy(initial),
     late_fee_type: (initial?.late_fee_type ?? "percentage") as "fixed" | "percentage",
     late_fee_value: String(initial?.late_fee_value ?? 0),
     grace_period_days: String(initial?.grace_period_days ?? 0),
@@ -638,6 +643,21 @@ export function LoanProductForm({
     setTouched((t) => ({ ...t, name: true }));
     setErrors((err) => ({ ...err, name: undefined }));
   }
+
+  const sampleQuote = useMemo(() => {
+    if (!parsed || parsed.min_amount <= 0 || parsed.max_tenor_days <= 0) return null;
+    return quoteLoanRepayment({
+      principal: parsed.min_amount,
+      tenorDays: parsed.max_tenor_days,
+      interestRate: parsed.interest_rate,
+      interestCalculationMethod: parsed.interest_calculation_method,
+      compoundingFrequency: parsed.compounding_frequency,
+      processingFeeType: parsed.processing_fee_type,
+      processingFeeValue: parsed.processing_fee_value,
+      processingFeeMode: parsed.processing_fee_mode,
+      processingFeeEnabled: parsed.processing_fee_enabled,
+    });
+  }, [parsed]);
 
   const feePreview =
     parsed && parsed.processing_fee_type === "percentage"
@@ -1233,7 +1253,9 @@ export function LoanProductForm({
                       hint={
                         form.processing_fee_mode === "deduct_from_disbursement"
                           ? "Borrower receives principal minus fee. When processed by RukaPay, that fee is platform revenue."
-                          : "Borrower receives full principal. When processed by RukaPay, the lending partner is charged the fee as platform revenue."
+                          : form.processing_fee_paid_by === "partner"
+                            ? "Borrower receives full principal. The lending partner is charged the fee at disbursement."
+                            : "Borrower receives full principal and repays the fee with the loan."
                       }
                     >
                       <select
@@ -1247,8 +1269,12 @@ export function LoanProductForm({
                           setForm((f) => ({
                             ...f,
                             processing_fee_mode: mode,
+                            // Deduct can only be paid by the borrower. Add-to-repay keeps
+                            // the payer the user already chose.
                             processing_fee_paid_by:
-                              mode === "add_to_repayable" ? "partner" : "borrower",
+                              mode === "deduct_from_disbursement"
+                                ? "borrower"
+                                : f.processing_fee_paid_by,
                           }));
                         }}
                       >
@@ -1262,7 +1288,9 @@ export function LoanProductForm({
                       label="Who pays the fee?"
                       hint={
                         form.processing_fee_paid_by === "borrower"
-                          ? "Taken from the amount the borrower receives."
+                          ? form.processing_fee_mode === "add_to_repayable"
+                            ? "The borrower repays this fee. The lending partner is not charged at disbursement."
+                            : "Taken from the amount the borrower receives."
                           : "Charged to the lending partner at disbursement; the borrower still owes it if it was added to repayable."
                       }
                     >
@@ -1600,6 +1628,22 @@ export function LoanProductForm({
                 <dt className="text-slate-400">Interest</dt>
                 <dd className="font-medium text-slate-800">{form.interest_rate || "0"}%</dd>
               </div>
+              {sampleQuote ? (
+                <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5 text-[12px] text-slate-600">
+                  <p className="font-medium text-slate-800">
+                    Sample on {formatMoney(parsed?.min_amount || 0, parsed?.currency)} for{" "}
+                    {parsed?.max_tenor_days} days
+                  </p>
+                  <p className="mt-1">
+                    Interest {formatMoney(sampleQuote.interestAmount, parsed?.currency)} · repay{" "}
+                    {formatMoney(sampleQuote.totalRepayable, parsed?.currency)}
+                  </p>
+                  <p>
+                    {sampleQuote.installmentCount} mo ~{" "}
+                    {formatMoney(sampleQuote.monthlyInstallment, parsed?.currency)}/mo
+                  </p>
+                </div>
+              ) : null}
               <div className="flex justify-between gap-3">
                 <dt className="text-slate-400">Amount range</dt>
                 <dd className="text-right text-[12px] font-medium text-slate-800">
@@ -1634,6 +1678,16 @@ export function LoanProductForm({
                   {form.processing_fee_mode === "deduct_from_disbursement"
                     ? "Deduct from disbursement"
                     : "Add to repayable"}
+                </dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt className="text-slate-400">Paid by</dt>
+                <dd className="text-right text-[12px] font-medium text-slate-800">
+                  {form.processing_fee_enabled
+                    ? form.processing_fee_paid_by === "partner"
+                      ? "Lending partner"
+                      : "Borrower"
+                    : "—"}
                 </dd>
               </div>
               <div className="flex justify-between gap-3">
