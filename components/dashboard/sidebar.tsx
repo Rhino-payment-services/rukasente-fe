@@ -20,6 +20,7 @@ import {
   Search,
   X,
   ClipboardCheck,
+  Banknote,
   Database,
   UserPlus,
   type LucideIcon,
@@ -74,6 +75,12 @@ function buildSections(isPlatform: boolean): NavSection[] {
           href: "/loan-applications",
           label: "Loan applications",
           icon: WalletCards,
+          perm: Perm.LoanApplicationView,
+        },
+        {
+          href: "/disbursement-usage",
+          label: "Disbursement usage",
+          icon: Banknote,
           perm: Perm.LoanApplicationView,
         },
         {

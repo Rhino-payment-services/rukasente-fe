@@ -12,6 +12,7 @@ import {
   LoanApplicationReview,
   LoanLedgerEntry,
   DisbursementSpendResponse,
+  DisbursementUsageResponse,
   LoanOfferResponse,
   LoanProduct,
   LoanProductCreatePayload,
@@ -428,6 +429,44 @@ export function useReverseDisbursement(id: string) {
       void qc.invalidateQueries({ queryKey: ["loan-account", id] });
       void qc.invalidateQueries({ queryKey: ["loan-ledger", id] });
       void qc.invalidateQueries({ queryKey: ["loan-application-reviews", id] });
+      void qc.invalidateQueries({ queryKey: ["disbursement-usage"] });
+    },
+  });
+}
+
+export function useDisbursementUsage(params: {
+  page?: number;
+  page_size?: number;
+  usage?: string;
+  search?: string;
+}) {
+  const { can } = usePermissions();
+  return useQuery({
+    queryKey: ["disbursement-usage", params],
+    enabled: can(Perm.LoanApplicationView),
+    queryFn: async () => {
+      const res = await apiClient.get("/admin/disbursement-usage", { params });
+      return unwrapEnvelope<DisbursementUsageResponse>(res);
+    },
+  });
+}
+
+export function useReverseDisbursementById() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: { id: string; reason?: string }) => {
+      const res = await apiClient.post(
+        `/admin/loan-applications/${body.id}/reverse-disbursement`,
+        { reason: body.reason }
+      );
+      return unwrapEnvelope<LoanApplication>(res);
+    },
+    onSuccess: (_data, vars) => {
+      void qc.invalidateQueries({ queryKey: ["disbursement-usage"] });
+      void qc.invalidateQueries({ queryKey: ["loan-application", vars.id] });
+      void qc.invalidateQueries({ queryKey: ["loan-applications"] });
+      void qc.invalidateQueries({ queryKey: ["loan-account", vars.id] });
+      void qc.invalidateQueries({ queryKey: ["loan-spend", vars.id] });
     },
   });
 }

@@ -45,6 +45,7 @@ const REVERSIBLE_DISBURSE_STATUSES = new Set([
   "disbursed",
   "active",
   "repaying",
+  "overdue",
 ]);
 
 const FAILED_DISBURSE_STATUSES = new Set([

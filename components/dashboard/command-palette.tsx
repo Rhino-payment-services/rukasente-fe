@@ -26,6 +26,7 @@ import { cn } from "@/lib/utils";
 const LINKS = [
   { href: "/", label: "Overview", icon: LayoutDashboard, group: "Overview" },
   { href: "/loan-applications", label: "Loan applications", icon: WalletCards, group: "Operations" },
+  { href: "/disbursement-usage", label: "Disbursement usage", icon: Wallet, group: "Operations" },
   { href: "/loan-applications/new", label: "New loan application", icon: FileText, group: "Operations" },
   { href: "/loan-products", label: "Loan products", icon: WalletCards, group: "Operations" },
   { href: "/borrowers", label: "Borrowers", icon: UserCircle, group: "Operations" },

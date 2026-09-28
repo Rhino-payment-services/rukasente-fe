@@ -383,6 +383,54 @@ export type DisbursementSpendItem = {
   is_loan_disburse?: boolean;
 };
 
+export type DisbursementUsage = "used" | "unused" | "reversed" | "unknown";
+
+export type DisbursementUsageItem = {
+  loan_application_id: string;
+  application_number: string;
+  borrower_profile_id: string;
+  borrower_name: string;
+  borrower_phone: string;
+  wallet_id?: string;
+  recipient_type: string;
+  recipient_label: string;
+  loan_kind: string;
+  currency: string;
+  disbursed_amount: number;
+  spent_amount: number;
+  remaining_estimate: number;
+  status: string;
+  usage: DisbursementUsage | string;
+  can_reverse: boolean;
+  reverse_block_reason?: string;
+  disbursed_at?: string;
+  reversed_at?: string;
+  note?: string;
+};
+
+export type DisbursementUsageSummary = {
+  loans: number;
+  used_loans: number;
+  unused_loans: number;
+  reversed_loans: number;
+  unknown_loans: number;
+  people_used: number;
+  people_unused: number;
+  unused_amount: number;
+};
+
+export type DisbursementUsageResponse = {
+  summary: DisbursementUsageSummary;
+  items: DisbursementUsageItem[];
+  page: number;
+  page_size: number;
+  total: number;
+  total_pages: number;
+  scanned: number;
+  truncated: boolean;
+  note?: string;
+};
+
 export type DisbursementSpendResponse = {
   loan_application_id: string;
   loan_id: string;
