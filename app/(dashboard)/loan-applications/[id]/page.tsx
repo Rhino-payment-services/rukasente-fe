@@ -19,10 +19,12 @@ import {
   useLoanApplicationCRBReport,
   useLoanApplicationReviews,
   useLoanLedger,
+  useLoanDisbursementSpend,
   useLoanOffer,
   useLoanRepayments,
   useMetropolReportByReference,
   useRetryDisbursement,
+  useReverseDisbursement,
   useReviewLoanApplication,
   useRunLoanApplicationCRB,
   useSyncRepaymentWallet,
@@ -37,6 +39,12 @@ const RETRYABLE_DISBURSE_STATUSES = new Set([
   "pending_retry",
   "approved",
   "customer_approved",
+]);
+
+const REVERSIBLE_DISBURSE_STATUSES = new Set([
+  "disbursed",
+  "active",
+  "repaying",
 ]);
 
 const FAILED_DISBURSE_STATUSES = new Set([
@@ -91,8 +99,20 @@ export default function LoanApplicationDetailPage({
   const offerQ = useLoanOffer(id);
   const repaymentsQ = useLoanRepayments(id);
   const ledgerQ = useLoanLedger(id);
+  const appStatus = String(appQ.data?.status || "").toLowerCase();
+  const spendEnabled =
+    !!appQ.data?.disbursed_at ||
+    Number(appQ.data?.disbursed_amount || 0) > 0 ||
+    REVERSIBLE_DISBURSE_STATUSES.has(appStatus) ||
+    appStatus === "cancelled" ||
+    appStatus === "repaid" ||
+    appStatus === "overdue" ||
+    appStatus === "partially_paid" ||
+    appStatus === "fully_paid";
+  const spendQ = useLoanDisbursementSpend(id, spendEnabled);
   const review = useReviewLoanApplication(id);
   const retryDisburse = useRetryDisbursement(id);
+  const reverseDisburse = useReverseDisbursement(id);
   const repay = useInitiateLoanRepayment(id);
   const syncWallet = useSyncRepaymentWallet(id);
   const [parentWalletId, setParentWalletId] = useState("");
@@ -101,6 +121,8 @@ export default function LoanApplicationDetailPage({
   const [open, setOpen] = useState(false);
   const [action, setAction] = useState("sent_to_review");
   const [notes, setNotes] = useState("");
+  const [reverseOpen, setReverseOpen] = useState(false);
+  const [reverseReason, setReverseReason] = useState("");
   const [repayOpen, setRepayOpen] = useState(false);
   const [repayAmount, setRepayAmount] = useState("");
   const [repayError, setRepayError] = useState("");
@@ -121,6 +143,7 @@ export default function LoanApplicationDetailPage({
   const canDecline = hasPermission(permissions, Perm.LoanApplicationDecline);
   const canRepay = hasPermission(permissions, Perm.LoanRepayment);
   const canDisburse = hasPermission(permissions, Perm.LoanDisburse);
+  const canReverseDisburse = hasPermission(permissions, Perm.LoanReverseDisbursement);
 
   const crb = crbQ.data ?? appQ.data?.crb;
   const allowApproveWithoutCRB = !!appQ.data?.allow_approve_without_crb;
@@ -137,6 +160,22 @@ export default function LoanApplicationDetailPage({
       toast.success("Disbursement retry started");
     } catch (err) {
       toast.error(apiErrorMessage(err, "Failed to retry disbursement"));
+    }
+  }
+
+  async function submitReverseDisburse(e: FormEvent) {
+    e.preventDefault();
+    if (!canReverseDisburse) {
+      toast.error("You do not have permission to reverse disbursement.");
+      return;
+    }
+    try {
+      await reverseDisburse.mutateAsync({ reason: reverseReason.trim() || undefined });
+      toast.success("Disbursement reversed — funds returned to partner escrow");
+      setReverseOpen(false);
+      setReverseReason("");
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Failed to reverse disbursement"));
     }
   }
 
@@ -257,6 +296,16 @@ export default function LoanApplicationDetailPage({
     !!app &&
     canDisburse &&
     RETRYABLE_DISBURSE_STATUSES.has(String(app.status || "").toLowerCase());
+  const canReverse =
+    !!app &&
+    canReverseDisburse &&
+    REVERSIBLE_DISBURSE_STATUSES.has(String(app.status || "").toLowerCase()) &&
+    Number(account?.amount_repaid || 0) === 0;
+  const isPostDisburse = !!app && (
+    REVERSIBLE_DISBURSE_STATUSES.has(String(app.status || "").toLowerCase()) ||
+    !!app.disbursed_at ||
+    Number(app.disbursed_amount || 0) > 0
+  );
   const paysToMerchantKind =
     String(app?.loan_kind || "").toLowerCase() === "school" ||
     String(app?.loan_kind || "").toLowerCase() === "product";
@@ -308,6 +357,21 @@ export default function LoanApplicationDetailPage({
               {retryDisburse.isPending ? "Retrying…" : "Retry disbursement"}
             </Button>
           ) : null}
+          {canReverse ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-8 rounded-lg border-amber-300 text-xs text-amber-900 hover:bg-amber-50"
+              onClick={() => {
+                setReverseReason("");
+                setReverseOpen(true);
+              }}
+              disabled={reverseDisburse.isPending}
+            >
+              Reverse disbursement
+            </Button>
+          ) : null}
           {account && canRepay && Number(account.outstanding_balance) > 0 ? (
             <Button
               type="button"
@@ -357,6 +421,26 @@ export default function LoanApplicationDetailPage({
           {(app?.disbursement_attempts ?? 0) > 0 ? (
             <p className="mt-1 text-xs text-rose-700">
               Attempts: {app?.disbursement_attempts}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
+      {app?.reversed_at ? (
+        <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800">
+          <p className="font-semibold">Disbursement reversed</p>
+          <p className="mt-1 text-xs text-slate-600">
+            Money removed by{" "}
+            <span className="font-medium text-slate-900">
+              {app.reversed_by_name?.trim() || app.reversed_by_staff_user_id || "staff"}
+            </span>
+            {" · "}
+            {formatDate(app.reversed_at)}
+            {app.reversal_reason ? ` — ${app.reversal_reason}` : ""}
+          </p>
+          {app.reversal_txn_id ? (
+            <p className="mt-1 font-mono text-[11px] text-slate-500">
+              Reverse txn: {app.reversal_txn_id}
             </p>
           ) : null}
         </div>
@@ -842,6 +926,118 @@ export default function LoanApplicationDetailPage({
 
       <Card className="gap-0 border-slate-200/80 bg-white py-0 shadow-sm">
         <CardContent className="px-4 py-4">
+          <p className="mb-1 text-sm font-semibold text-slate-900">Where funds went</p>
+          <p className="mb-3 text-xs text-slate-500">
+            Post-disbursement activity from RukaPay — who received the loan and where it was spent,
+            without opening RukaPay admin.
+          </p>
+          {!spendEnabled ? (
+            <p className="text-sm text-slate-500">Available after disbursement.</p>
+          ) : spendQ.isLoading ? (
+            <CompactLoading message="Loading wallet spend…" />
+          ) : spendQ.error ? (
+            <p className="text-sm text-rose-600">
+              {(spendQ.error as Error).message || "Could not load spend activity"}
+            </p>
+          ) : spendQ.data ? (
+            <div className="space-y-3">
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 text-xs">
+                <div className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
+                  <p className="text-[10px] uppercase tracking-wide text-slate-400">Received by</p>
+                  <p className="mt-0.5 font-medium text-slate-900">
+                    {spendQ.data.recipient_label || "—"}
+                  </p>
+                  <p className="text-[10px] capitalize text-slate-400">
+                    {spendQ.data.recipient_type || ""}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
+                  <p className="text-[10px] uppercase tracking-wide text-slate-400">Disbursed</p>
+                  <p className="mt-0.5 font-medium text-slate-900">
+                    {formatMoney(spendQ.data.disbursed_amount, spendQ.data.currency || currency)}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
+                  <p className="text-[10px] uppercase tracking-wide text-slate-400">Spent (outflows)</p>
+                  <p className="mt-0.5 font-medium text-slate-900">
+                    {formatMoney(spendQ.data.spent_amount, spendQ.data.currency || currency)}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
+                  <p className="text-[10px] uppercase tracking-wide text-slate-400">Still in wallet (est.)</p>
+                  <p className="mt-0.5 font-medium text-slate-900">
+                    {formatMoney(spendQ.data.remaining_estimate, spendQ.data.currency || currency)}
+                  </p>
+                </div>
+              </div>
+              {spendQ.data.note ? (
+                <p className="text-xs text-slate-500">{spendQ.data.note}</p>
+              ) : null}
+              {spendQ.data.items?.length ? (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-left text-xs">
+                    <thead className="border-b border-slate-100 bg-slate-50/95">
+                      <tr>
+                        <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                          When
+                        </th>
+                        <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                          Paid to / counterparty
+                        </th>
+                        <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                          Direction
+                        </th>
+                        <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                          Amount
+                        </th>
+                        <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                          Type
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {spendQ.data.items.map((row, idx) => (
+                        <tr
+                          key={row.transaction_id || `${row.reference}-${idx}`}
+                          className="border-b border-slate-50 text-slate-700 last:border-0 hover:bg-slate-50/90"
+                        >
+                          <td className="px-3 py-2 text-slate-500">
+                            {formatDate(row.occurred_at)}
+                          </td>
+                          <td className="px-3 py-2">
+                            <p className="font-medium text-slate-900">
+                              {row.counterparty || "—"}
+                            </p>
+                            {row.description ? (
+                              <p className="text-[10px] text-slate-400">{row.description}</p>
+                            ) : null}
+                          </td>
+                          <td className="px-3 py-2 capitalize">
+                            {row.is_loan_disburse
+                              ? "Loan credit"
+                              : String(row.direction || "").toLowerCase()}
+                          </td>
+                          <td className="px-3 py-2 font-medium">
+                            {formatMoney(row.amount, row.currency || currency)}
+                          </td>
+                          <td className="px-3 py-2 text-slate-500">
+                            {row.txn_type || row.kind || "—"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            <p className="text-sm text-slate-500">No spend data.</p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="gap-0 border-slate-200/80 bg-white py-0 shadow-sm">
+        <CardContent className="px-4 py-4">
           <p className="mb-3 text-sm font-semibold text-slate-900">Repayment history</p>
           {repaymentsQ.isLoading ? (
             <CompactLoading message="Loading repayments…" />
@@ -1047,7 +1243,7 @@ export default function LoanApplicationDetailPage({
                 <option value="sent_to_review">Send to review</option>
                 {canApprove ? <option value="approved">Approve</option> : null}
                 {canDecline ? <option value="declined">Decline</option> : null}
-                <option value="cancelled">Cancel</option>
+                {!isPostDisburse ? <option value="cancelled">Cancel</option> : null}
               </select>
               {action === "approved" && !canApproveByCRB ? (
                 <div
@@ -1091,6 +1287,59 @@ export default function LoanApplicationDetailPage({
                   variant="outline"
                   className="h-9 rounded-xl"
                   onClick={() => setOpen(false)}
+                >
+                  Close
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
+
+      {reverseOpen && app ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-[1px]">
+          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-4 shadow-xl">
+            <h2 className="text-lg font-semibold text-slate-900">Reverse disbursement</h2>
+            <p className="mt-1 text-xs text-slate-500">
+              Claws back funds from the borrower/merchant wallet to the partner escrow. Only allowed
+              when no repayments have been posted.
+            </p>
+            <div className="mt-2 rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-950">
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                <span className="text-amber-800/80">Disbursed amount</span>
+                <span className="font-medium">
+                  {formatMoney(
+                    Number(app.disbursed_amount || account?.disbursed_amount || 0),
+                    currency
+                  )}
+                </span>
+                <span className="text-amber-800/80">Disbursement txn</span>
+                <span className="font-mono text-[11px] break-all">
+                  {app.disbursement_txn_id || "—"}
+                </span>
+              </div>
+            </div>
+            <form className="mt-3 space-y-3" onSubmit={submitReverseDisburse}>
+              <textarea
+                className="min-h-[90px] w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-[rgba(8,22,61,0.25)]"
+                placeholder="Reason for reverse"
+                value={reverseReason}
+                onChange={(e) => setReverseReason(e.target.value)}
+                required
+              />
+              <div className="flex items-center gap-2">
+                <Button
+                  type="submit"
+                  disabled={reverseDisburse.isPending}
+                  className="h-9 rounded-xl bg-amber-700 text-white hover:bg-amber-800 disabled:opacity-50"
+                >
+                  {reverseDisburse.isPending ? "Reversing…" : "Confirm reverse"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-9 rounded-xl"
+                  onClick={() => setReverseOpen(false)}
                 >
                   Close
                 </Button>

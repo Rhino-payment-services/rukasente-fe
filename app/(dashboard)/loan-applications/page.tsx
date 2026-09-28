@@ -246,6 +246,32 @@ export default function LoanApplicationsPage() {
               <option value="repaid">Repaid</option>
             </select>
           </div>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant={status === "disbursed" ? "default" : "outline"}
+              className="h-7 rounded-lg text-xs"
+              onClick={() => {
+                setStatus("disbursed");
+                setPage(1);
+              }}
+            >
+              Disbursed
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={status === "cancelled" ? "default" : "outline"}
+              className="h-7 rounded-lg text-xs"
+              onClick={() => {
+                setStatus("cancelled");
+                setPage(1);
+              }}
+            >
+              Cancelled (incl. reversed)
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
@@ -289,6 +315,9 @@ export default function LoanApplicationsPage() {
                     </th>
                     <th className="min-w-[110px] px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">
                       Status
+                    </th>
+                    <th className="min-w-[140px] px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                      Money removed by
                     </th>
                     <th className="min-w-[140px] px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">
                       Submitted
@@ -509,6 +538,34 @@ export default function LoanApplicationsPage() {
                     mono: true,
                     fullWidth: true,
                   },
+                  {
+                    label: "Escrow txn",
+                    value: viewApplication.escrow_txn_id,
+                    mono: true,
+                    fullWidth: true,
+                  },
+                  {
+                    label: "Reversed at",
+                    value: formatDate(viewApplication.reversed_at),
+                  },
+                  {
+                    label: "Money removed by",
+                    value:
+                      viewApplication.reversed_by_name?.trim() ||
+                      viewApplication.reversed_by_staff_user_id ||
+                      "—",
+                  },
+                  {
+                    label: "Reversal reason",
+                    value: viewApplication.reversal_reason || "—",
+                    fullWidth: true,
+                  },
+                  {
+                    label: "Reversal txn",
+                    value: viewApplication.reversal_txn_id,
+                    mono: true,
+                    fullWidth: true,
+                  },
                   { label: "ID", value: viewApplication.id, mono: true, fullWidth: true },
                 ]}
               />
@@ -582,6 +639,18 @@ function ApplicationRow({
       </td>
       <td className="px-3 py-2 align-middle text-slate-700">
         <StatusBadge status={app.status} />
+      </td>
+      <td className="px-3 py-2 align-middle text-slate-600">
+        {app.reversed_at ? (
+          <div>
+            <p className="font-medium text-slate-800">
+              {app.reversed_by_name?.trim() || app.reversed_by_staff_user_id || "Staff"}
+            </p>
+            <p className="text-[10px] text-slate-400">{formatDate(app.reversed_at)}</p>
+          </div>
+        ) : (
+          <span className="text-slate-300">—</span>
+        )}
       </td>
       <td className="px-3 py-2.5 text-[12px] text-slate-600">
         {formatDate(app.submitted_at)}
