@@ -65,7 +65,7 @@ export async function downloadBackupFile(id: string, filename: string) {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
-  anchor.download = filename || `backup-${id}.json.gz`;
+  anchor.download = filename || `backup-${id}.dump`;
   document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();
