@@ -1,7 +1,6 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useSession } from "next-auth/react";
 import { Command } from "cmdk";
 import {
   Cable,
@@ -20,6 +19,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { useSidebar } from "@/components/dashboard/sidebar-context";
+import { usePermissions } from "@/hooks/use-permissions";
 import { useClientMounted } from "@/lib/use-client-mounted";
 import { cn } from "@/lib/utils";
 
@@ -45,8 +45,7 @@ const LINKS = [
 
 export function CommandPalette() {
   const router = useRouter();
-  const { data: session } = useSession();
-  const isPlatform = !!session?.user?.isPlatform;
+  const { isPlatform } = usePermissions();
   const { commandOpen, setCommandOpen } = useSidebar();
   const mounted = useClientMounted();
 

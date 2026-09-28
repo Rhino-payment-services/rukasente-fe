@@ -15,9 +15,43 @@ const ACTIVE_LOAN_STATUSES = new Set([
   "disbursed",
   "repaying",
   "overdue",
+  "active",
+  "partially_paid",
+  "pending_retry",
+  "customer_approved",
 ]);
 
-const PENDING_STATUSES = new Set(["draft", "submitted", "under_review"]);
+/** Statuses that contribute to Total Loan Portfolio (money that left / left escrow). */
+const PORTFOLIO_LOAN_STATUSES = new Set([
+  "disbursing",
+  "disbursed",
+  "repaying",
+  "overdue",
+  "active",
+  "partially_paid",
+  "pending_retry",
+  "repaid",
+  "fully_paid",
+]);
+
+const PENDING_STATUSES = new Set([
+  "draft",
+  "submitted",
+  "under_review",
+  "pending_customer_approval",
+]);
+
+const PORTFOLIO_STATUS_PARAM = [...PORTFOLIO_LOAN_STATUSES].join(",");
+
+type ApplicationDashboardStats = {
+  pending_count: number;
+  active_count: number;
+  overdue_count: number;
+  approved_today_count: number;
+  repaid_count: number;
+  defaulted_count: number;
+  portfolio_amount: number;
+};
 
 function isSameDay(iso: string | undefined | null, now = new Date()) {
   if (!iso) return false;
@@ -77,7 +111,12 @@ const DISBURSEMENT_STATUSES = new Set([
   "disbursed",
   "repaying",
   "overdue",
+  "active",
+  "partially_paid",
+  "pending_retry",
+  "customer_approved",
   "repaid",
+  "fully_paid",
 ]);
 
 function riskBucket(band: string): "Low" | "Medium" | "High" | "Critical" {
@@ -175,6 +214,30 @@ export function useDashboardStats() {
         retry: 1,
       },
       {
+        queryKey: ["dashboard-stats", "loan-applications-portfolio"],
+        enabled: canApps,
+        queryFn: async () => {
+          const res = await apiClient.get("/admin/loan-applications", {
+            params: {
+              page: 1,
+              page_size: 500,
+              status: PORTFOLIO_STATUS_PARAM,
+            },
+          });
+          return unwrapEnvelope<Paginated<LoanApplication>>(res);
+        },
+        retry: 1,
+      },
+      {
+        queryKey: ["dashboard-stats", "loan-applications-stats"],
+        enabled: canApps,
+        queryFn: async () => {
+          const res = await apiClient.get("/admin/loan-applications/stats");
+          return unwrapEnvelope<ApplicationDashboardStats>(res);
+        },
+        retry: 1,
+      },
+      {
         queryKey: ["dashboard-stats", "scoring-results"],
         enabled: canScoring,
         queryFn: async () => {
@@ -188,35 +251,53 @@ export function useDashboardStats() {
     ],
   });
 
-  const [borrowersQ, appsQ, scoresQ] = queries;
+  const [borrowersQ, appsQ, portfolioAppsQ, appStatsQ, scoresQ] = queries;
   const apps = canApps ? appsQ.data?.items ?? [] : [];
+  const portfolioApps = canApps ? portfolioAppsQ.data?.items ?? [] : [];
+  const appStats = canApps ? appStatsQ.data : undefined;
   const scores = canScoring ? scoresQ.data?.items ?? [] : [];
 
   const borrowersTotal = canBorrowers ? borrowersQ.data?.total ?? null : null;
   const appsTotal = canApps ? appsQ.data?.total ?? null : null;
 
-  const pendingApps = apps.filter((a) => PENDING_STATUSES.has(a.status)).length;
-  const approvedToday = apps.filter(
-    (a) => a.status === "approved" && isSameDay(a.decisioned_at)
-  ).length;
-  const activeLoans = apps.filter((a) => ACTIVE_LOAN_STATUSES.has(a.status))
-    .length;
-  const overdueLoans = apps.filter((a) => a.status === "overdue").length;
-  const repaidLoans = apps.filter((a) => a.status === "repaid").length;
-  const closedOrRepaid = repaidLoans + apps.filter((a) => a.status === "defaulted").length;
+  const pendingApps =
+    appStats?.pending_count ??
+    apps.filter((a) => PENDING_STATUSES.has(a.status)).length;
+  const approvedToday =
+    appStats?.approved_today_count ??
+    apps.filter(
+      (a) =>
+        (a.status === "approved" ||
+          ACTIVE_LOAN_STATUSES.has(a.status) ||
+          a.status === "repaid") &&
+        isSameDay(a.decisioned_at)
+    ).length;
+  const activeLoans =
+    appStats?.active_count ??
+    apps.filter((a) => ACTIVE_LOAN_STATUSES.has(a.status)).length;
+  const overdueLoans =
+    appStats?.overdue_count ??
+    apps.filter((a) => a.status === "overdue").length;
+  const repaidLoans =
+    appStats?.repaid_count ??
+    apps.filter((a) => a.status === "repaid" || a.status === "fully_paid")
+      .length;
+  const defaultedLoans =
+    appStats?.defaulted_count ??
+    apps.filter((a) => a.status === "defaulted").length;
+  const closedOrRepaid = repaidLoans + defaultedLoans;
   const repaymentRate =
     closedOrRepaid + overdueLoans > 0
       ? Math.round((repaidLoans / (closedOrRepaid + overdueLoans)) * 1000) / 10
       : null;
 
-  const portfolioAmount = apps.reduce((sum, a) => {
-    if (!ACTIVE_LOAN_STATUSES.has(a.status) && a.status !== "repaid") return sum;
-    const amt =
-      a.disbursed_amount != null
-        ? Number(a.disbursed_amount)
-        : Number(a.requested_amount || 0);
-    return sum + (Number.isFinite(amt) ? amt : 0);
-  }, 0);
+  const portfolioAmount =
+    appStats?.portfolio_amount != null
+      ? Number(appStats.portfolio_amount)
+      : portfolioApps.reduce((sum, a) => {
+          if (!PORTFOLIO_LOAN_STATUSES.has(a.status)) return sum;
+          return sum + appAmount(a);
+        }, 0);
 
   const avgScore =
     scores.length > 0
@@ -226,7 +307,7 @@ export function useDashboardStats() {
         )
       : null;
 
-  // Last 7 calendar months of disbursed/approved amounts
+  // Last 7 calendar months of disbursed/approved amounts (from portfolio-filtered list)
   const now = new Date();
   const monthKeys: string[] = [];
   for (let i = 6; i >= 0; i--) {
@@ -237,7 +318,7 @@ export function useDashboardStats() {
   const disbursementByDay = new Map<string, { amount: number; count: number }>();
   const disbursementDetailByMonth = new Map<string, DashboardTrendDetailRow[]>();
 
-  for (const a of apps) {
+  for (const a of portfolioApps) {
     const when = a.disbursed_at || a.decisioned_at || a.submitted_at;
     if (!when) continue;
     if (!DISBURSEMENT_STATUSES.has(a.status)) continue;
