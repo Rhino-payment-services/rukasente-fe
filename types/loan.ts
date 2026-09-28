@@ -392,6 +392,7 @@ export type DisbursementUsageItem = {
   borrower_name: string;
   borrower_phone: string;
   wallet_id?: string;
+  wallet_number?: string;
   recipient_type: string;
   recipient_label: string;
   loan_kind: string;

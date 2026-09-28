@@ -61,6 +61,31 @@ export function defaultLoanExportDateRange(): { from: string; to: string } {
   return { from: fmt(from), to: fmt(to) };
 }
 
+export async function downloadDisbursementUsageExport(params: {
+  usage?: string;
+  search?: string;
+}) {
+  const cleaned: Record<string, string> = {};
+  for (const [key, value] of Object.entries(params)) {
+    const v = String(value ?? "").trim();
+    if (v) cleaned[key] = v;
+  }
+  try {
+    const res = await apiClient.get("/admin/disbursement-usage/export", {
+      params: cleaned,
+      responseType: "blob",
+    });
+    const blob = res.data as Blob;
+    const filename =
+      parseContentDispositionFilename(
+        res.headers["content-disposition"] as string | undefined
+      ) ?? `disbursement-usage-${new Date().toISOString().slice(0, 10)}.csv`;
+    triggerBlobDownload(blob, filename);
+  } catch (error) {
+    throw await parseBlobError(error);
+  }
+}
+
 export async function downloadLoanExport(
   kind: "book" | "repayments",
   params: LoanExportFilters

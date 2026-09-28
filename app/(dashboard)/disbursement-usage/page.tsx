@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { FormEvent, useEffect, useState, type ComponentType } from "react";
 import axios from "axios";
-import { Ban, RefreshCw, Search, Undo2, Users, Wallet } from "lucide-react";
+import { Ban, Download, RefreshCw, Search, Undo2, Users, Wallet } from "lucide-react";
+import { downloadDisbursementUsageExport } from "@/lib/loan-export";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CompactLoading } from "@/components/ui/loading";
@@ -33,11 +34,9 @@ function formatDate(iso?: string) {
   });
 }
 
-function walletLabel(id?: string) {
-  const value = (id || "").trim();
-  if (!value) return "—";
-  if (value.length <= 12) return value;
-  return `···${value.slice(-8)}`;
+function walletLabel(row: { wallet_number?: string }) {
+  const number = (row.wallet_number || "").trim();
+  return number || "—";
 }
 
 function apiErrorMessage(err: unknown, fallback: string) {
@@ -157,6 +156,7 @@ export default function DisbursementUsagePage() {
   const [page, setPage] = useState(1);
   const [target, setTarget] = useState<DisbursementUsageItem | null>(null);
   const [reason, setReason] = useState("");
+  const [exporting, setExporting] = useState(false);
   const pageSize = 20;
   const debouncedSearch = useDebouncedValue(search.trim(), 350);
   const usageQ = useDisbursementUsage({
@@ -182,6 +182,21 @@ export default function DisbursementUsagePage() {
   const total = usageQ.data?.total ?? 0;
   const totalPages = usageQ.data?.total_pages ?? 0;
   const canReverse = can(Perm.LoanReverseDisbursement);
+
+  async function exportCsv() {
+    setExporting(true);
+    try {
+      await downloadDisbursementUsageExport({
+        usage: usage === "all" ? "all" : usage,
+        search: debouncedSearch || undefined,
+      });
+      toast.success("Disbursement usage exported");
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Failed to export disbursement usage"));
+    } finally {
+      setExporting(false);
+    }
+  }
 
   async function submitReverse(e: FormEvent) {
     e.preventDefault();
@@ -214,6 +229,18 @@ export default function DisbursementUsagePage() {
             Wallets that received loan funds, who has spent them, and unused balances you can reverse.
           </p>
         </div>
+        <div className="flex shrink-0 items-center gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-8 rounded-lg border-slate-200 px-2.5 text-xs"
+          onClick={() => void exportCsv()}
+          disabled={exporting || usageQ.isLoading}
+        >
+          <Download className="size-3.5" />
+          {exporting ? "Exporting…" : "Export"}
+        </Button>
         <Button
           type="button"
           variant="outline"
@@ -225,6 +252,7 @@ export default function DisbursementUsagePage() {
           <RefreshCw className={cn("size-3.5", usageQ.isFetching && "animate-spin")} />
           Refresh
         </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -372,7 +400,7 @@ export default function DisbursementUsagePage() {
                       </td>
                       <td className="px-3 py-2 align-top">
                         <p className="font-mono text-[11px]" title={row.wallet_id || ""}>
-                          {walletLabel(row.wallet_id)}
+                          {walletLabel(row)}
                         </p>
                         <p className="text-[11px] capitalize text-slate-400">
                           {row.recipient_type === "merchant" ? "Merchant" : "Borrower"}
@@ -462,7 +490,7 @@ export default function DisbursementUsagePage() {
             <p className="mt-1 text-xs text-slate-500">
               {target.borrower_name || "This borrower"} has not spent this disbursement. Reversing
               returns {formatMoney(target.disbursed_amount, target.currency)} from wallet{" "}
-              <span className="font-mono">{walletLabel(target.wallet_id)}</span> to partner escrow
+              <span className="font-mono">{walletLabel(target)}</span> to partner escrow
               and cancels the loan.
             </p>
             <form className="mt-3 space-y-3" onSubmit={submitReverse}>
