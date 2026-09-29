@@ -2,6 +2,7 @@
 
 import { signIn, useSession } from "next-auth/react";
 import Image from "next/image";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Mail, Lock, Loader2, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -163,12 +164,12 @@ export default function LoginPage() {
               </button>
             </div>
             <div className="flex justify-end">
-              <button
-                type="button"
+              <Link
+                href="/auth/forgot-password"
                 className="text-xs font-medium text-main-600 hover:text-main-700"
               >
                 Forgot password?
-              </button>
+              </Link>
             </div>
           </div>
 
