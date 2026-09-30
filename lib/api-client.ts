@@ -20,7 +20,7 @@ export const apiClient = axios.create({
 let cachedToken: string | null = null;
 let inflightSessionPromise: Promise<string | null> | null = null;
 
-async function loadAccessToken(): Promise<string | null> {
+export async function loadAccessToken(): Promise<string | null> {
   if (cachedToken) return cachedToken;
   if (inflightSessionPromise) return inflightSessionPromise;
 

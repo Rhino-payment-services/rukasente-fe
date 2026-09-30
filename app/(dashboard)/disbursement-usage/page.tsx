@@ -3,11 +3,10 @@
 import Link from "next/link";
 import { FormEvent, useEffect, useState, type ComponentType } from "react";
 import axios from "axios";
-import { Ban, Download, RefreshCw, Search, Undo2, Users, Wallet } from "lucide-react";
+import { Ban, Download, Loader2, RefreshCw, Search, Undo2, Users, Wallet } from "lucide-react";
 import { downloadDisbursementUsageExport } from "@/lib/loan-export";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CompactLoading } from "@/components/ui/loading";
 import { NoAccess } from "@/components/auth/no-access";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useDisbursementUsage, useReverseDisbursementById } from "@/hooks/use-loan";
@@ -37,6 +36,51 @@ function formatDate(iso?: string) {
 function walletLabel(row: { wallet_number?: string }) {
   const number = (row.wallet_number || "").trim();
   return number || "—";
+}
+
+function WalletActivityProgress({
+  progress,
+}: {
+  progress: {
+    message: string;
+    checked: number;
+    total: number;
+    percent: number;
+    phase: string;
+  } | null;
+}) {
+  const percent = Math.max(0, Math.min(100, progress?.percent ?? 4));
+  const message = progress?.message || "Checking wallet activity";
+  const detail =
+    progress?.phase === "numbers" && progress.total > 0
+      ? `${progress.checked} of ${progress.total} wallet numbers`
+      : progress?.phase === "wallets" && progress.total > 0
+        ? `${progress.checked} of ${progress.total} wallets`
+        : progress?.phase === "done"
+          ? "Done"
+          : "Reading the latest disbursements";
+  return (
+    <div
+      className="rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-4"
+      role="status"
+      aria-live="polite"
+    >
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <Loader2 className="size-4 shrink-0 animate-spin text-[#08163d]" aria-hidden />
+          <p className="truncate text-sm font-medium text-slate-800">{message}</p>
+        </div>
+        <p className="shrink-0 text-sm font-semibold tabular-nums text-[#08163d]">{percent}%</p>
+      </div>
+      <div className="mt-3 h-2 overflow-hidden rounded-full bg-white">
+        <div
+          className="h-full rounded-full bg-[#08163d] transition-[width] duration-300 ease-out"
+          style={{ width: `${percent}%` }}
+        />
+      </div>
+      <p className="mt-2 text-xs text-slate-500">{detail}</p>
+    </div>
+  );
 }
 
 function apiErrorMessage(err: unknown, fallback: string) {
@@ -337,9 +381,11 @@ export default function DisbursementUsagePage() {
             ))}
           </div>
 
-          {usageQ.isLoading ? (
-            <CompactLoading message="Checking wallet activity…" />
-          ) : usageQ.error ? (
+          {(usageQ.isLoading || usageQ.isFetching) && (
+            <WalletActivityProgress progress={usageQ.progress} />
+          )}
+
+          {usageQ.isLoading ? null : usageQ.error ? (
             <p className="text-sm text-rose-600">
               {apiErrorMessage(usageQ.error, "Could not load disbursement usage")}
             </p>
@@ -491,7 +537,7 @@ export default function DisbursementUsagePage() {
               {target.borrower_name || "This borrower"} has not spent this disbursement. Reversing
               returns {formatMoney(target.disbursed_amount, target.currency)} from wallet{" "}
               <span className="font-mono">{walletLabel(target)}</span> to partner escrow
-              and cancels the loan.
+              and marks the loan reversed.
             </p>
             <form className="mt-3 space-y-3" onSubmit={submitReverse}>
               <textarea

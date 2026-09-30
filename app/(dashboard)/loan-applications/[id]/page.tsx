@@ -107,6 +107,7 @@ export default function LoanApplicationDetailPage({
     Number(appQ.data?.disbursed_amount || 0) > 0 ||
     REVERSIBLE_DISBURSE_STATUSES.has(appStatus) ||
     appStatus === "cancelled" ||
+    appStatus === "reversed" ||
     appStatus === "repaid" ||
     appStatus === "overdue" ||
     appStatus === "partially_paid" ||

@@ -1,9 +1,11 @@
 "use client";
 
 import axios from "axios";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiClient } from "@/lib/api-client";
-import { unwrapEnvelope } from "@/lib/api-envelope";
+import { apiClient, clearCachedAccessToken, loadAccessToken } from "@/lib/api-client";
+import { unwrapEnvelope, type ApiEnvelope } from "@/lib/api-envelope";
+import { getApiBaseUrl } from "@/lib/config";
 import {
   LoanAccount,
   LoanApplication,
@@ -434,6 +436,14 @@ export function useReverseDisbursement(id: string) {
   });
 }
 
+export type DisbursementUsageProgress = {
+  phase: string;
+  message: string;
+  checked: number;
+  total: number;
+  percent: number;
+};
+
 export function useDisbursementUsage(params: {
   page?: number;
   page_size?: number;
@@ -441,14 +451,93 @@ export function useDisbursementUsage(params: {
   search?: string;
 }) {
   const { can } = usePermissions();
-  return useQuery({
+  const [progress, setProgress] = useState<DisbursementUsageProgress | null>(null);
+  const query = useQuery({
     queryKey: ["disbursement-usage", params],
     enabled: can(Perm.LoanApplicationView),
     queryFn: async () => {
-      const res = await apiClient.get("/admin/disbursement-usage", { params });
-      return unwrapEnvelope<DisbursementUsageResponse>(res);
+      setProgress({
+        phase: "scan",
+        message: "Loading disbursed loans",
+        checked: 0,
+        total: 0,
+        percent: 4,
+      });
+      return streamDisbursementUsage(params, setProgress);
     },
   });
+  return { ...query, progress };
+}
+
+async function streamDisbursementUsage(
+  params: { page?: number; page_size?: number; usage?: string; search?: string },
+  onProgress: (progress: DisbursementUsageProgress) => void
+): Promise<DisbursementUsageResponse> {
+  const token = await loadAccessToken();
+  const query = new URLSearchParams();
+  if (params.page) query.set("page", String(params.page));
+  if (params.page_size) query.set("page_size", String(params.page_size));
+  if (params.usage) query.set("usage", params.usage);
+  if (params.search) query.set("search", params.search);
+  const res = await fetch(`${getApiBaseUrl()}/admin/disbursement-usage/stream?${query.toString()}`, {
+    headers: {
+      Accept: "text/event-stream",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as ApiEnvelope<unknown> | null;
+    if (res.status === 401) clearCachedAccessToken();
+    throw new Error(body?.error?.message || "Could not load disbursement usage");
+  }
+  if (!res.body) {
+    throw new Error("Could not load disbursement usage");
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let result: DisbursementUsageResponse | null = null;
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const chunks = buffer.split("\n\n");
+    buffer = chunks.pop() ?? "";
+    for (const chunk of chunks) {
+      const parsed = parseUsageEvent(chunk);
+      if (!parsed) continue;
+      if (parsed.event === "progress") {
+        onProgress(JSON.parse(parsed.data) as DisbursementUsageProgress);
+        continue;
+      }
+      const envelope = JSON.parse(parsed.data) as ApiEnvelope<DisbursementUsageResponse>;
+      if (parsed.event === "error" || envelope.success === false) {
+        throw new Error(envelope.error?.message || "Could not load disbursement usage");
+      }
+      if (parsed.event === "done") {
+        if (envelope.data === undefined) {
+          throw new Error("Empty response data");
+        }
+        result = envelope.data;
+      }
+    }
+  }
+  if (!result) {
+    throw new Error("Wallet activity check ended before a result");
+  }
+  return result;
+}
+
+function parseUsageEvent(chunk: string): { event: string; data: string } | null {
+  let event = "message";
+  const data: string[] = [];
+  for (const line of chunk.split("\n")) {
+    if (line.startsWith("event:")) event = line.slice(6).trim();
+    else if (line.startsWith("data:")) data.push(line.slice(5).trim());
+  }
+  if (data.length === 0) return null;
+  return { event, data: data.join("\n") };
 }
 
 export function useReverseDisbursementById() {

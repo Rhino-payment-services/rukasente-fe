@@ -57,6 +57,7 @@ function StatusBadge({ status }: { status: string }) {
     approved: "border-emerald-200 bg-emerald-50 text-emerald-700",
     declined: "border-rose-200 bg-rose-50 text-rose-700",
     cancelled: "border-slate-200 bg-slate-100 text-slate-600",
+    reversed: "border-slate-200 bg-slate-100 text-slate-600",
     disbursed: "border-violet-200 bg-violet-50 text-violet-700",
     disbursing: "border-indigo-200 bg-indigo-50 text-indigo-700",
     disbursement_failed: "border-rose-200 bg-rose-50 text-rose-700",
@@ -237,6 +238,7 @@ export default function LoanApplicationsPage() {
               <option value="approved">Approved</option>
               <option value="declined">Declined</option>
               <option value="cancelled">Cancelled</option>
+              <option value="reversed">Reversed</option>
               <option value="disbursing">Disbursing</option>
               <option value="disbursement_failed">Disbursement failed</option>
               <option value="pending_retry">Pending retry</option>
@@ -269,7 +271,19 @@ export default function LoanApplicationsPage() {
                 setPage(1);
               }}
             >
-              Cancelled (incl. reversed)
+              Cancelled
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={status === "reversed" ? "default" : "outline"}
+              className="h-7 rounded-lg text-xs"
+              onClick={() => {
+                setStatus("reversed");
+                setPage(1);
+              }}
+            >
+              Reversed
             </Button>
           </div>
         </CardContent>
