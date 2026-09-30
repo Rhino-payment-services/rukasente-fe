@@ -469,6 +469,16 @@ export function useDisbursementUsage(params: {
   return { ...query, progress };
 }
 
+async function loadDisbursementUsage(params: {
+  page?: number;
+  page_size?: number;
+  usage?: string;
+  search?: string;
+}): Promise<DisbursementUsageResponse> {
+  const res = await apiClient.get("/admin/disbursement-usage", { params });
+  return unwrapEnvelope<DisbursementUsageResponse>(res);
+}
+
 async function streamDisbursementUsage(
   params: { page?: number; page_size?: number; usage?: string; search?: string },
   onProgress: (progress: DisbursementUsageProgress) => void
@@ -479,19 +489,31 @@ async function streamDisbursementUsage(
   if (params.page_size) query.set("page_size", String(params.page_size));
   if (params.usage) query.set("usage", params.usage);
   if (params.search) query.set("search", params.search);
-  const res = await fetch(`${getApiBaseUrl()}/admin/disbursement-usage/stream?${query.toString()}`, {
-    headers: {
-      Accept: "text/event-stream",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${getApiBaseUrl()}/admin/disbursement-usage/stream?${query.toString()}`, {
+      headers: {
+        Accept: "text/event-stream",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
+  } catch {
+    return loadDisbursementUsage(params);
+  }
+  if (res.status === 404 || res.status === 405) {
+    return loadDisbursementUsage(params);
+  }
   if (!res.ok) {
     const body = (await res.json().catch(() => null)) as ApiEnvelope<unknown> | null;
     if (res.status === 401) clearCachedAccessToken();
-    throw new Error(body?.error?.message || "Could not load disbursement usage");
+    throw new Error(body?.error?.message || `Could not load disbursement usage (HTTP ${res.status})`);
+  }
+  const contentType = res.headers.get("content-type") || "";
+  if (!contentType.includes("text/event-stream")) {
+    return loadDisbursementUsage(params);
   }
   if (!res.body) {
-    throw new Error("Could not load disbursement usage");
+    return loadDisbursementUsage(params);
   }
 
   const reader = res.body.getReader();
@@ -524,7 +546,7 @@ async function streamDisbursementUsage(
     }
   }
   if (!result) {
-    throw new Error("Wallet activity check ended before a result");
+    return loadDisbursementUsage(params);
   }
   return result;
 }
