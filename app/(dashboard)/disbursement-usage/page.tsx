@@ -118,12 +118,14 @@ function UsageBadge({ usage }: { usage: string }) {
     used: "border-emerald-200 bg-emerald-50 text-emerald-700",
     reversed: "border-slate-200 bg-slate-100 text-slate-600",
     unknown: "border-rose-200 bg-rose-50 text-rose-700",
+    pending: "border-slate-200 bg-slate-50 text-slate-600",
   };
   const labels: Record<string, string> = {
     unused: "Not used",
     used: "Used",
     reversed: "Reversed",
     unknown: "Unconfirmed",
+    pending: "Checking",
   };
   return (
     <span
@@ -198,16 +200,15 @@ export default function DisbursementUsagePage() {
   const [usage, setUsage] = useState("unused");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [target, setTarget] = useState<DisbursementUsageItem | null>(null);
   const [reason, setReason] = useState("");
   const [exporting, setExporting] = useState(false);
   const pageSize = 20;
   const debouncedSearch = useDebouncedValue(search.trim(), 350);
   const usageQ = useDisbursementUsage({
-    page,
-    page_size: pageSize,
-    usage: usage === "all" ? "all" : usage,
     search: debouncedSearch || undefined,
+    refresh: refreshKey,
   });
   const reverse = useReverseDisbursementById();
 
@@ -222,9 +223,15 @@ export default function DisbursementUsagePage() {
   }
 
   const summary = usageQ.data?.summary;
-  const items = usageQ.data?.items ?? [];
-  const total = usageQ.data?.total ?? 0;
-  const totalPages = usageQ.data?.total_pages ?? 0;
+  const scanned = usageQ.data?.items ?? [];
+  const filtered = scanned.filter((row) => {
+    if (row.usage === "pending") return usage === "all" || usage === "unused";
+    return usage === "all" || row.usage === usage;
+  });
+  const total = filtered.length;
+  const totalPages = total > 0 ? Math.ceil(total / pageSize) : 0;
+  const items = filtered.slice((page - 1) * pageSize, page * pageSize);
+  const checkingWallets = (usageQ.progress?.total ?? 0) > 0 && (usageQ.progress?.percent ?? 0) < 100;
   const canReverse = can(Perm.LoanReverseDisbursement);
 
   async function exportCsv() {
@@ -290,7 +297,9 @@ export default function DisbursementUsagePage() {
           variant="outline"
           size="sm"
           className="h-8 rounded-lg border-slate-200 px-2.5 text-xs"
-          onClick={() => usageQ.refetch()}
+          onClick={() => {
+            setRefreshKey((key) => key + 1);
+          }}
           disabled={usageQ.isFetching}
         >
           <RefreshCw className={cn("size-3.5", usageQ.isFetching && "animate-spin")} />
@@ -310,7 +319,7 @@ export default function DisbursementUsagePage() {
           }
           icon={Wallet}
           tone="amber"
-          loading={usageQ.isLoading}
+          loading={!usageQ.data && usageQ.isLoading}
           active={usage === "unused"}
           onClick={() => setUsage("unused")}
         />
@@ -320,7 +329,7 @@ export default function DisbursementUsagePage() {
           hint={summary ? `${summary.used_loans} loans` : "People"}
           icon={Users}
           tone="green"
-          loading={usageQ.isLoading}
+          loading={!usageQ.data && usageQ.isLoading}
           active={usage === "used"}
           onClick={() => setUsage("used")}
         />
@@ -330,7 +339,7 @@ export default function DisbursementUsagePage() {
           hint="Already clawed back"
           icon={Undo2}
           tone="navy"
-          loading={usageQ.isLoading}
+          loading={!usageQ.data && usageQ.isLoading}
           active={usage === "reversed"}
           onClick={() => setUsage("reversed")}
         />
@@ -340,7 +349,7 @@ export default function DisbursementUsagePage() {
           hint="Wallet activity unavailable"
           icon={Ban}
           tone="rose"
-          loading={usageQ.isLoading}
+          loading={!usageQ.data && usageQ.isLoading}
           active={usage === "unknown"}
           onClick={() => setUsage("unknown")}
         />
@@ -381,19 +390,21 @@ export default function DisbursementUsagePage() {
             ))}
           </div>
 
-          {(usageQ.isLoading || usageQ.isFetching) && (
+          {usageQ.isFetching && checkingWallets ? (
             <WalletActivityProgress progress={usageQ.progress} />
-          )}
+          ) : null}
 
-          {usageQ.isLoading ? null : usageQ.error ? (
+          {!usageQ.data && usageQ.isLoading ? null : usageQ.error && !usageQ.data ? (
             <p className="text-sm text-rose-600">
               {apiErrorMessage(usageQ.error, "Could not load disbursement usage")}
             </p>
           ) : items.length === 0 ? (
             <p className="py-8 text-center text-sm text-slate-500">
-              {usage === "unused"
-                ? "No unused disbursements in this view."
-                : "No disbursements match this filter."}
+              {usage === "unused" && checkingWallets
+                ? "Wallets are still being checked. Confirmed rows stay on screen."
+                : usage === "unused"
+                  ? "No unused disbursements in this view."
+                  : "No disbursements match this filter."}
             </p>
           ) : (
             <div className="overflow-x-auto">

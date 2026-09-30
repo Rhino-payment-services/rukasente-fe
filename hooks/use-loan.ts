@@ -14,7 +14,9 @@ import {
   LoanApplicationReview,
   LoanLedgerEntry,
   DisbursementSpendResponse,
+  DisbursementUsageItem,
   DisbursementUsageResponse,
+  DisbursementUsageSummary,
   LoanOfferResponse,
   LoanProduct,
   LoanProductCreatePayload,
@@ -444,17 +446,17 @@ export type DisbursementUsageProgress = {
   percent: number;
 };
 
-export function useDisbursementUsage(params: {
-  page?: number;
-  page_size?: number;
-  usage?: string;
-  search?: string;
-}) {
+export function useDisbursementUsage(params: { search?: string; refresh?: number }) {
   const { can } = usePermissions();
+  const qc = useQueryClient();
   const [progress, setProgress] = useState<DisbursementUsageProgress | null>(null);
+  const queryKey = ["disbursement-usage", params.search ?? "", params.refresh ?? 0] as const;
   const query = useQuery({
-    queryKey: ["disbursement-usage", params],
+    queryKey,
     enabled: can(Perm.LoanApplicationView),
+    refetchOnWindowFocus: false,
+    staleTime: 15 * 60 * 1000,
+    placeholderData: (previous) => previous,
     queryFn: async () => {
       setProgress({
         phase: "scan",
@@ -463,32 +465,49 @@ export function useDisbursementUsage(params: {
         total: 0,
         percent: 4,
       });
-      return streamDisbursementUsage(params, setProgress);
+      let current: DisbursementUsageResponse | null = null;
+      const publish = (next: DisbursementUsageResponse) => {
+        current = next;
+        qc.setQueryData(queryKey, next);
+      };
+      return streamDisbursementUsage(
+        { search: params.search, refresh: (params.refresh ?? 0) > 0 },
+        setProgress,
+        publish,
+        (patch) => {
+          const base = current ?? qc.getQueryData<DisbursementUsageResponse>(queryKey);
+          if (!base) return;
+          publish({
+            ...base,
+            summary: patch.summary,
+            items: base.items.map((item) =>
+              item.loan_application_id === patch.item.loan_application_id ? patch.item : item
+            ),
+          });
+        }
+      );
     },
   });
   return { ...query, progress };
 }
 
-async function loadDisbursementUsage(params: {
-  page?: number;
-  page_size?: number;
-  usage?: string;
-  search?: string;
-}): Promise<DisbursementUsageResponse> {
-  const res = await apiClient.get("/admin/disbursement-usage", { params });
+async function loadDisbursementUsage(search?: string): Promise<DisbursementUsageResponse> {
+  const res = await apiClient.get("/admin/disbursement-usage", {
+    params: { page: 1, page_size: 200, usage: "all", search: search || undefined },
+  });
   return unwrapEnvelope<DisbursementUsageResponse>(res);
 }
 
 async function streamDisbursementUsage(
-  params: { page?: number; page_size?: number; usage?: string; search?: string },
-  onProgress: (progress: DisbursementUsageProgress) => void
+  params: { search?: string; refresh?: boolean },
+  onProgress: (progress: DisbursementUsageProgress) => void,
+  onSnapshot: (data: DisbursementUsageResponse) => void,
+  onPatch: (patch: { item: DisbursementUsageItem; summary: DisbursementUsageSummary }) => void
 ): Promise<DisbursementUsageResponse> {
   const token = await loadAccessToken();
   const query = new URLSearchParams();
-  if (params.page) query.set("page", String(params.page));
-  if (params.page_size) query.set("page_size", String(params.page_size));
-  if (params.usage) query.set("usage", params.usage);
   if (params.search) query.set("search", params.search);
+  if (params.refresh) query.set("refresh", "1");
   let res: Response;
   try {
     res = await fetch(`${getApiBaseUrl()}/admin/disbursement-usage/stream?${query.toString()}`, {
@@ -498,10 +517,10 @@ async function streamDisbursementUsage(
       },
     });
   } catch {
-    return loadDisbursementUsage(params);
+    return loadDisbursementUsage(params.search);
   }
   if (res.status === 404 || res.status === 405) {
-    return loadDisbursementUsage(params);
+    return loadDisbursementUsage(params.search);
   }
   if (!res.ok) {
     const body = (await res.json().catch(() => null)) as ApiEnvelope<unknown> | null;
@@ -510,10 +529,10 @@ async function streamDisbursementUsage(
   }
   const contentType = res.headers.get("content-type") || "";
   if (!contentType.includes("text/event-stream")) {
-    return loadDisbursementUsage(params);
+    return loadDisbursementUsage(params.search);
   }
   if (!res.body) {
-    return loadDisbursementUsage(params);
+    return loadDisbursementUsage(params.search);
   }
 
   const reader = res.body.getReader();
@@ -533,6 +552,19 @@ async function streamDisbursementUsage(
         onProgress(JSON.parse(parsed.data) as DisbursementUsageProgress);
         continue;
       }
+      if (parsed.event === "snapshot") {
+        const envelope = JSON.parse(parsed.data) as ApiEnvelope<DisbursementUsageResponse>;
+        if (envelope.success === false || envelope.data === undefined) {
+          throw new Error(envelope.error?.message || "Could not load disbursement usage");
+        }
+        onSnapshot(envelope.data);
+        result = envelope.data;
+        continue;
+      }
+      if (parsed.event === "patch") {
+        onPatch(JSON.parse(parsed.data) as { item: DisbursementUsageItem; summary: DisbursementUsageSummary });
+        continue;
+      }
       const envelope = JSON.parse(parsed.data) as ApiEnvelope<DisbursementUsageResponse>;
       if (parsed.event === "error" || envelope.success === false) {
         throw new Error(envelope.error?.message || "Could not load disbursement usage");
@@ -546,7 +578,7 @@ async function streamDisbursementUsage(
     }
   }
   if (!result) {
-    return loadDisbursementUsage(params);
+    return loadDisbursementUsage(params.search);
   }
   return result;
 }
