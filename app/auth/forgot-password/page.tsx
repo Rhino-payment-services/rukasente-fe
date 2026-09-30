@@ -31,7 +31,7 @@ export default function ForgotPasswordPage() {
     try {
       const res = await apiClient.post("/admin/auth/forgot-password", { email });
       unwrapEnvelope<{ message: string }>(res);
-      toast.success("If your account has a phone number, we sent a code.");
+      toast.success("If that email belongs to an account, we sent a reset code.");
       setStep("code");
     } catch (err) {
       toast.error(getAxiosApiErrorMessage(err, "Could not send a reset code"));
@@ -89,9 +89,9 @@ export default function ForgotPasswordPage() {
         </h1>
         <p className="mt-2 text-sm text-slate-500">
           {step === "email"
-            ? "Enter the email on your staff account. We’ll text a code to the phone number we have on file."
+            ? "Enter the email on your staff account. We’ll email you a reset code."
             : step === "code"
-              ? "Enter the 6-digit code from the text message and choose a new password."
+              ? "Enter the 6-digit code from the email and choose a new password."
               : "Your password is updated. Sign in with the new one."}
         </p>
 
