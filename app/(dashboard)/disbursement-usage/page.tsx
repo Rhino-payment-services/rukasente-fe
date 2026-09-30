@@ -207,6 +207,9 @@ export default function DisbursementUsagePage() {
   const pageSize = 20;
   const debouncedSearch = useDebouncedValue(search.trim(), 350);
   const usageQ = useDisbursementUsage({
+    page,
+    page_size: pageSize,
+    usage: usage === "all" ? "all" : usage,
     search: debouncedSearch || undefined,
     refresh: refreshKey,
   });
@@ -223,14 +226,11 @@ export default function DisbursementUsagePage() {
   }
 
   const summary = usageQ.data?.summary;
-  const scanned = usageQ.data?.items ?? [];
-  const filtered = scanned.filter((row) => {
-    if (row.usage === "pending") return usage === "all" || usage === "unused";
-    return usage === "all" || row.usage === usage;
-  });
-  const total = filtered.length;
-  const totalPages = total > 0 ? Math.ceil(total / pageSize) : 0;
-  const items = filtered.slice((page - 1) * pageSize, page * pageSize);
+  const total = usageQ.data?.total ?? 0;
+  const totalPages = usageQ.data?.total_pages ?? 0;
+  const items = (usageQ.data?.items ?? []).filter((row) =>
+    usage === "all" ? row.usage !== "pending" : row.usage === usage
+  );
   const checkingWallets = (usageQ.progress?.total ?? 0) > 0 && (usageQ.progress?.percent ?? 0) < 100;
   const canReverse = can(Perm.LoanReverseDisbursement);
 
@@ -400,11 +400,9 @@ export default function DisbursementUsagePage() {
             </p>
           ) : items.length === 0 ? (
             <p className="py-8 text-center text-sm text-slate-500">
-              {usage === "unused" && checkingWallets
-                ? "Wallets are still being checked. Confirmed rows stay on screen."
-                : usage === "unused"
-                  ? "No unused disbursements in this view."
-                  : "No disbursements match this filter."}
+              {checkingWallets
+                ? "Wallets are still being checked for this status."
+                : "No disbursements match this filter."}
             </p>
           ) : (
             <div className="overflow-x-auto">
