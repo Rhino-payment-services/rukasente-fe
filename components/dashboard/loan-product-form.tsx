@@ -107,6 +107,9 @@ type FormState = {
   requires_manual_review: boolean;
   requires_guarantor: boolean;
   allow_approve_without_crb: boolean;
+  auto_disburse: boolean;
+  auto_disburse_min_score: string;
+  auto_disburse_max_amount: string;
   loan_kind: LoanKind;
   is_active: boolean;
 };
@@ -334,6 +337,9 @@ function defaultForm(initial?: Partial<LoanProduct>, requiresApproval?: boolean)
     requires_manual_review: Boolean(initial?.requires_manual_review),
     requires_guarantor: Boolean(initial?.requires_guarantor),
     allow_approve_without_crb: Boolean(initial?.allow_approve_without_crb),
+    auto_disburse: Boolean(initial?.auto_disburse),
+    auto_disburse_min_score: String(initial?.auto_disburse_min_score ?? 0),
+    auto_disburse_max_amount: String(initial?.auto_disburse_max_amount ?? 0),
     loan_kind: (initial?.loan_kind === "product" || initial?.loan_kind === "school"
       ? initial.loan_kind
       : "cash") as LoanKind,
@@ -453,6 +459,9 @@ export function LoanProductForm({
       requires_manual_review: form.requires_manual_review,
       requires_guarantor: form.requires_guarantor,
       allow_approve_without_crb: form.allow_approve_without_crb,
+      auto_disburse: form.auto_disburse,
+      auto_disburse_min_score: Number(form.auto_disburse_min_score) || 0,
+      auto_disburse_max_amount: Number(form.auto_disburse_max_amount) || 0,
       loan_kind: form.loan_kind,
       is_active: form.is_active,
     };
@@ -526,6 +535,14 @@ export function LoanProductForm({
       if (form.pre_approval_enabled && (!Number.isFinite(pa) || pa < 0)) {
         next.pre_approval_min_amount = "Enter a valid pre-approval amount.";
       }
+      const minScore = Number(form.auto_disburse_min_score);
+      const autoMax = Number(form.auto_disburse_max_amount);
+      if (form.auto_disburse && (!Number.isFinite(minScore) || minScore < 0)) {
+        next.auto_disburse_min_score = "Enter a minimum score of 0 or higher.";
+      }
+      if (form.auto_disburse && (!Number.isFinite(autoMax) || autoMax < 0)) {
+        next.auto_disburse_max_amount = "Enter a maximum amount, or 0 for the product maximum.";
+      }
     }
     return next;
   }
@@ -538,7 +555,13 @@ export function LoanProductForm({
           ? ["min_amount", "max_amount", "min_tenor_days", "max_tenor_days"]
           : index === 2
             ? ["interest_rate", "compounding_frequency"]
-            : ["processing_fee_value", "late_fee_value", "pre_approval_min_amount"];
+            : [
+                "processing_fee_value",
+                "late_fee_value",
+                "pre_approval_min_amount",
+                "auto_disburse_min_score",
+                "auto_disburse_max_amount",
+              ];
     setTouched((t) => {
       const next = { ...t };
       keys.forEach((k) => {
@@ -1489,6 +1512,79 @@ export function LoanProductForm({
                       </span>
                     </span>
                   </label>
+                  <label
+                    className={cn(
+                      "flex cursor-pointer items-start gap-3 rounded-2xl border px-4 py-4 transition-colors sm:col-span-2",
+                      form.auto_disburse
+                        ? "border-emerald-200 bg-emerald-50/70"
+                        : "border-slate-200 bg-white hover:border-slate-300"
+                    )}
+                  >
+                    <input
+                      type="checkbox"
+                      className="mt-1 size-4 rounded border-slate-300"
+                      checked={form.auto_disburse}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, auto_disburse: e.target.checked }))
+                      }
+                    />
+                    <span>
+                      <span className="block text-sm font-medium text-slate-900">
+                        Disburse automatically
+                      </span>
+                      <span className="mt-0.5 block text-[12px] text-slate-500">
+                        Qualifying applications skip staff approval. Cash and school loans
+                        are paid out. Product loans still wait for the borrower to confirm.
+                        A score below the minimum, or an amount above the cap, stays in review.
+                      </span>
+                    </span>
+                  </label>
+                  <Field
+                    label="Minimum score"
+                    optional={!form.auto_disburse}
+                    hint="Latest credit score required to skip staff approval"
+                    error={fieldError("auto_disburse_min_score")}
+                  >
+                    <Input
+                      type="number"
+                      min={0}
+                      className={cn(
+                        inputClass,
+                        fieldError("auto_disburse_min_score") && "border-rose-300"
+                      )}
+                      value={form.auto_disburse_min_score}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, auto_disburse_min_score: e.target.value }))
+                      }
+                      onBlur={() =>
+                        setTouched((t) => ({ ...t, auto_disburse_min_score: true }))
+                      }
+                      disabled={!form.auto_disburse}
+                    />
+                  </Field>
+                  <Field
+                    label="Maximum automatic amount"
+                    optional={!form.auto_disburse}
+                    hint={`0 uses the product maximum (${form.currency || "UGX"})`}
+                    error={fieldError("auto_disburse_max_amount")}
+                  >
+                    <Input
+                      type="number"
+                      min={0}
+                      className={cn(
+                        inputClass,
+                        fieldError("auto_disburse_max_amount") && "border-rose-300"
+                      )}
+                      value={form.auto_disburse_max_amount}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, auto_disburse_max_amount: e.target.value }))
+                      }
+                      onBlur={() =>
+                        setTouched((t) => ({ ...t, auto_disburse_max_amount: true }))
+                      }
+                      disabled={!form.auto_disburse}
+                    />
+                  </Field>
                   {!requiresApproval ? (
                   <label
                     className={cn(
@@ -1693,7 +1789,11 @@ export function LoanProductForm({
               <div className="flex justify-between gap-3">
                 <dt className="text-slate-400">Review</dt>
                 <dd className="font-medium text-slate-800">
-                  {form.requires_manual_review ? "Manual" : "Auto-eligible"}
+                  {form.auto_disburse
+                    ? `Auto from score ${form.auto_disburse_min_score || "0"}`
+                    : form.requires_manual_review
+                      ? "Manual"
+                      : "Auto-eligible"}
                 </dd>
               </div>
               <div className="flex justify-between gap-3">
