@@ -53,12 +53,20 @@ async function parseBlobError(error: unknown): Promise<Error> {
   return new Error("Export failed");
 }
 
+/** Calendar date in East Africa Time (Uganda), matching repayment export day bounds. */
+export function kampalaDate(d = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Africa/Kampala",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(d);
+}
+
 export function defaultLoanExportDateRange(): { from: string; to: string } {
   const to = new Date();
-  const from = new Date();
-  from.setDate(from.getDate() - 30);
-  const fmt = (d: Date) => d.toISOString().slice(0, 10);
-  return { from: fmt(from), to: fmt(to) };
+  const from = new Date(to.getTime() - 30 * 24 * 60 * 60 * 1000);
+  return { from: kampalaDate(from), to: kampalaDate(to) };
 }
 
 export async function downloadDisbursementUsageExport(params: {

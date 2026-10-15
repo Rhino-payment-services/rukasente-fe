@@ -26,6 +26,7 @@ import {
   LoanRepayment,
   CreditScoreLoanLimit,
   ProductStats,
+  RepaymentByProduct,
   Paginated,
   GuarantorValidateResponse,
   toLoanProductUpdatePayload,
@@ -285,6 +286,18 @@ export function useDeleteCreditScoreLoanLimit() {
       return unwrapEnvelope<{ deleted: boolean }>(res);
     },
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["loan-score-limits"] }),
+  });
+}
+
+export function useRepaymentsByProduct(params?: { from?: string; to?: string }) {
+  const { can } = usePermissions();
+  return useQuery({
+    queryKey: ["repayments-by-product", params],
+    enabled: can(Perm.LoanApplicationView),
+    queryFn: async () => {
+      const res = await apiClient.get("/admin/loan-repayments/by-product", { params });
+      return unwrapEnvelope<RepaymentByProduct>(res);
+    },
   });
 }
 
@@ -711,6 +724,52 @@ export function useLoanDisbursementSpend(applicationId?: string, enabled = true)
         if (isNotFoundError(err)) return null;
         throw err;
       }
+    },
+  });
+}
+
+export type LoanMnoPrompt = {
+  id: string;
+  status: string;
+  amount: number;
+  currency: string;
+  phone: string;
+  network: string;
+  transaction_id?: string;
+  message?: string;
+};
+
+export function useLoanMnoPrompt(applicationId?: string) {
+  return useQuery({
+    queryKey: ["loan-mno-prompt", applicationId],
+    enabled: !!applicationId,
+    refetchInterval: (query) =>
+      query.state.data?.status === "pending" ? 4000 : false,
+    queryFn: async () => {
+      const res = await apiClient.get(
+        `/admin/loan-applications/${applicationId}/repay-mno`,
+      );
+      return unwrapEnvelope<LoanMnoPrompt | null>(res);
+    },
+  });
+}
+
+export function useSendLoanMnoPrompt(applicationId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: {
+      amount: number;
+      phone?: string;
+      idempotency_key?: string;
+    }) => {
+      const res = await apiClient.post(
+        `/admin/loan-applications/${applicationId}/repay-mno`,
+        payload,
+      );
+      return unwrapEnvelope<LoanMnoPrompt>(res);
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["loan-mno-prompt", applicationId] });
     },
   });
 }

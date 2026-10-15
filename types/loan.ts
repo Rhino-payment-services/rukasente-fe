@@ -411,6 +411,30 @@ export type DisbursementUsageItem = {
   note?: string;
 };
 
+export type RepaymentByProductRow = {
+  product_id: string;
+  product_name: string;
+  product_code: string;
+  currency: string;
+  repayment_count: number;
+  amount: number;
+  principal_paid: number;
+  interest_paid: number;
+  fee_paid: number;
+};
+
+export type RepaymentByProduct = {
+  from?: string;
+  to?: string;
+  currency: string;
+  repayment_count: number;
+  amount: number;
+  principal_paid: number;
+  interest_paid: number;
+  fee_paid: number;
+  items: RepaymentByProductRow[];
+};
+
 export type DisbursementUsageSummary = {
   loans: number;
   used_loans: number;
