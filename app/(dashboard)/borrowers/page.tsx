@@ -57,6 +57,7 @@ import {
   useScoringJobStatus,
 } from "@/hooks/use-scoring";
 import { scoringErrorMessage } from "@/lib/scoring-errors";
+import { PromptRepaymentButton } from "@/components/dashboard/prompt-repayment-button";
 import { Perm } from "@/lib/permissions";
 import { NoAccess } from "@/components/auth/no-access";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -716,6 +717,11 @@ function BorrowerDrawerActions({
 
   return (
     <div className="flex w-full flex-col gap-2">
+      <PromptRepaymentButton
+        profileId={profileId}
+        phone={borrower.phone}
+        className="h-9 w-full gap-2 rounded-lg text-sm"
+      />
       {showKyc ? (
         <>
           <Button

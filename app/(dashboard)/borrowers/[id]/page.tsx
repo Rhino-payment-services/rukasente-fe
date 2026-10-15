@@ -4,6 +4,7 @@ import Link from "next/link";
 import { use, useState } from "react";
 import { useSession } from "next-auth/react";
 import { ArrowLeft, BellRing, ChevronDown, Loader2, RefreshCw } from "lucide-react";
+import { PromptRepaymentButton } from "@/components/dashboard/prompt-repayment-button";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -223,6 +224,7 @@ export default function BorrowerDetailPage({
                   key={loan.id}
                   loan={loan}
                   profileId={id}
+                  phone={phone}
                   canRemind={canRemind}
                 />
               ))}
@@ -237,10 +239,12 @@ export default function BorrowerDetailPage({
 function LoanCard({
   loan,
   profileId,
+  phone,
   canRemind,
 }: {
   loan: BorrowerLoan;
   profileId: string;
+  phone: string;
   canRemind: boolean;
 }) {
   const [open, setOpen] = useState(false);
@@ -288,6 +292,14 @@ function LoanCard({
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {pending ? (
+            <PromptRepaymentButton
+              profileId={profileId}
+              phone={phone}
+              loanApplicationId={loan.loan_application_id}
+              className="h-8 gap-1 rounded-lg text-xs"
+            />
+          ) : null}
           {canRemind && pending ? (
             <Button
               type="button"

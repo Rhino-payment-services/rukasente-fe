@@ -754,6 +754,32 @@ export function useLoanMnoPrompt(applicationId?: string) {
   });
 }
 
+export function useSendLoanMnoPromptForApplication() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: {
+      applicationId: string;
+      amount: number;
+      phone?: string;
+      idempotency_key?: string;
+    }) => {
+      const res = await apiClient.post(
+        `/admin/loan-applications/${payload.applicationId}/repay-mno`,
+        {
+          amount: payload.amount,
+          phone: payload.phone,
+          idempotency_key: payload.idempotency_key,
+        },
+      );
+      return unwrapEnvelope<LoanMnoPrompt>(res);
+    },
+    onSuccess: (_data, vars) => {
+      void qc.invalidateQueries({ queryKey: ["loan-mno-prompt", vars.applicationId] });
+      void qc.invalidateQueries({ queryKey: ["borrower-loans"] });
+    },
+  });
+}
+
 export function useSendLoanMnoPrompt(applicationId: string) {
   const qc = useQueryClient();
   return useMutation({
