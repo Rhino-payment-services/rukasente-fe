@@ -41,6 +41,9 @@ export type LoanProduct = {
   requires_manual_review: boolean;
   requires_guarantor: boolean;
   allow_approve_without_crb: boolean;
+  auto_disburse?: boolean;
+  auto_disburse_min_score?: number;
+  auto_disburse_max_amount?: number;
   loan_kind?: LoanKind | string;
   is_active: boolean;
   partner_id?: string | null;
@@ -554,6 +557,9 @@ export function toLoanProductUpdatePayload(
     requires_manual_review: payload.requires_manual_review,
     requires_guarantor: payload.requires_guarantor,
     allow_approve_without_crb: payload.allow_approve_without_crb,
+    auto_disburse: payload.auto_disburse,
+    auto_disburse_min_score: payload.auto_disburse_min_score,
+    auto_disburse_max_amount: payload.auto_disburse_max_amount,
     loan_kind: payload.loan_kind,
   };
 }

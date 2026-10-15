@@ -568,6 +568,16 @@ export default function LoanProductsPage() {
                     value: formatDetailValue(viewProduct.allow_approve_without_crb),
                   },
                   {
+                    label: "Automatic disbursement",
+                    value: viewProduct.auto_disburse
+                      ? `Score ${viewProduct.auto_disburse_min_score ?? 0}+${
+                          viewProduct.auto_disburse_max_amount
+                            ? `, up to ${viewProduct.auto_disburse_max_amount.toLocaleString()}`
+                            : ""
+                        }`
+                      : "Off",
+                  },
+                  {
                     label: "Description",
                     value: viewProduct.description || "—",
                     fullWidth: true,
