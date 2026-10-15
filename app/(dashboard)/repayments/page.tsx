@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Banknote, CircleDollarSign, Percent, Receipt } from "lucide-react";
+import { Banknote, CircleDollarSign, Percent, Receipt, Wallet } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CompactLoading } from "@/components/ui/loading";
@@ -59,15 +59,16 @@ export default function RepaymentsPage() {
           Repayments
         </h1>
         <p className="mt-0.5 text-xs text-slate-500">
-          How much has been collected, by loan product. Dates are inclusive East
-          Africa Time days. Reversed repayments are left out.
+          Money given out and collected, by loan product. Dates are inclusive
+          East Africa Time days: disbursements use the day they were paid out,
+          collections use the day they were posted. Reversed rows are left out.
         </p>
       </div>
 
       <Card className="gap-0 border-slate-200/80 bg-white py-0 shadow-sm">
         <CardContent className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-end">
           <label className="flex flex-col gap-1 text-xs font-medium text-slate-600">
-            Paid from
+            From
             <input
               type="date"
               value={from}
@@ -76,7 +77,7 @@ export default function RepaymentsPage() {
             />
           </label>
           <label className="flex flex-col gap-1 text-xs font-medium text-slate-600">
-            Paid to
+            To
             <input
               type="date"
               value={to}
@@ -106,7 +107,15 @@ export default function RepaymentsPage() {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
+        <TotalCard
+          title="Given out"
+          value={formatMoney(data?.disbursed_amount ?? 0, currency)}
+          hint={`${data?.disbursement_count ?? 0} disbursements`}
+          icon={Wallet}
+          tone="blue"
+          loading={summaryQ.isLoading}
+        />
         <TotalCard
           title="Collected"
           value={formatMoney(data?.amount ?? 0, currency)}
@@ -153,15 +162,15 @@ export default function RepaymentsPage() {
             </p>
           ) : items.length === 0 ? (
             <p className="px-4 py-8 text-sm text-slate-500">
-              No posted repayments in this period.
+              Nothing was given out or collected in this period.
             </p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[720px] text-left text-sm">
+              <table className="w-full min-w-[860px] text-left text-sm">
                 <thead className="border-b border-slate-100 text-[11px] font-medium uppercase tracking-wide text-slate-500">
                   <tr>
                     <th className="px-4 py-3">Loan product</th>
-                    <th className="px-4 py-3 text-right">Repayments</th>
+                    <th className="px-4 py-3 text-right">Given out</th>
                     <th className="px-4 py-3 text-right">Collected</th>
                     <th className="px-4 py-3 text-right">Principal</th>
                     <th className="px-4 py-3 text-right">Interest</th>
@@ -182,11 +191,21 @@ export default function RepaymentsPage() {
                           <p className="text-xs text-slate-500">{row.product_code}</p>
                         ) : null}
                       </td>
-                      <td className="px-4 py-3 text-right tabular-nums text-slate-700">
-                        {row.repayment_count.toLocaleString()}
+                      <td className="px-4 py-3 text-right">
+                        <p className="tabular-nums font-medium text-slate-900">
+                          {formatMoney(row.disbursed_amount, row.currency)}
+                        </p>
+                        <p className="text-[11px] text-slate-400">
+                          {row.disbursement_count.toLocaleString()} loans
+                        </p>
                       </td>
-                      <td className="px-4 py-3 text-right tabular-nums font-medium text-slate-900">
-                        {formatMoney(row.amount, row.currency)}
+                      <td className="px-4 py-3 text-right">
+                        <p className="tabular-nums font-medium text-slate-900">
+                          {formatMoney(row.amount, row.currency)}
+                        </p>
+                        <p className="text-[11px] text-slate-400">
+                          {row.repayment_count.toLocaleString()} payments
+                        </p>
                       </td>
                       <td className="px-4 py-3 text-right tabular-nums text-slate-700">
                         {formatMoney(row.principal_paid, row.currency)}

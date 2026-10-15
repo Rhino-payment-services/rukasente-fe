@@ -416,6 +416,8 @@ export type RepaymentByProductRow = {
   product_name: string;
   product_code: string;
   currency: string;
+  disbursement_count: number;
+  disbursed_amount: number;
   repayment_count: number;
   amount: number;
   principal_paid: number;
@@ -427,6 +429,8 @@ export type RepaymentByProduct = {
   from?: string;
   to?: string;
   currency: string;
+  disbursement_count: number;
+  disbursed_amount: number;
   repayment_count: number;
   amount: number;
   principal_paid: number;
