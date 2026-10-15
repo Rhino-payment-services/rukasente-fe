@@ -21,6 +21,7 @@ import {
   X,
   ClipboardCheck,
   Banknote,
+  Receipt,
   Database,
   UserPlus,
   type LucideIcon,
@@ -81,6 +82,12 @@ function buildSections(isPlatform: boolean): NavSection[] {
           href: "/disbursement-usage",
           label: "Disbursement usage",
           icon: Banknote,
+          perm: Perm.LoanApplicationView,
+        },
+        {
+          href: "/repayments",
+          label: "Repayments",
+          icon: Receipt,
           perm: Perm.LoanApplicationView,
         },
         {

@@ -78,6 +78,16 @@ export function LoanExportDialog({
   }
 
   async function runExport(kind: "book" | "repayments") {
+    const fromDay = from.trim();
+    const toDay = to.trim();
+    if (kind === "repayments" && (!fromDay || !toDay)) {
+      toast.error("Choose a paid-from and paid-to date for the repayment period.");
+      return;
+    }
+    if (fromDay && toDay && fromDay > toDay) {
+      toast.error("Paid from must be on or before paid to.");
+      return;
+    }
     setExporting(kind);
     try {
       await downloadLoanExport(kind, buildFilters());
@@ -101,13 +111,17 @@ export function LoanExportDialog({
           <DialogTitle>Export for reconciliation</DialogTitle>
           <DialogDescription>
             Download CSV files to reconcile loans and repayments with RukaPay.
-            Exports are capped at 10,000 rows — narrow the date range if needed.
+            Repayment dates are inclusive East Africa Time days, so interest and
+            fees in the file are what was collected in that period. Exports are
+            capped at 10,000 rows.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3 px-5 py-2">
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1">
-              <label className="text-xs font-medium text-slate-700">From</label>
+              <label className="text-xs font-medium text-slate-700">
+                Paid from
+              </label>
               <Input
                 type="date"
                 value={from}
@@ -116,7 +130,7 @@ export function LoanExportDialog({
               />
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-medium text-slate-700">To</label>
+              <label className="text-xs font-medium text-slate-700">Paid to</label>
               <Input
                 type="date"
                 value={to}
@@ -125,6 +139,12 @@ export function LoanExportDialog({
               />
             </div>
           </div>
+          <p className="text-[11px] leading-relaxed text-slate-500">
+            Repayments are included when they were posted on or between these
+            dates. The CSV ends with totals for amount, principal, interest, and
+            fees on posted payments. Loan book downloads use the same dates as
+            the application submission date.
+          </p>
           <div className="space-y-1">
             <label className="text-xs font-medium text-slate-700">
               Status (loan book only)
