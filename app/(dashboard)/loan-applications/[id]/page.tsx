@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, use, useMemo, useState } from "react";
+import { FormEvent, use, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import axios from "axios";
 import { ArrowLeft, RefreshCw } from "lucide-react";
@@ -14,6 +14,8 @@ import { LoanStatusBadge } from "@/components/dashboard/loan-status-badge";
 import { installmentPlan } from "@/lib/loan-quote";
 import {
   useInitiateLoanRepayment,
+  useLoanMnoPrompt,
+  useSendLoanMnoPrompt,
   useLoanAccount,
   useLoanApplication,
   useLoanApplicationCRB,
@@ -33,7 +35,7 @@ import {
 import { hasPermission, Perm } from "@/lib/permissions";
 import { usePermissions } from "@/hooks/use-permissions";
 import { toast } from "sonner";
-import { ugandaPhoneLocalDisplay } from "@/lib/uganda-phone";
+import { inferUgandaMobileNetwork, ugandaPhoneLocalDisplay } from "@/lib/uganda-phone";
 
 const RETRYABLE_DISBURSE_STATUSES = new Set([
   "disbursement_failed",
@@ -117,6 +119,8 @@ export default function LoanApplicationDetailPage({
   const retryDisburse = useRetryDisbursement(id);
   const reverseDisburse = useReverseDisbursement(id);
   const repay = useInitiateLoanRepayment(id);
+  const sendMnoPrompt = useSendLoanMnoPrompt(id);
+  const mnoPromptQ = useLoanMnoPrompt(id);
   const syncWallet = useSyncRepaymentWallet(id);
   const [parentWalletId, setParentWalletId] = useState("");
   const crbQ = useLoanApplicationCRB(id);
@@ -129,6 +133,18 @@ export default function LoanApplicationDetailPage({
   const [repayOpen, setRepayOpen] = useState(false);
   const [repayAmount, setRepayAmount] = useState("");
   const [repayError, setRepayError] = useState("");
+  const [repayMethod, setRepayMethod] = useState<"wallet" | "mno">("wallet");
+  const [repayPhone, setRepayPhone] = useState("");
+  const postedPromptId =
+    mnoPromptQ.data?.status === "posted" ? mnoPromptQ.data.id : "";
+  const refreshedPromptId = useRef("");
+  useEffect(() => {
+    if (!postedPromptId || refreshedPromptId.current === postedPromptId) return;
+    refreshedPromptId.current = postedPromptId;
+    void accountQ.refetch();
+    void repaymentsQ.refetch();
+    void ledgerQ.refetch();
+  }, [postedPromptId, accountQ, repaymentsQ, ledgerQ]);
   const [showLedger, setShowLedger] = useState(false);
   const [crbReportOpen, setCrbReportOpen] = useState(false);
   const [crbReference, setCrbReference] = useState("");
@@ -257,13 +273,27 @@ export default function LoanApplicationDetailPage({
       return;
     }
     try {
-      const idempotencyKey = `admin-repay-${id}-${crypto.randomUUID()}`;
-      await repay.mutateAsync({
-        amount,
-        wallet_id: parentWalletId || undefined,
-        idempotency_key: idempotencyKey,
-      });
-      toast.success("Repayment recorded");
+      if (repayMethod === "mno") {
+        const network = inferUgandaMobileNetwork(repayPhone);
+        if (!network) {
+          setRepayError("Enter a valid MTN or Airtel number.");
+          return;
+        }
+        await sendMnoPrompt.mutateAsync({
+          amount,
+          phone: repayPhone.trim(),
+          idempotency_key: `mno-repay-${id}-${crypto.randomUUID()}`,
+        });
+        toast.success("Prompt sent. Waiting for the customer to approve on their phone.");
+      } else {
+        const idempotencyKey = `admin-repay-${id}-${crypto.randomUUID()}`;
+        await repay.mutateAsync({
+          amount,
+          wallet_id: parentWalletId || undefined,
+          idempotency_key: idempotencyKey,
+        });
+        toast.success("Repayment recorded");
+      }
       setRepayOpen(false);
       setRepayAmount("");
       setRepayError("");
@@ -384,6 +414,8 @@ export default function LoanApplicationDetailPage({
               onClick={() => {
                 setRepayAmount("");
                 setRepayError("");
+                setRepayMethod("wallet");
+                setRepayPhone(app?.borrower_phone || "");
                 setRepayOpen(true);
               }}
             >
@@ -414,6 +446,20 @@ export default function LoanApplicationDetailPage({
           </Button>
         </div>
       </div>
+      {mnoPromptQ.data?.status === "pending" ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs text-amber-950">
+          Waiting for the customer to approve on their phone
+          {mnoPromptQ.data.phone
+            ? ` (${ugandaPhoneLocalDisplay(mnoPromptQ.data.phone)} · ${mnoPromptQ.data.network})`
+            : ""}
+          .
+        </div>
+      ) : null}
+      {mnoPromptQ.data?.status === "failed" ? (
+        <div className="rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-xs text-rose-800">
+          Mobile money prompt was not approved. {mnoPromptQ.data.message}
+        </div>
+      ) : null}
 
       {showDisburseFailure ? (
         <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">
@@ -1378,18 +1424,65 @@ export default function LoanApplicationDetailPage({
           <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-4 shadow-xl">
             <h2 className="text-lg font-semibold text-slate-900">Record repayment</h2>
             <p className="mt-1 text-xs text-slate-500">
-              Debits the borrower&apos;s RukaPay wallet into the partner collection wallet. Outstanding:{" "}
+              {repayMethod === "mno"
+                ? "Sends an MTN or Airtel prompt. The loan is updated after the customer approves. Outstanding: "
+                : "Debits the borrower's RukaPay wallet into the partner collection wallet. Outstanding: "}
               <span className="font-medium text-slate-800">
                 {formatMoney(account.outstanding_balance, currency)}
               </span>
             </p>
-            {paysToMerchantKind ? (
-              <p className="mt-1 text-xs text-slate-500">
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                className={`h-9 rounded-xl border text-xs font-medium ${
+                  repayMethod === "wallet"
+                    ? "border-[#08163d] bg-[#08163d] text-white"
+                    : "border-slate-200 bg-white text-slate-700"
+                }`}
+                onClick={() => setRepayMethod("wallet")}
+              >
+                RukaPay wallet
+              </button>
+              <button
+                type="button"
+                className={`h-9 rounded-xl border text-xs font-medium ${
+                  repayMethod === "mno"
+                    ? "border-[#08163d] bg-[#08163d] text-white"
+                    : "border-slate-200 bg-white text-slate-700"
+                }`}
+                onClick={() => setRepayMethod("mno")}
+              >
+                Mobile money
+              </button>
+            </div>
+            {repayMethod === "wallet" && paysToMerchantKind ? (
+              <p className="mt-2 text-xs text-slate-500">
                 School/product loans are paid to the merchant. Repayment must come from the parent wallet.
                 {parentWalletId ? " Parent wallet is linked." : " Sync the parent wallet if repayment fails."}
               </p>
             ) : null}
             <form className="mt-3 space-y-3" onSubmit={submitRepayment}>
+              {repayMethod === "mno" ? (
+                <div>
+                  <label className="mb-1 block text-[11px] font-medium text-slate-500">
+                    Phone
+                    {inferUgandaMobileNetwork(repayPhone)
+                      ? ` · ${inferUgandaMobileNetwork(repayPhone)}`
+                      : ""}
+                  </label>
+                  <input
+                    type="tel"
+                    className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-[rgba(8,22,61,0.25)]"
+                    value={repayPhone}
+                    onChange={(e) => {
+                      setRepayPhone(e.target.value);
+                      if (repayError) setRepayError("");
+                    }}
+                    placeholder="07XXXXXXXX"
+                    required
+                  />
+                </div>
+              ) : null}
               <div>
                 <label className="mb-1 block text-[11px] font-medium text-slate-500">
                   Amount ({currency})
@@ -1418,12 +1511,12 @@ export default function LoanApplicationDetailPage({
                 </div>
               ) : null}
               <div className="flex flex-wrap items-center gap-2">
-                {paysToMerchantKind ? (
+                {repayMethod === "wallet" && paysToMerchantKind ? (
                   <Button
                     type="button"
                     variant="outline"
                     className="h-9 rounded-xl"
-                    disabled={syncWallet.isPending || repay.isPending}
+                    disabled={syncWallet.isPending || repay.isPending || sendMnoPrompt.isPending}
                     onClick={() => void submitSyncParentWallet()}
                   >
                     {syncWallet.isPending ? "Syncing…" : "Sync parent wallet"}
@@ -1431,10 +1524,16 @@ export default function LoanApplicationDetailPage({
                 ) : null}
                 <Button
                   type="submit"
-                  disabled={repay.isPending || syncWallet.isPending}
+                  disabled={repay.isPending || syncWallet.isPending || sendMnoPrompt.isPending}
                   className="h-9 rounded-xl bg-[#08163d] text-white hover:bg-[#06102a]"
                 >
-                  {repay.isPending ? "Posting..." : "Post repayment"}
+                  {repayMethod === "mno"
+                    ? sendMnoPrompt.isPending
+                      ? "Sending…"
+                      : "Send mobile money prompt"
+                    : repay.isPending
+                      ? "Posting..."
+                      : "Post repayment"}
                 </Button>
                 <Button
                   type="button"
